@@ -8,17 +8,17 @@ package main
 
 import (
 	"context"
+	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/handler"
+	"github.com/Wei-Shaw/sub2api/internal/handler/admin"
+	"github.com/Wei-Shaw/sub2api/internal/infrastructure"
+	"github.com/Wei-Shaw/sub2api/internal/repository"
+	"github.com/Wei-Shaw/sub2api/internal/server"
+	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 	"log"
 	"net/http"
-	"sub2api/internal/config"
-	"sub2api/internal/handler"
-	"sub2api/internal/handler/admin"
-	"sub2api/internal/infrastructure"
-	"sub2api/internal/repository"
-	"sub2api/internal/server"
-	"sub2api/internal/service"
 	"time"
 )
 
@@ -58,7 +58,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	apiKeyHandler := handler.NewAPIKeyHandler(apiKeyService)
 	usageLogRepository := repository.NewUsageLogRepository(db)
 	usageService := service.NewUsageService(usageLogRepository, userRepository)
-	usageHandler := handler.NewUsageHandler(usageService, usageLogRepository, apiKeyService)
+	usageHandler := handler.NewUsageHandler(usageService, apiKeyService)
 	redeemCodeRepository := repository.NewRedeemCodeRepository(db)
 	billingCache := repository.NewBillingCache(client)
 	billingCacheService := service.NewBillingCacheService(billingCache, userRepository, userSubscriptionRepository)
@@ -67,7 +67,8 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	redeemService := service.NewRedeemService(redeemCodeRepository, userRepository, subscriptionService, redeemCache, billingCacheService)
 	redeemHandler := handler.NewRedeemHandler(redeemService)
 	subscriptionHandler := handler.NewSubscriptionHandler(subscriptionService)
-	dashboardHandler := admin.NewDashboardHandler(usageLogRepository)
+	dashboardService := service.NewDashboardService(usageLogRepository)
+	dashboardHandler := admin.NewDashboardHandler(dashboardService)
 	accountRepository := repository.NewAccountRepository(db)
 	proxyRepository := repository.NewProxyRepository(db)
 	proxyExitInfoProber := repository.NewProxyExitInfoProber()
@@ -83,7 +84,10 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	accountUsageService := service.NewAccountUsageService(accountRepository, usageLogRepository, claudeUsageFetcher)
 	httpUpstream := repository.NewHTTPUpstream(configConfig)
 	accountTestService := service.NewAccountTestService(accountRepository, oAuthService, openAIOAuthService, httpUpstream)
-	accountHandler := admin.NewAccountHandler(adminService, oAuthService, openAIOAuthService, rateLimitService, accountUsageService, accountTestService, usageLogRepository)
+	concurrencyCache := repository.NewConcurrencyCache(client)
+	concurrencyService := service.NewConcurrencyService(concurrencyCache)
+	crsSyncService := service.NewCRSSyncService(accountRepository, proxyRepository, oAuthService, openAIOAuthService)
+	accountHandler := admin.NewAccountHandler(adminService, oAuthService, openAIOAuthService, rateLimitService, accountUsageService, accountTestService, concurrencyService, crsSyncService)
 	oAuthHandler := admin.NewOAuthHandler(oAuthService)
 	openAIOAuthHandler := admin.NewOpenAIOAuthHandler(openAIOAuthService, adminService)
 	geminiOAuthClient := repository.NewGeminiOAuthClient()
@@ -98,7 +102,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	updateService := service.ProvideUpdateService(updateCache, gitHubReleaseClient, serviceBuildInfo)
 	systemHandler := handler.ProvideSystemHandler(updateService)
 	adminSubscriptionHandler := admin.NewSubscriptionHandler(subscriptionService)
-	adminUsageHandler := admin.NewUsageHandler(usageLogRepository, apiKeyRepository, usageService, adminService)
+	adminUsageHandler := admin.NewUsageHandler(usageService, apiKeyService, adminService)
 	adminHandlers := handler.ProvideAdminHandlers(dashboardHandler, adminUserHandler, groupHandler, accountHandler, oAuthHandler, openAIOAuthHandler, geminiOAuthHandler, proxyHandler, adminRedeemHandler, settingHandler, systemHandler, adminSubscriptionHandler, adminUsageHandler)
 	gatewayCache := repository.NewGatewayCache(client)
 	pricingRemoteClient := repository.NewPricingRemoteClient()
@@ -110,8 +114,6 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	identityCache := repository.NewIdentityCache(client)
 	identityService := service.NewIdentityService(identityCache)
 	gatewayService := service.NewGatewayService(accountRepository, usageLogRepository, userRepository, userSubscriptionRepository, gatewayCache, configConfig, billingService, rateLimitService, billingCacheService, identityService, httpUpstream)
-	concurrencyCache := repository.NewConcurrencyCache(client)
-	concurrencyService := service.NewConcurrencyService(concurrencyCache)
 	gatewayHandler := handler.NewGatewayHandler(gatewayService, userService, concurrencyService, billingCacheService)
 	openAIGatewayService := service.NewOpenAIGatewayService(accountRepository, usageLogRepository, userRepository, userSubscriptionRepository, gatewayCache, configConfig, billingService, rateLimitService, billingCacheService, httpUpstream)
 	openAIGatewayHandler := handler.NewOpenAIGatewayHandler(openAIGatewayService, concurrencyService, billingCacheService)

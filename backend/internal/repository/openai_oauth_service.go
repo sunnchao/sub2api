@@ -6,17 +6,19 @@ import (
 	"net/url"
 	"time"
 
-	"sub2api/internal/pkg/openai"
-	"sub2api/internal/service/ports"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
+	"github.com/Wei-Shaw/sub2api/internal/service/ports"
 
 	"github.com/imroc/req/v3"
 )
 
-type openaiOAuthService struct{}
-
 // NewOpenAIOAuthClient creates a new OpenAI OAuth client
 func NewOpenAIOAuthClient() ports.OpenAIOAuthClient {
-	return &openaiOAuthService{}
+	return &openaiOAuthService{tokenURL: openai.TokenURL}
+}
+
+type openaiOAuthService struct {
+	tokenURL string
 }
 
 func (s *openaiOAuthService) ExchangeCode(ctx context.Context, code, codeVerifier, redirectURI, proxyURL string) (*openai.TokenResponse, error) {
@@ -39,7 +41,7 @@ func (s *openaiOAuthService) ExchangeCode(ctx context.Context, code, codeVerifie
 		SetContext(ctx).
 		SetFormDataFromValues(formData).
 		SetSuccessResult(&tokenResp).
-		Post(openai.TokenURL)
+		Post(s.tokenURL)
 
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
@@ -67,7 +69,7 @@ func (s *openaiOAuthService) RefreshToken(ctx context.Context, refreshToken, pro
 		SetContext(ctx).
 		SetFormDataFromValues(formData).
 		SetSuccessResult(&tokenResp).
-		Post(openai.TokenURL)
+		Post(s.tokenURL)
 
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)

@@ -53,6 +53,7 @@ export interface PublicSettings {
   site_subtitle: string;
   api_base_url: string;
   contact_info: string;
+  doc_url: string;
   version: string;
 }
 
@@ -319,6 +320,7 @@ export interface Account {
   extra?: CodexUsageSnapshot & Record<string, unknown>; // Extra fields including Codex usage
   proxy_id: number | null;
   concurrency: number;
+  current_concurrency?: number; // Real-time concurrency count from Redis
   priority: number;
   status: 'active' | 'inactive' | 'error';
   error_message: string | null;
@@ -364,13 +366,24 @@ export interface AccountUsageInfo {
 
 // OpenAI Codex usage snapshot (from response headers)
 export interface CodexUsageSnapshot {
-  codex_primary_used_percent?: number;        // Weekly limit usage percentage
-  codex_primary_reset_after_seconds?: number; // Seconds until weekly reset
-  codex_primary_window_minutes?: number;      // Weekly window in minutes
-  codex_secondary_used_percent?: number;      // 5h limit usage percentage
-  codex_secondary_reset_after_seconds?: number; // Seconds until 5h reset
-  codex_secondary_window_minutes?: number;    // 5h window in minutes
+  // Legacy fields (kept for backwards compatibility)
+  // NOTE: The naming is ambiguous - actual window type is determined by window_minutes value
+  codex_primary_used_percent?: number;        // Usage percentage (check window_minutes for actual window type)
+  codex_primary_reset_after_seconds?: number; // Seconds until reset
+  codex_primary_window_minutes?: number;      // Window in minutes
+  codex_secondary_used_percent?: number;      // Usage percentage (check window_minutes for actual window type)
+  codex_secondary_reset_after_seconds?: number; // Seconds until reset
+  codex_secondary_window_minutes?: number;    // Window in minutes
   codex_primary_over_secondary_percent?: number; // Overflow ratio
+
+  // Canonical fields (normalized by backend, use these preferentially)
+  codex_5h_used_percent?: number;             // 5-hour window usage percentage
+  codex_5h_reset_after_seconds?: number;      // Seconds until 5h window reset
+  codex_5h_window_minutes?: number;           // 5h window in minutes (should be ~300)
+  codex_7d_used_percent?: number;             // 7-day window usage percentage
+  codex_7d_reset_after_seconds?: number;      // Seconds until 7d window reset
+  codex_7d_window_minutes?: number;           // 7d window in minutes (should be ~10080)
+
   codex_usage_updated_at?: string;            // Last update timestamp
 }
 
@@ -517,6 +530,10 @@ export interface DashboardStats {
   // 系统运行统计
   average_duration_ms: number;  // 平均响应时间
   uptime: number;               // 系统运行时间(秒)
+
+  // 性能指标
+  rpm: number;  // 近5分钟平均每分钟请求数
+  tpm: number;  // 近5分钟平均每分钟Token数
 }
 
 export interface UsageStatsResponse {

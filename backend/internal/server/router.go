@@ -1,13 +1,13 @@
 package server
 
 import (
+	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/handler"
+	"github.com/Wei-Shaw/sub2api/internal/middleware"
+	"github.com/Wei-Shaw/sub2api/internal/repository"
+	"github.com/Wei-Shaw/sub2api/internal/service"
+	"github.com/Wei-Shaw/sub2api/internal/web"
 	"net/http"
-	"sub2api/internal/config"
-	"sub2api/internal/handler"
-	"sub2api/internal/middleware"
-	"sub2api/internal/repository"
-	"sub2api/internal/service"
-	"sub2api/internal/web"
 
 	"github.com/gin-gonic/gin"
 )
@@ -180,6 +180,7 @@ func registerRoutes(r *gin.Engine, h *handler.Handlers, s *service.Services, rep
 				accounts.GET("", h.Admin.Account.List)
 				accounts.GET("/:id", h.Admin.Account.GetByID)
 				accounts.POST("", h.Admin.Account.Create)
+				accounts.POST("/sync/crs", h.Admin.Account.SyncFromCRS)
 				accounts.PUT("/:id", h.Admin.Account.Update)
 				accounts.DELETE("/:id", h.Admin.Account.Delete)
 				accounts.POST("/:id/test", h.Admin.Account.Test)
@@ -192,6 +193,8 @@ func registerRoutes(r *gin.Engine, h *handler.Handlers, s *service.Services, rep
 				accounts.POST("/:id/schedulable", h.Admin.Account.SetSchedulable)
 				accounts.GET("/:id/models", h.Admin.Account.GetAvailableModels)
 				accounts.POST("/batch", h.Admin.Account.BatchCreate)
+				accounts.POST("/batch-update-credentials", h.Admin.Account.BatchUpdateCredentials)
+				accounts.POST("/bulk-update", h.Admin.Account.BulkUpdate)
 
 				// Claude OAuth routes
 				accounts.POST("/generate-auth-url", h.Admin.OAuth.GenerateAuthURL)

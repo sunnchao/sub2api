@@ -3,12 +3,12 @@ package admin
 import (
 	"strconv"
 
-	"sub2api/internal/pkg/claude"
-	"sub2api/internal/pkg/openai"
-	"sub2api/internal/pkg/response"
-	"sub2api/internal/pkg/timezone"
-	"sub2api/internal/repository"
-	"sub2api/internal/service"
+	"github.com/Wei-Shaw/sub2api/internal/model"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/claude"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
+	"github.com/Wei-Shaw/sub2api/internal/service"
 
 	"github.com/gin-gonic/gin"
 )
@@ -33,11 +33,21 @@ type AccountHandler struct {
 	rateLimitService    *service.RateLimitService
 	accountUsageService *service.AccountUsageService
 	accountTestService  *service.AccountTestService
-	usageLogRepo        *repository.UsageLogRepository
+	concurrencyService  *service.ConcurrencyService
+	crsSyncService      *service.CRSSyncService
 }
 
 // NewAccountHandler creates a new admin account handler
-func NewAccountHandler(adminService service.AdminService, oauthService *service.OAuthService, openaiOAuthService *service.OpenAIOAuthService, rateLimitService *service.RateLimitService, accountUsageService *service.AccountUsageService, accountTestService *service.AccountTestService, usageLogRepo *repository.UsageLogRepository) *AccountHandler {
+func NewAccountHandler(
+	adminService service.AdminService,
+	oauthService *service.OAuthService,
+	openaiOAuthService *service.OpenAIOAuthService,
+	rateLimitService *service.RateLimitService,
+	accountUsageService *service.AccountUsageService,
+	accountTestService *service.AccountTestService,
+	concurrencyService *service.ConcurrencyService,
+	crsSyncService *service.CRSSyncService,
+) *AccountHandler {
 	return &AccountHandler{
 		adminService:        adminService,
 		oauthService:        oauthService,
@@ -45,7 +55,8 @@ func NewAccountHandler(adminService service.AdminService, oauthService *service.
 		rateLimitService:    rateLimitService,
 		accountUsageService: accountUsageService,
 		accountTestService:  accountTestService,
-		usageLogRepo:        usageLogRepo,
+		concurrencyService:  concurrencyService,
+		crsSyncService:      crsSyncService,
 	}
 }
 
@@ -76,6 +87,25 @@ type UpdateAccountRequest struct {
 	GroupIDs    *[]int64       `json:"group_ids"`
 }
 
+// BulkUpdateAccountsRequest represents the payload for bulk editing accounts
+type BulkUpdateAccountsRequest struct {
+	AccountIDs  []int64        `json:"account_ids" binding:"required,min=1"`
+	Name        string         `json:"name"`
+	ProxyID     *int64         `json:"proxy_id"`
+	Concurrency *int           `json:"concurrency"`
+	Priority    *int           `json:"priority"`
+	Status      string         `json:"status" binding:"omitempty,oneof=active inactive error"`
+	GroupIDs    *[]int64       `json:"group_ids"`
+	Credentials map[string]any `json:"credentials"`
+	Extra       map[string]any `json:"extra"`
+}
+
+// AccountWithConcurrency extends Account with real-time concurrency info
+type AccountWithConcurrency struct {
+	*model.Account
+	CurrentConcurrency int `json:"current_concurrency"`
+}
+
 // List handles listing all accounts with pagination
 // GET /api/v1/admin/accounts
 func (h *AccountHandler) List(c *gin.Context) {
@@ -91,7 +121,28 @@ func (h *AccountHandler) List(c *gin.Context) {
 		return
 	}
 
-	response.Paginated(c, accounts, total, page, pageSize)
+	// Get current concurrency counts for all accounts
+	accountIDs := make([]int64, len(accounts))
+	for i, acc := range accounts {
+		accountIDs[i] = acc.ID
+	}
+
+	concurrencyCounts, err := h.concurrencyService.GetAccountConcurrencyBatch(c.Request.Context(), accountIDs)
+	if err != nil {
+		// Log error but don't fail the request, just use 0 for all
+		concurrencyCounts = make(map[int64]int)
+	}
+
+	// Build response with concurrency info
+	result := make([]AccountWithConcurrency, len(accounts))
+	for i := range accounts {
+		result[i] = AccountWithConcurrency{
+			Account:            &accounts[i],
+			CurrentConcurrency: concurrencyCounts[accounts[i].ID],
+		}
+	}
+
+	response.Paginated(c, result, total, page, pageSize)
 }
 
 // GetByID handles getting an account by ID
@@ -197,6 +248,13 @@ type TestAccountRequest struct {
 	ModelID string `json:"model_id"`
 }
 
+type SyncFromCRSRequest struct {
+	BaseURL     string `json:"base_url" binding:"required"`
+	Username    string `json:"username" binding:"required"`
+	Password    string `json:"password" binding:"required"`
+	SyncProxies *bool  `json:"sync_proxies"`
+}
+
 // Test handles testing account connectivity with SSE streaming
 // POST /api/v1/admin/accounts/:id/test
 func (h *AccountHandler) Test(c *gin.Context) {
@@ -215,6 +273,35 @@ func (h *AccountHandler) Test(c *gin.Context) {
 		// Error already sent via SSE, just log
 		return
 	}
+}
+
+// SyncFromCRS handles syncing accounts from claude-relay-service (CRS)
+// POST /api/v1/admin/accounts/sync/crs
+func (h *AccountHandler) SyncFromCRS(c *gin.Context) {
+	var req SyncFromCRSRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+
+	// Default to syncing proxies (can be disabled by explicitly setting false)
+	syncProxies := true
+	if req.SyncProxies != nil {
+		syncProxies = *req.SyncProxies
+	}
+
+	result, err := h.crsSyncService.SyncFromCRS(c.Request.Context(), service.SyncFromCRSInput{
+		BaseURL:     req.BaseURL,
+		Username:    req.Username,
+		Password:    req.Password,
+		SyncProxies: syncProxies,
+	})
+	if err != nil {
+		response.BadRequest(c, "Sync failed: "+err.Error())
+		return
+	}
+
+	response.Success(c, result)
 }
 
 // Refresh handles refreshing account credentials
@@ -314,7 +401,7 @@ func (h *AccountHandler) GetStats(c *gin.Context) {
 	endTime := timezone.StartOfDay(now.AddDate(0, 0, 1))
 	startTime := timezone.StartOfDay(now.AddDate(0, 0, -days+1))
 
-	stats, err := h.usageLogRepo.GetAccountUsageStats(c.Request.Context(), accountID, startTime, endTime)
+	stats, err := h.accountUsageService.GetAccountUsageStats(c.Request.Context(), accountID, startTime, endTime)
 	if err != nil {
 		response.InternalError(c, "Failed to get account stats: "+err.Error())
 		return
@@ -358,6 +445,136 @@ func (h *AccountHandler) BatchCreate(c *gin.Context) {
 		"failed":  0,
 		"results": []gin.H{},
 	})
+}
+
+// BatchUpdateCredentialsRequest represents batch credentials update request
+type BatchUpdateCredentialsRequest struct {
+	AccountIDs []int64 `json:"account_ids" binding:"required,min=1"`
+	Field      string  `json:"field" binding:"required,oneof=account_uuid org_uuid intercept_warmup_requests"`
+	Value      any     `json:"value"`
+}
+
+// BatchUpdateCredentials handles batch updating credentials fields
+// POST /api/v1/admin/accounts/batch-update-credentials
+func (h *AccountHandler) BatchUpdateCredentials(c *gin.Context) {
+	var req BatchUpdateCredentialsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+
+	// Validate value type based on field
+	if req.Field == "intercept_warmup_requests" {
+		// Must be boolean
+		if _, ok := req.Value.(bool); !ok {
+			response.BadRequest(c, "intercept_warmup_requests must be boolean")
+			return
+		}
+	} else {
+		// account_uuid and org_uuid can be string or null
+		if req.Value != nil {
+			if _, ok := req.Value.(string); !ok {
+				response.BadRequest(c, req.Field+" must be string or null")
+				return
+			}
+		}
+	}
+
+	ctx := c.Request.Context()
+	success := 0
+	failed := 0
+	results := []gin.H{}
+
+	for _, accountID := range req.AccountIDs {
+		// Get account
+		account, err := h.adminService.GetAccount(ctx, accountID)
+		if err != nil {
+			failed++
+			results = append(results, gin.H{
+				"account_id": accountID,
+				"success":    false,
+				"error":      "Account not found",
+			})
+			continue
+		}
+
+		// Update credentials field
+		if account.Credentials == nil {
+			account.Credentials = make(map[string]any)
+		}
+
+		account.Credentials[req.Field] = req.Value
+
+		// Update account
+		updateInput := &service.UpdateAccountInput{
+			Credentials: account.Credentials,
+		}
+
+		_, err = h.adminService.UpdateAccount(ctx, accountID, updateInput)
+		if err != nil {
+			failed++
+			results = append(results, gin.H{
+				"account_id": accountID,
+				"success":    false,
+				"error":      err.Error(),
+			})
+			continue
+		}
+
+		success++
+		results = append(results, gin.H{
+			"account_id": accountID,
+			"success":    true,
+		})
+	}
+
+	response.Success(c, gin.H{
+		"success": success,
+		"failed":  failed,
+		"results": results,
+	})
+}
+
+// BulkUpdate handles bulk updating accounts with selected fields/credentials.
+// POST /api/v1/admin/accounts/bulk-update
+func (h *AccountHandler) BulkUpdate(c *gin.Context) {
+	var req BulkUpdateAccountsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+
+	hasUpdates := req.Name != "" ||
+		req.ProxyID != nil ||
+		req.Concurrency != nil ||
+		req.Priority != nil ||
+		req.Status != "" ||
+		req.GroupIDs != nil ||
+		len(req.Credentials) > 0 ||
+		len(req.Extra) > 0
+
+	if !hasUpdates {
+		response.BadRequest(c, "No updates provided")
+		return
+	}
+
+	result, err := h.adminService.BulkUpdateAccounts(c.Request.Context(), &service.BulkUpdateAccountsInput{
+		AccountIDs:  req.AccountIDs,
+		Name:        req.Name,
+		ProxyID:     req.ProxyID,
+		Concurrency: req.Concurrency,
+		Priority:    req.Priority,
+		Status:      req.Status,
+		GroupIDs:    req.GroupIDs,
+		Credentials: req.Credentials,
+		Extra:       req.Extra,
+	})
+	if err != nil {
+		response.InternalError(c, "Failed to bulk update accounts: "+err.Error())
+		return
+	}
+
+	response.Success(c, result)
 }
 
 // ========== OAuth Handlers ==========

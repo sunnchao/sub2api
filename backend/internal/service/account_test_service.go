@@ -14,10 +14,10 @@ import (
 	"strings"
 	"time"
 
-	"sub2api/internal/model"
-	"sub2api/internal/pkg/claude"
-	"sub2api/internal/pkg/openai"
-	"sub2api/internal/service/ports"
+	"github.com/Wei-Shaw/sub2api/internal/model"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/claude"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
+	"github.com/Wei-Shaw/sub2api/internal/service/ports"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -388,11 +388,13 @@ func createOpenAITestPayload(modelID string, isOAuth bool) map[string]any {
 		"stream": true,
 	}
 
-	// OAuth accounts using ChatGPT internal API require store: false and instructions
+	// OAuth accounts using ChatGPT internal API require store: false
 	if isOAuth {
 		payload["store"] = false
-		payload["instructions"] = openai.DefaultInstructions
 	}
+
+	// All accounts require instructions for Responses API
+	payload["instructions"] = openai.DefaultInstructions
 
 	return payload
 }

@@ -6,11 +6,11 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"sub2api/internal/config"
-	"sub2api/internal/model"
-	"sub2api/internal/pkg/pagination"
-	"sub2api/internal/pkg/timezone"
-	"sub2api/internal/service/ports"
+	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/model"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
+	"github.com/Wei-Shaw/sub2api/internal/service/ports"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -454,4 +454,12 @@ func (s *ApiKeyService) canUserBindGroupInternal(user *model.User, group *model.
 	}
 	// 标准类型分组：使用原有逻辑
 	return user.CanBindGroup(group.ID, group.IsExclusive)
+}
+
+func (s *ApiKeyService) SearchApiKeys(ctx context.Context, userID int64, keyword string, limit int) ([]model.ApiKey, error) {
+	keys, err := s.apiKeyRepo.SearchApiKeys(ctx, userID, keyword, limit)
+	if err != nil {
+		return nil, fmt.Errorf("search api keys: %w", err)
+	}
+	return keys, nil
 }
