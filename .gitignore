@@ -99,3 +99,6 @@ tests
 CLAUDE.md
 .claude
 scripts
+
+config.yaml
+.installed
