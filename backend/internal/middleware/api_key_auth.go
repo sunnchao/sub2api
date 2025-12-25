@@ -49,6 +49,10 @@ func ApiKeyAuthWithSubscription(apiKeyRepo ApiKeyAuthService, subscriptionServic
 		if apiKeyString == "" {
 			apiKeyString = c.GetHeader("x-api-key")
 		}
+		// 兼容 Gemini 的 x-goog-api-key 头
+		if apiKeyString == "" {
+			apiKeyString = c.GetHeader("x-goog-api-key")
+		}
 
 		// 如果两个header都没有API key
 		if apiKeyString == "" {

@@ -413,3 +413,115 @@ func (a *Account) IsOpenAITokenExpired() bool {
 	// 提前 60 秒认为过期，便于刷新
 	return time.Now().Add(60 * time.Second).After(*expiresAt)
 }
+
+// =============== Gemini 相关方法 ===============
+
+// IsGemini 检查是否为 Gemini 平台账号
+func (a *Account) IsGemini() bool {
+	return a.Platform == PlatformGemini
+}
+
+// IsGeminiOAuth 检查是否为 Gemini OAuth 类型账号
+func (a *Account) IsGeminiOAuth() bool {
+	return a.IsGemini() && a.Type == AccountTypeOAuth
+}
+
+// IsGeminiApiKey 检查是否为 Gemini API Key 类型账号
+func (a *Account) IsGeminiApiKey() bool {
+	return a.IsGemini() && a.Type == AccountTypeApiKey
+}
+
+// GetGeminiApiKey 获取 Gemini API Key
+func (a *Account) GetGeminiApiKey() string {
+	if !a.IsGeminiApiKey() {
+		return ""
+	}
+	return a.GetCredential("api_key")
+}
+
+// GetGeminiAccessToken 获取 Gemini OAuth Access Token
+func (a *Account) GetGeminiAccessToken() string {
+	if !a.IsGemini() {
+		return ""
+	}
+	return a.GetCredential("access_token")
+}
+
+// GetGeminiRefreshToken 获取 Gemini OAuth Refresh Token
+func (a *Account) GetGeminiRefreshToken() string {
+	if !a.IsGeminiOAuth() {
+		return ""
+	}
+	return a.GetCredential("refresh_token")
+}
+
+// GetGeminiBaseURL 获取 Gemini API 基础 URL
+// 支持 Google AI Studio 和 Vertex AI 两种端点
+func (a *Account) GetGeminiBaseURL() string {
+	if !a.IsGemini() {
+		return ""
+	}
+
+	// 自定义 base_url
+	if baseURL := a.GetCredential("base_url"); baseURL != "" {
+		return baseURL
+	}
+
+	// 默认 Google AI Studio
+	return "https://generativelanguage.googleapis.com"
+}
+
+// IsVertexAI 检查是否使用 Vertex AI 端点
+func (a *Account) IsVertexAI() bool {
+	if !a.IsGemini() {
+		return false
+	}
+	return a.GetCredential("vertex_region") != ""
+}
+
+// GetVertexRegion 获取 Vertex AI 区域
+func (a *Account) GetVertexRegion() string {
+	if !a.IsGemini() {
+		return ""
+	}
+	return a.GetCredential("vertex_region")
+}
+
+// GetVertexProjectID 获取 Vertex AI 项目 ID
+func (a *Account) GetVertexProjectID() string {
+	if !a.IsGemini() {
+		return ""
+	}
+	return a.GetCredential("vertex_project_id")
+}
+
+// GetGeminiTokenExpiresAt 获取 Gemini Token 过期时间
+func (a *Account) GetGeminiTokenExpiresAt() *time.Time {
+	if !a.IsGeminiOAuth() {
+		return nil
+	}
+	expiresAtStr := a.GetCredential("expires_at")
+	if expiresAtStr == "" {
+		return nil
+	}
+	t, err := time.Parse(time.RFC3339, expiresAtStr)
+	if err != nil {
+		// 尝试解析为 Unix 时间戳
+		if v, ok := a.Credentials["expires_at"].(float64); ok {
+			t = time.Unix(int64(v), 0)
+			return &t
+		}
+		return nil
+	}
+	return &t
+}
+
+// IsGeminiTokenExpired 检查 Gemini Token 是否过期
+func (a *Account) IsGeminiTokenExpired() bool {
+	expiresAt := a.GetGeminiTokenExpiresAt()
+	if expiresAt == nil {
+		return false // 没有过期时间信息，假设未过期
+	}
+	// 提前 60 秒认为过期，便于刷新
+	return time.Now().Add(60 * time.Second).After(*expiresAt)
+}

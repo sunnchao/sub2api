@@ -38,6 +38,7 @@ var ProviderSet = wire.NewSet(
 	NewClaudeOAuthClient,
 	NewHTTPUpstream,
 	NewOpenAIOAuthClient,
+	NewGeminiOAuthClient,
 
 	// Bind concrete repositories to service port interfaces
 	wire.Bind(new(ports.UserRepository), new(*UserRepository)),
@@ -49,4 +50,5 @@ var ProviderSet = wire.NewSet(
 	wire.Bind(new(ports.UsageLogRepository), new(*UsageLogRepository)),
 	wire.Bind(new(ports.SettingRepository), new(*SettingRepository)),
 	wire.Bind(new(ports.UserSubscriptionRepository), new(*UserSubscriptionRepository)),
+	wire.Bind(new(ports.GeminiOAuthClient), new(*GeminiOAuthClient)),
 )

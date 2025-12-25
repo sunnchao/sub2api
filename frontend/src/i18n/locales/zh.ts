@@ -660,6 +660,7 @@ export default {
         all: '全部平台',
         claude: 'Claude',
         openai: 'OpenAI',
+        gemini: 'Gemini',
       },
       saving: '保存中...',
       noGroups: '暂无分组',
@@ -810,6 +811,7 @@ export default {
         claude: 'Claude',
         openai: 'OpenAI',
         anthropic: 'Anthropic',
+        gemini: 'Gemini',
       },
       types: {
         oauth: 'OAuth',

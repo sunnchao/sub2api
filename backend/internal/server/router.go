@@ -212,6 +212,16 @@ func registerRoutes(r *gin.Engine, h *handler.Handlers, s *service.Services, rep
 				openai.POST("/create-from-oauth", h.Admin.OpenAIOAuth.CreateAccountFromOAuth)
 			}
 
+			// Gemini OAuth routes
+			geminiAdmin := admin.Group("/gemini")
+			{
+				geminiAdmin.POST("/generate-auth-url", h.Admin.GeminiOAuth.GenerateAuthURL)
+				geminiAdmin.POST("/exchange-code", h.Admin.GeminiOAuth.ExchangeCode)
+				geminiAdmin.POST("/refresh-token", h.Admin.GeminiOAuth.RefreshToken)
+				geminiAdmin.POST("/accounts/:id/refresh", h.Admin.GeminiOAuth.RefreshAccountToken)
+				geminiAdmin.POST("/create-from-oauth", h.Admin.GeminiOAuth.CreateAccountFromOAuth)
+			}
+
 			// 代理管理
 			proxies := admin.Group("/proxies")
 			{
@@ -306,4 +316,25 @@ func registerRoutes(r *gin.Engine, h *handler.Handlers, s *service.Services, rep
 
 	// OpenAI Responses API（不带v1前缀的别名）
 	r.POST("/responses", middleware.ApiKeyAuthWithSubscription(s.ApiKey, s.Subscription), h.OpenAIGateway.Responses)
+
+	// Gemini API 网关
+	geminiGateway := r.Group("/v1beta")
+	geminiGateway.Use(middleware.ApiKeyAuthWithSubscription(s.ApiKey, s.Subscription))
+	{
+		// Gemini 原生 API 格式 - 使用通配符路由处理 :generateContent 等方法
+		geminiGateway.POST("/models/*modelAction", h.GeminiGateway.HandleModelAction)
+		geminiGateway.GET("/models", h.GeminiGateway.ListModels)
+		geminiGateway.GET("/models/*model", h.GeminiGateway.GetModel)
+
+		// OpenAI 兼容格式
+		geminiGateway.POST("/v1/chat/completions", h.GeminiGateway.ChatCompletions)
+		geminiGateway.GET("/v1/models", h.GeminiGateway.Models)
+	}
+	geminiOpenAIGateway := r.Group("/gemini")
+	geminiOpenAIGateway.Use(middleware.ApiKeyAuthWithSubscription(s.ApiKey, s.Subscription))
+	{
+		// OpenAI 兼容格式
+		geminiOpenAIGateway.POST("/v1/chat/completions", h.GeminiGateway.ChatCompletions)
+		geminiOpenAIGateway.GET("/v1/models", h.GeminiGateway.Models)
+	}
 }

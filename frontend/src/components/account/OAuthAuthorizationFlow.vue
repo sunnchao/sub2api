@@ -293,7 +293,7 @@ interface Props {
   allowMultiple?: boolean
   methodLabel?: string
   showCookieOption?: boolean // Whether to show cookie auto-auth option
-  platform?: 'anthropic' | 'openai' // Platform type for different UI/text
+  platform?: 'anthropic' | 'openai' | 'gemini' // Platform type for different UI/text
 }
 
 const props = withDefaults(defineProps<Props>(), {

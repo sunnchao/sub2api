@@ -81,6 +81,21 @@
             </svg>
             OpenAI
           </button>
+          <button
+            type="button"
+            @click="form.platform = 'gemini'"
+            :class="[
+              'flex-1 flex items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-all',
+              form.platform === 'gemini'
+                ? 'bg-white dark:bg-dark-600 text-blue-600 dark:text-blue-400 shadow-sm'
+                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+            ]"
+          >
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+            </svg>
+            Gemini
+          </button>
         </div>
       </div>
 
@@ -195,6 +210,64 @@
             <div>
               <span class="block text-sm font-medium text-gray-900 dark:text-white">API Key</span>
               <span class="text-xs text-gray-500 dark:text-gray-400">Responses API</span>
+            </div>
+          </button>
+        </div>
+      </div>
+
+      <!-- Account Type Selection (Gemini) -->
+      <div v-if="form.platform === 'gemini'">
+        <label class="input-label">{{ t('admin.accounts.accountType') }}</label>
+        <div class="grid grid-cols-2 gap-3 mt-2">
+          <button
+            type="button"
+            @click="accountCategory = 'oauth-based'"
+            :class="[
+              'flex items-center gap-3 rounded-lg border-2 p-3 transition-all text-left',
+              accountCategory === 'oauth-based'
+                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                : 'border-gray-200 dark:border-dark-600 hover:border-blue-300 dark:hover:border-blue-700'
+            ]"
+          >
+            <div :class="[
+              'flex h-8 w-8 items-center justify-center rounded-lg',
+              accountCategory === 'oauth-based'
+                ? 'bg-blue-500 text-white'
+                : 'bg-gray-100 dark:bg-dark-600 text-gray-500 dark:text-gray-400'
+            ]">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" />
+              </svg>
+            </div>
+            <div>
+              <span class="block text-sm font-medium text-gray-900 dark:text-white">OAuth</span>
+              <span class="text-xs text-gray-500 dark:text-gray-400">Google OAuth</span>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            @click="accountCategory = 'apikey'"
+            :class="[
+              'flex items-center gap-3 rounded-lg border-2 p-3 transition-all text-left',
+              accountCategory === 'apikey'
+                ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
+                : 'border-gray-200 dark:border-dark-600 hover:border-purple-300 dark:hover:border-purple-700'
+            ]"
+          >
+            <div :class="[
+              'flex h-8 w-8 items-center justify-center rounded-lg',
+              accountCategory === 'apikey'
+                ? 'bg-purple-500 text-white'
+                : 'bg-gray-100 dark:bg-dark-600 text-gray-500 dark:text-gray-400'
+            ]">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" />
+              </svg>
+            </div>
+            <div>
+              <span class="block text-sm font-medium text-gray-900 dark:text-white">API Key</span>
+              <span class="text-xs text-gray-500 dark:text-gray-400">Gemini API</span>
             </div>
           </button>
         </div>
@@ -740,9 +813,22 @@ const openaiModels = [
   { value: 'gpt-5-2025-08-07', label: 'GPT-5' }
 ]
 
+// Common models for whitelist - Gemini
+const geminiModels = [
+  { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
+  { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
+  { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
+  { value: 'gemini-2.0-flash-lite', label: 'Gemini 2.0 Flash Lite' },
+  { value: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' },
+  { value: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash' },
+  { value: 'gemini-1.5-flash-8b', label: 'Gemini 1.5 Flash 8B' }
+]
+
 // Computed: current models based on platform
 const commonModels = computed(() => {
-  return form.platform === 'openai' ? openaiModels : anthropicModels
+  if (form.platform === 'openai') return openaiModels
+  if (form.platform === 'gemini') return geminiModels
+  return anthropicModels
 })
 
 // Preset mappings for quick add - Anthropic
@@ -765,9 +851,21 @@ const openaiPresetMappings = [
   { label: 'Max->Codex', from: 'gpt-5.1-codex-max', to: 'gpt-5.1-codex', color: 'bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-400' }
 ]
 
+// Preset mappings for quick add - Gemini
+const geminiPresetMappings = [
+  { label: '2.5 Pro', from: 'gemini-2.5-pro', to: 'gemini-2.5-pro', color: 'bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-400' },
+  { label: '2.5 Flash', from: 'gemini-2.5-flash', to: 'gemini-2.5-flash', color: 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-400' },
+  { label: '2.0 Flash', from: 'gemini-2.0-flash', to: 'gemini-2.0-flash', color: 'bg-purple-100 text-purple-700 hover:bg-purple-200 dark:bg-purple-900/30 dark:text-purple-400' },
+  { label: '1.5 Pro', from: 'gemini-1.5-pro', to: 'gemini-1.5-pro', color: 'bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-900/30 dark:text-green-400' },
+  { label: '1.5 Flash', from: 'gemini-1.5-flash', to: 'gemini-1.5-flash', color: 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400' },
+  { label: 'Pro->Flash', from: 'gemini-2.5-pro', to: 'gemini-2.5-flash', color: 'bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-400' }
+]
+
 // Computed: current preset mappings based on platform
 const presetMappings = computed(() => {
-  return form.platform === 'openai' ? openaiPresetMappings : anthropicPresetMappings
+  if (form.platform === 'openai') return openaiPresetMappings
+  if (form.platform === 'gemini') return geminiPresetMappings
+  return anthropicPresetMappings
 })
 
 // Common HTTP error codes for quick selection
@@ -826,9 +924,13 @@ watch([accountCategory, addMethod], ([category, method]) => {
 // Reset platform-specific settings when platform changes
 watch(() => form.platform, (newPlatform) => {
   // Reset base URL based on platform
-  apiKeyBaseUrl.value = newPlatform === 'openai'
-    ? 'https://api.openai.com'
-    : 'https://api.anthropic.com'
+  if (newPlatform === 'openai') {
+    apiKeyBaseUrl.value = 'https://api.openai.com'
+  } else if (newPlatform === 'gemini') {
+    apiKeyBaseUrl.value = 'https://generativelanguage.googleapis.com'
+  } else {
+    apiKeyBaseUrl.value = 'https://api.anthropic.com'
+  }
   // Clear model-related settings
   allowedModels.value = []
   modelMappings.value = []

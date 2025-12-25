@@ -15,6 +15,7 @@ func ProvideAdminHandlers(
 	accountHandler *admin.AccountHandler,
 	oauthHandler *admin.OAuthHandler,
 	openaiOAuthHandler *admin.OpenAIOAuthHandler,
+	geminiOAuthHandler *admin.GeminiOAuthHandler,
 	proxyHandler *admin.ProxyHandler,
 	redeemHandler *admin.RedeemHandler,
 	settingHandler *admin.SettingHandler,
@@ -29,6 +30,7 @@ func ProvideAdminHandlers(
 		Account:      accountHandler,
 		OAuth:        oauthHandler,
 		OpenAIOAuth:  openaiOAuthHandler,
+		GeminiOAuth:  geminiOAuthHandler,
 		Proxy:        proxyHandler,
 		Redeem:       redeemHandler,
 		Setting:      settingHandler,
@@ -59,6 +61,7 @@ func ProvideHandlers(
 	adminHandlers *AdminHandlers,
 	gatewayHandler *GatewayHandler,
 	openaiGatewayHandler *OpenAIGatewayHandler,
+	geminiGatewayHandler *GeminiGatewayHandler,
 	settingHandler *SettingHandler,
 ) *Handlers {
 	return &Handlers{
@@ -71,6 +74,7 @@ func ProvideHandlers(
 		Admin:         adminHandlers,
 		Gateway:       gatewayHandler,
 		OpenAIGateway: openaiGatewayHandler,
+		GeminiGateway: geminiGatewayHandler,
 		Setting:       settingHandler,
 	}
 }
@@ -86,6 +90,7 @@ var ProviderSet = wire.NewSet(
 	NewSubscriptionHandler,
 	NewGatewayHandler,
 	NewOpenAIGatewayHandler,
+	NewGeminiGatewayHandler,
 	ProvideSettingHandler,
 
 	// Admin handlers
@@ -95,6 +100,7 @@ var ProviderSet = wire.NewSet(
 	admin.NewAccountHandler,
 	admin.NewOAuthHandler,
 	admin.NewOpenAIOAuthHandler,
+	admin.NewGeminiOAuthHandler,
 	admin.NewProxyHandler,
 	admin.NewRedeemHandler,
 	admin.NewSettingHandler,

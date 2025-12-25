@@ -115,13 +115,73 @@ func (s *BillingService) initFallbackPricing() {
 		CacheReadPricePerToken:     0.03e-6, // $0.03 per MTok
 		SupportsCacheBreakdown:     false,
 	}
+
+	// Gemini 2.5 Pro
+	s.fallbackPrices["gemini-2.5-pro"] = &ModelPricing{
+		InputPricePerToken:     1.25e-6,   // $1.25 per MTok (< 200k)
+		OutputPricePerToken:    10e-6,     // $10 per MTok (< 200k)
+		CacheReadPricePerToken: 0.3125e-6, // $0.3125 per MTok
+		SupportsCacheBreakdown: false,
+	}
+
+	// Gemini 2.5 Flash
+	s.fallbackPrices["gemini-2.5-flash"] = &ModelPricing{
+		InputPricePerToken:     0.075e-6,   // $0.075 per MTok (< 200k)
+		OutputPricePerToken:    0.3e-6,     // $0.30 per MTok (< 200k)
+		CacheReadPricePerToken: 0.01875e-6, // $0.01875 per MTok
+		SupportsCacheBreakdown: false,
+	}
+
+	// Gemini 2.0 Flash
+	s.fallbackPrices["gemini-2.0-flash"] = &ModelPricing{
+		InputPricePerToken:     0.1e-6, // $0.10 per MTok
+		OutputPricePerToken:    0.4e-6, // $0.40 per MTok
+		SupportsCacheBreakdown: false,
+	}
+
+	// Gemini 1.5 Pro
+	s.fallbackPrices["gemini-1.5-pro"] = &ModelPricing{
+		InputPricePerToken:     1.25e-6,   // $1.25 per MTok (< 128k)
+		OutputPricePerToken:    5e-6,      // $5 per MTok (< 128k)
+		CacheReadPricePerToken: 0.3125e-6, // $0.3125 per MTok
+		SupportsCacheBreakdown: false,
+	}
+
+	// Gemini 1.5 Flash
+	s.fallbackPrices["gemini-1.5-flash"] = &ModelPricing{
+		InputPricePerToken:     0.075e-6,   // $0.075 per MTok (< 128k)
+		OutputPricePerToken:    0.3e-6,     // $0.30 per MTok (< 128k)
+		CacheReadPricePerToken: 0.01875e-6, // $0.01875 per MTok
+		SupportsCacheBreakdown: false,
+	}
 }
 
 // getFallbackPricing 根据模型系列获取回退价格
 func (s *BillingService) getFallbackPricing(model string) *ModelPricing {
 	modelLower := strings.ToLower(model)
 
-	// 按模型系列匹配
+	// Gemini 模型匹配
+	if strings.Contains(modelLower, "gemini") {
+		if strings.Contains(modelLower, "2.5") || strings.Contains(modelLower, "2-5") {
+			if strings.Contains(modelLower, "pro") {
+				return s.fallbackPrices["gemini-2.5-pro"]
+			}
+			return s.fallbackPrices["gemini-2.5-flash"]
+		}
+		if strings.Contains(modelLower, "2.0") || strings.Contains(modelLower, "2-0") {
+			return s.fallbackPrices["gemini-2.0-flash"]
+		}
+		if strings.Contains(modelLower, "1.5") || strings.Contains(modelLower, "1-5") {
+			if strings.Contains(modelLower, "pro") {
+				return s.fallbackPrices["gemini-1.5-pro"]
+			}
+			return s.fallbackPrices["gemini-1.5-flash"]
+		}
+		// 默认使用 Gemini 2.0 Flash 价格
+		return s.fallbackPrices["gemini-2.0-flash"]
+	}
+
+	// Claude 模型匹配
 	if strings.Contains(modelLower, "opus") {
 		if strings.Contains(modelLower, "4.5") || strings.Contains(modelLower, "4-5") {
 			return s.fallbackPrices["claude-opus-4.5"]

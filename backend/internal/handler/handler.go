@@ -12,6 +12,7 @@ type AdminHandlers struct {
 	Account      *admin.AccountHandler
 	OAuth        *admin.OAuthHandler
 	OpenAIOAuth  *admin.OpenAIOAuthHandler
+	GeminiOAuth  *admin.GeminiOAuthHandler
 	Proxy        *admin.ProxyHandler
 	Redeem       *admin.RedeemHandler
 	Setting      *admin.SettingHandler
@@ -31,6 +32,7 @@ type Handlers struct {
 	Admin         *AdminHandlers
 	Gateway       *GatewayHandler
 	OpenAIGateway *OpenAIGatewayHandler
+	GeminiGateway *GeminiGatewayHandler
 	Setting       *SettingHandler
 }
 

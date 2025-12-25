@@ -537,13 +537,15 @@ const exclusiveOptions = computed(() => [
 
 const platformOptions = computed(() => [
   { value: 'anthropic', label: 'Anthropic' },
-  { value: 'openai', label: 'OpenAI' }
+  { value: 'openai', label: 'OpenAI' },
+  { value: 'gemini', label: 'Gemini' }
 ])
 
 const platformFilterOptions = computed(() => [
   { value: '', label: t('admin.groups.allPlatforms') },
   { value: 'anthropic', label: 'Anthropic' },
-  { value: 'openai', label: 'OpenAI' }
+  { value: 'openai', label: 'OpenAI' },
+  { value: 'gemini', label: 'Gemini' }
 ])
 
 const editStatusOptions = computed(() => [

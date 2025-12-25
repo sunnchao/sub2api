@@ -697,6 +697,7 @@ export default {
         anthropic: 'Anthropic',
         claude: 'Claude',
         openai: 'OpenAI',
+        gemini: 'Gemini',
       },
       columns: {
         name: 'Name',

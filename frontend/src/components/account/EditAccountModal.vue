@@ -452,9 +452,22 @@ const openaiModels = [
   { value: 'gpt-5-2025-08-07', label: 'GPT-5' }
 ]
 
+// Common models for whitelist - Gemini
+const geminiModels = [
+  { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
+  { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
+  { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
+  { value: 'gemini-2.0-flash-lite', label: 'Gemini 2.0 Flash Lite' },
+  { value: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' },
+  { value: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash' },
+  { value: 'gemini-1.5-flash-8b', label: 'Gemini 1.5 Flash 8B' }
+]
+
 // Computed: current models based on platform
 const commonModels = computed(() => {
-  return props.account?.platform === 'openai' ? openaiModels : anthropicModels
+  if (props.account?.platform === 'openai') return openaiModels
+  if (props.account?.platform === 'gemini') return geminiModels
+  return anthropicModels
 })
 
 // Preset mappings for quick add - Anthropic
@@ -477,14 +490,28 @@ const openaiPresetMappings = [
   { label: 'Max->Codex', from: 'gpt-5.1-codex-max', to: 'gpt-5.1-codex', color: 'bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-400' }
 ]
 
+// Preset mappings for quick add - Gemini
+const geminiPresetMappings = [
+  { label: '2.5 Pro', from: 'gemini-2.5-pro', to: 'gemini-2.5-pro', color: 'bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-400' },
+  { label: '2.5 Flash', from: 'gemini-2.5-flash', to: 'gemini-2.5-flash', color: 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-400' },
+  { label: '2.0 Flash', from: 'gemini-2.0-flash', to: 'gemini-2.0-flash', color: 'bg-purple-100 text-purple-700 hover:bg-purple-200 dark:bg-purple-900/30 dark:text-purple-400' },
+  { label: '1.5 Pro', from: 'gemini-1.5-pro', to: 'gemini-1.5-pro', color: 'bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-900/30 dark:text-green-400' },
+  { label: '1.5 Flash', from: 'gemini-1.5-flash', to: 'gemini-1.5-flash', color: 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400' },
+  { label: 'Pro->Flash', from: 'gemini-2.5-pro', to: 'gemini-2.5-flash', color: 'bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-400' }
+]
+
 // Computed: current preset mappings based on platform
 const presetMappings = computed(() => {
-  return props.account?.platform === 'openai' ? openaiPresetMappings : anthropicPresetMappings
+  if (props.account?.platform === 'openai') return openaiPresetMappings
+  if (props.account?.platform === 'gemini') return geminiPresetMappings
+  return anthropicPresetMappings
 })
 
 // Computed: default base URL based on platform
 const defaultBaseUrl = computed(() => {
-  return props.account?.platform === 'openai' ? 'https://api.openai.com' : 'https://api.anthropic.com'
+  if (props.account?.platform === 'openai') return 'https://api.openai.com'
+  if (props.account?.platform === 'gemini') return 'https://generativelanguage.googleapis.com'
+  return 'https://api.anthropic.com'
 })
 
 // Common HTTP error codes for quick selection

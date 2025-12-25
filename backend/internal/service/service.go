@@ -16,8 +16,10 @@ type Services struct {
 	Admin         AdminService
 	Gateway       *GatewayService
 	OpenAIGateway *OpenAIGatewayService
+	GeminiGateway *GeminiGatewayService
 	OAuth         *OAuthService
 	OpenAIOAuth   *OpenAIOAuthService
+	GeminiOAuth   *GeminiOAuthService
 	RateLimit     *RateLimitService
 	AccountUsage  *AccountUsageService
 	AccountTest   *AccountTestService
