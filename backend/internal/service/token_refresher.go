@@ -152,14 +152,14 @@ func NewGeminiTokenRefresher(geminiOAuthService *GeminiOAuthService) *GeminiToke
 
 // CanRefresh 检查是否能处理此账号
 // 只处理 gemini 平台的 oauth 类型账号
-func (r *GeminiTokenRefresher) CanRefresh(account *model.Account) bool {
-	return account.Platform == model.PlatformGemini &&
-		account.Type == model.AccountTypeOAuth
+func (r *GeminiTokenRefresher) CanRefresh(account *Account) bool {
+	return account.Platform == PlatformGemini &&
+		account.Type == AccountTypeOAuth
 }
 
 // NeedsRefresh 检查token是否需要刷新
 // 基于 expires_at 字段判断是否在刷新窗口内
-func (r *GeminiTokenRefresher) NeedsRefresh(account *model.Account, refreshWindow time.Duration) bool {
+func (r *GeminiTokenRefresher) NeedsRefresh(account *Account, refreshWindow time.Duration) bool {
 	expiresAt := account.GetGeminiTokenExpiresAt()
 	if expiresAt == nil {
 		return false
@@ -170,7 +170,7 @@ func (r *GeminiTokenRefresher) NeedsRefresh(account *model.Account, refreshWindo
 
 // Refresh 执行token刷新
 // 保留原有credentials中的所有字段，只更新token相关字段
-func (r *GeminiTokenRefresher) Refresh(ctx context.Context, account *model.Account) (map[string]any, error) {
+func (r *GeminiTokenRefresher) Refresh(ctx context.Context, account *Account) (map[string]any, error) {
 	tokenInfo, err := r.geminiOAuthService.RefreshAccountToken(ctx, account)
 	if err != nil {
 		return nil, err

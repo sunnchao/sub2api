@@ -31,6 +31,9 @@ func RegisterAdminRoutes(
 		// OpenAI OAuth
 		registerOpenAIOAuthRoutes(admin, h)
 
+		// Gemini OAuth
+		registerGeminiOAuthRoutes(admin, h)
+
 		// 代理管理
 		registerProxyRoutes(admin, h)
 
@@ -133,6 +136,17 @@ func registerOpenAIOAuthRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		openai.POST("/refresh-token", h.Admin.OpenAIOAuth.RefreshToken)
 		openai.POST("/accounts/:id/refresh", h.Admin.OpenAIOAuth.RefreshAccountToken)
 		openai.POST("/create-from-oauth", h.Admin.OpenAIOAuth.CreateAccountFromOAuth)
+	}
+}
+
+func registerGeminiOAuthRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	gemini := admin.Group("/gemini")
+	{
+		gemini.POST("/generate-auth-url", h.Admin.GeminiOAuth.GenerateAuthURL)
+		gemini.POST("/exchange-code", h.Admin.GeminiOAuth.ExchangeCode)
+		gemini.POST("/refresh-token", h.Admin.GeminiOAuth.RefreshToken)
+		gemini.POST("/accounts/:id/refresh", h.Admin.GeminiOAuth.RefreshAccountToken)
+		gemini.POST("/create-from-oauth", h.Admin.GeminiOAuth.CreateAccountFromOAuth)
 	}
 }
 

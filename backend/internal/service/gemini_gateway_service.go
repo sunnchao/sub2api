@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
-	"github.com/Wei-Shaw/sub2api/internal/model"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/gemini"
 
 	"github.com/gin-gonic/gin"
@@ -131,12 +130,12 @@ func (s *GeminiGatewayService) hashContent(content string) string {
 }
 
 // SelectAccount selects a Gemini account with sticky session support
-func (s *GeminiGatewayService) SelectAccount(ctx context.Context, groupID *int64, sessionHash string) (*model.Account, error) {
+func (s *GeminiGatewayService) SelectAccount(ctx context.Context, groupID *int64, sessionHash string) (*Account, error) {
 	return s.SelectAccountForModel(ctx, groupID, sessionHash, "")
 }
 
 // SelectAccountForModel selects an account supporting the requested model
-func (s *GeminiGatewayService) SelectAccountForModel(ctx context.Context, groupID *int64, sessionHash string, requestedModel string) (*model.Account, error) {
+func (s *GeminiGatewayService) SelectAccountForModel(ctx context.Context, groupID *int64, sessionHash string, requestedModel string) (*Account, error) {
 	// 1. Check sticky session
 	if sessionHash != "" {
 		accountID, err := s.cache.GetSessionAccountID(ctx, "gemini:"+sessionHash)
@@ -151,19 +150,19 @@ func (s *GeminiGatewayService) SelectAccountForModel(ctx context.Context, groupI
 	}
 
 	// 2. Get schedulable Gemini accounts
-	var accounts []model.Account
+	var accounts []Account
 	var err error
 	if groupID != nil {
-		accounts, err = s.accountRepo.ListSchedulableByGroupIDAndPlatform(ctx, *groupID, model.PlatformGemini)
+		accounts, err = s.accountRepo.ListSchedulableByGroupIDAndPlatform(ctx, *groupID, PlatformGemini)
 	} else {
-		accounts, err = s.accountRepo.ListSchedulableByPlatform(ctx, model.PlatformGemini)
+		accounts, err = s.accountRepo.ListSchedulableByPlatform(ctx, PlatformGemini)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("query accounts failed: %w", err)
 	}
 
 	// 3. Select by priority + LRU
-	var selected *model.Account
+	var selected *Account
 	for i := range accounts {
 		acc := &accounts[i]
 		// Check model support
@@ -201,15 +200,15 @@ func (s *GeminiGatewayService) SelectAccountForModel(ctx context.Context, groupI
 }
 
 // GetAccessToken gets the access token for a Gemini account
-func (s *GeminiGatewayService) GetAccessToken(ctx context.Context, account *model.Account) (string, string, error) {
+func (s *GeminiGatewayService) GetAccessToken(ctx context.Context, account *Account) (string, string, error) {
 	switch account.Type {
-	case model.AccountTypeOAuth:
+	case AccountTypeOAuth:
 		accessToken := account.GetGeminiAccessToken()
 		if accessToken == "" {
 			return "", "", errors.New("access_token not found in credentials")
 		}
 		return accessToken, "oauth", nil
-	case model.AccountTypeApiKey:
+	case AccountTypeApiKey:
 		apiKey := account.GetGeminiApiKey()
 		if apiKey == "" {
 			return "", "", errors.New("api_key not found in credentials")
@@ -221,7 +220,7 @@ func (s *GeminiGatewayService) GetAccessToken(ctx context.Context, account *mode
 }
 
 // Forward forwards request to Gemini API
-func (s *GeminiGatewayService) Forward(ctx context.Context, c *gin.Context, account *model.Account, body []byte, modelName string, isStream bool) (*GeminiForwardResult, error) {
+func (s *GeminiGatewayService) Forward(ctx context.Context, c *gin.Context, account *Account, body []byte, modelName string, isStream bool) (*GeminiForwardResult, error) {
 	startTime := time.Now()
 
 	// Apply model mapping
@@ -288,7 +287,7 @@ func (s *GeminiGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 	}, nil
 }
 
-func (s *GeminiGatewayService) buildUpstreamRequest(ctx context.Context, c *gin.Context, account *model.Account, body []byte, token, tokenType, modelName string, isStream bool) (*http.Request, error) {
+func (s *GeminiGatewayService) buildUpstreamRequest(ctx context.Context, c *gin.Context, account *Account, body []byte, token, tokenType, modelName string, isStream bool) (*http.Request, error) {
 	// Determine target URL
 	var targetURL string
 	if account.IsVertexAI() {
@@ -341,7 +340,7 @@ func (s *GeminiGatewayService) buildUpstreamRequest(ctx context.Context, c *gin.
 	return req, nil
 }
 
-func (s *GeminiGatewayService) handleErrorResponse(ctx context.Context, resp *http.Response, c *gin.Context, account *model.Account) (*GeminiForwardResult, error) {
+func (s *GeminiGatewayService) handleErrorResponse(ctx context.Context, resp *http.Response, c *gin.Context, account *Account) (*GeminiForwardResult, error) {
 	body, _ := io.ReadAll(resp.Body)
 
 	// Check custom error codes
@@ -399,7 +398,7 @@ type geminiStreamingResult struct {
 	firstTokenMs *int
 }
 
-func (s *GeminiGatewayService) handleStreamingResponse(ctx context.Context, resp *http.Response, c *gin.Context, account *model.Account, startTime time.Time, originalModel, mappedModel string) (*geminiStreamingResult, error) {
+func (s *GeminiGatewayService) handleStreamingResponse(ctx context.Context, resp *http.Response, c *gin.Context, account *Account, startTime time.Time, originalModel, mappedModel string) (*geminiStreamingResult, error) {
 	// Set SSE response headers
 	c.Header("Content-Type", "text/event-stream")
 	c.Header("Cache-Control", "no-cache")
@@ -477,7 +476,7 @@ func (s *GeminiGatewayService) parseSSEUsage(data string, usage *GeminiUsage) {
 	}
 }
 
-func (s *GeminiGatewayService) handleNonStreamingResponse(ctx context.Context, resp *http.Response, c *gin.Context, account *model.Account, originalModel, mappedModel string) (*GeminiUsage, error) {
+func (s *GeminiGatewayService) handleNonStreamingResponse(ctx context.Context, resp *http.Response, c *gin.Context, account *Account, originalModel, mappedModel string) (*GeminiUsage, error) {
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("read response body: %w", err)
@@ -658,7 +657,7 @@ func (s *GeminiGatewayService) ConvertGeminiToOpenAI(geminiResp map[string]any, 
 }
 
 // ForwardOpenAICompatible forwards OpenAI compatible request to Gemini API
-func (s *GeminiGatewayService) ForwardOpenAICompatible(ctx context.Context, c *gin.Context, account *model.Account, body []byte) (*GeminiForwardResult, error) {
+func (s *GeminiGatewayService) ForwardOpenAICompatible(ctx context.Context, c *gin.Context, account *Account, body []byte) (*GeminiForwardResult, error) {
 	// Parse OpenAI request
 	var openaiReq map[string]any
 	if err := json.Unmarshal(body, &openaiReq); err != nil {
@@ -731,7 +730,7 @@ func (s *GeminiGatewayService) ForwardOpenAICompatible(ctx context.Context, c *g
 	}, nil
 }
 
-func (s *GeminiGatewayService) handleOpenAICompatibleError(ctx context.Context, resp *http.Response, c *gin.Context, account *model.Account) (*GeminiForwardResult, error) {
+func (s *GeminiGatewayService) handleOpenAICompatibleError(ctx context.Context, resp *http.Response, c *gin.Context, account *Account) (*GeminiForwardResult, error) {
 	body, _ := io.ReadAll(resp.Body)
 
 	if !account.ShouldHandleErrorCode(resp.StatusCode) {
@@ -778,7 +777,7 @@ func (s *GeminiGatewayService) handleOpenAICompatibleError(ctx context.Context, 
 	return nil, fmt.Errorf("upstream error: %d", resp.StatusCode)
 }
 
-func (s *GeminiGatewayService) handleOpenAICompatibleStreamingResponse(ctx context.Context, resp *http.Response, c *gin.Context, account *model.Account, startTime time.Time, modelName string) (*geminiStreamingResult, error) {
+func (s *GeminiGatewayService) handleOpenAICompatibleStreamingResponse(ctx context.Context, resp *http.Response, c *gin.Context, account *Account, startTime time.Time, modelName string) (*geminiStreamingResult, error) {
 	c.Header("Content-Type", "text/event-stream")
 	c.Header("Cache-Control", "no-cache")
 	c.Header("Connection", "keep-alive")
@@ -884,10 +883,10 @@ func (s *GeminiGatewayService) handleOpenAICompatibleNonStreamingResponse(ctx co
 // GeminiRecordUsageInput input for recording usage
 type GeminiRecordUsageInput struct {
 	Result       *GeminiForwardResult
-	ApiKey       *model.ApiKey
-	User         *model.User
-	Account      *model.Account
-	Subscription *model.UserSubscription
+	ApiKey       *ApiKey
+	User         *User
+	Account      *Account
+	Subscription *UserSubscription
 }
 
 // RecordUsage records usage and deducts balance
@@ -924,14 +923,14 @@ func (s *GeminiGatewayService) RecordUsage(ctx context.Context, input *GeminiRec
 
 	// Determine billing type
 	isSubscriptionBilling := subscription != nil && apiKey.Group != nil && apiKey.Group.IsSubscriptionType()
-	billingType := model.BillingTypeBalance
+	billingType := BillingTypeBalance
 	if isSubscriptionBilling {
-		billingType = model.BillingTypeSubscription
+		billingType = BillingTypeSubscription
 	}
 
 	// Create usage log
 	durationMs := int(result.Duration.Milliseconds())
-	usageLog := &model.UsageLog{
+	usageLog := &UsageLog{
 		UserID:          user.ID,
 		ApiKeyID:        apiKey.ID,
 		AccountID:       account.ID,

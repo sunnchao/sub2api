@@ -16,7 +16,7 @@ services:
   # Sub2API Application
   # ===========================================================================
   sub2api:
-    image: weishaw/sub2api:latest
+    image: ghcr.io/sunnchao/crs-v2:latest
     container_name: sub2api
     restart: unless-stopped
     ports:
@@ -35,25 +35,25 @@ services:
       # =======================================================================
       - SERVER_HOST=0.0.0.0
       - SERVER_PORT=8080
-      - SERVER_MODE=${SERVER_MODE:-release}
+      - SERVER_MODE=release
 
       # =======================================================================
       # Database Configuration (PostgreSQL)
       # =======================================================================
-      - DATABASE_HOST=postgres
+      - DATABASE_HOST=172.18.0.6
       - DATABASE_PORT=5432
-      - DATABASE_USER=${POSTGRES_USER:-sub2api}
-      - DATABASE_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
-      - DATABASE_DBNAME=${POSTGRES_DB:-sub2api}
+      - DATABASE_USER=user_JXBxe2
+      - DATABASE_PASSWORD=password_YP75ma
+      - DATABASE_DBNAME=crs_v2
       - DATABASE_SSLMODE=disable
 
       # =======================================================================
       # Redis Configuration
       # =======================================================================
-      - REDIS_HOST=redis
+      - REDIS_HOST=172.18.0.4
       - REDIS_PORT=6379
-      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
-      - REDIS_DB=${REDIS_DB:-0}
+      - REDIS_PASSWORD=redis_SYZDEZ
+      - REDIS_DB=1
 
       # =======================================================================
       # Admin Account (auto-created on first run)
@@ -65,8 +65,8 @@ services:
       # JWT Configuration
       # =======================================================================
       # Leave empty to auto-generate (recommended)
-      - JWT_SECRET=${JWT_SECRET:-}
-      - JWT_EXPIRE_HOUR=${JWT_EXPIRE_HOUR:-24}
+      - JWT_SECRET=8db6288a-1058-4025-b919-dc3021759bb2
+      - JWT_EXPIRE_HOUR=24
 
       # =======================================================================
       # Timezone Configuration
@@ -77,14 +77,10 @@ services:
       # - Log timestamps
       # Common values: Asia/Shanghai, America/New_York, Europe/London, UTC
       # =======================================================================
-      - TZ=${TZ:-Asia/Shanghai}
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+      - TZ=Asia/Shanghai
     networks:
       - sub2api-network
+      - 1panel-network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s
@@ -151,14 +147,12 @@ services:
 volumes:
   sub2api_data:
     driver: local
-  postgres_data:
-    driver: local
-  redis_data:
-    driver: local
 
 # =============================================================================
 # Networks
 # =============================================================================
 networks:
   sub2api-network:
+    driver: bridge
+  1panel-network:
     driver: bridge

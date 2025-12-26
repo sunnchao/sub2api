@@ -27,4 +27,23 @@ func RegisterGatewayRoutes(
 
 	// OpenAI Responses API（不带v1前缀的别名）
 	r.POST("/responses", gin.HandlerFunc(apiKeyAuth), h.OpenAIGateway.Responses)
+
+	// Gemini 原生 API 格式
+	geminiGateway := r.Group("/v1beta")
+	geminiGateway.Use(gin.HandlerFunc(apiKeyAuth))
+	{
+		geminiGateway.POST("/models/*modelAction", h.GeminiGateway.HandleModelAction)
+		geminiGateway.GET("/models", h.GeminiGateway.ListModels)
+		geminiGateway.GET("/models/*model", h.GeminiGateway.GetModel)
+		geminiGateway.POST("/v1/chat/completions", h.GeminiGateway.ChatCompletions)
+		geminiGateway.GET("/v1/models", h.GeminiGateway.Models)
+	}
+
+	// Gemini OpenAI 兼容格式
+	geminiOpenAIGateway := r.Group("/gemini")
+	geminiOpenAIGateway.Use(gin.HandlerFunc(apiKeyAuth))
+	{
+		geminiOpenAIGateway.POST("/v1/chat/completions", h.GeminiGateway.ChatCompletions)
+		geminiOpenAIGateway.GET("/v1/models", h.GeminiGateway.Models)
+	}
 }

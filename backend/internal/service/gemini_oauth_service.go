@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Wei-Shaw/sub2api/internal/model"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/gemini"
 )
 
@@ -155,7 +154,7 @@ func (s *GeminiOAuthService) RefreshToken(ctx context.Context, clientID, clientS
 }
 
 // RefreshAccountToken refreshes token for an account
-func (s *GeminiOAuthService) RefreshAccountToken(ctx context.Context, account *model.Account) (*GeminiTokenInfo, error) {
+func (s *GeminiOAuthService) RefreshAccountToken(ctx context.Context, account *Account) (*GeminiTokenInfo, error) {
 	if !account.IsGeminiOAuth() {
 		return nil, fmt.Errorf("account is not a Gemini OAuth account")
 	}
@@ -178,8 +177,8 @@ func (s *GeminiOAuthService) RefreshAccountToken(ctx context.Context, account *m
 }
 
 // BuildAccountCredentials builds credentials map from token info
-func (s *GeminiOAuthService) BuildAccountCredentials(tokenInfo *GeminiTokenInfo, clientID, clientSecret string) model.JSONB {
-	creds := model.JSONB{
+func (s *GeminiOAuthService) BuildAccountCredentials(tokenInfo *GeminiTokenInfo, clientID, clientSecret string) map[string]any {
+	creds := map[string]any{
 		"access_token":  tokenInfo.AccessToken,
 		"expires_at":    time.Unix(tokenInfo.ExpiresAt, 0).Format(time.RFC3339),
 		"client_id":     clientID,
@@ -194,7 +193,7 @@ func (s *GeminiOAuthService) BuildAccountCredentials(tokenInfo *GeminiTokenInfo,
 }
 
 // NeedsRefresh checks if account token needs refresh
-func (s *GeminiOAuthService) NeedsRefresh(account *model.Account, refreshBeforeHours int) bool {
+func (s *GeminiOAuthService) NeedsRefresh(account *Account, refreshBeforeHours int) bool {
 	if !account.IsGeminiOAuth() {
 		return false
 	}

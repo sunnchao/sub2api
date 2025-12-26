@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Wei-Shaw/sub2api/internal/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/gemini"
+	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 
 	"github.com/gin-gonic/gin"
@@ -91,7 +91,7 @@ func (h *GeminiGatewayHandler) handleGeminiRequest(c *gin.Context, modelName str
 		return
 	}
 
-	user, ok := middleware.GetUserFromContext(c)
+	subject, ok := middleware.GetAuthSubjectFromContext(c)
 	if !ok {
 		h.errorResponse(c, http.StatusInternalServerError, 500, "INTERNAL", "User context not found")
 		return
@@ -122,18 +122,18 @@ func (h *GeminiGatewayHandler) handleGeminiRequest(c *gin.Context, modelName str
 	subscription, _ := middleware.GetSubscriptionFromContext(c)
 
 	// 0. Check if wait queue is full
-	maxWait := service.CalculateMaxWait(user.Concurrency)
-	canWait, err := h.concurrencyHelper.IncrementWaitCount(c.Request.Context(), user.ID, maxWait)
+	maxWait := service.CalculateMaxWait(subject.Concurrency)
+	canWait, err := h.concurrencyHelper.IncrementWaitCount(c.Request.Context(), subject.UserID, maxWait)
 	if err != nil {
 		log.Printf("Increment wait count failed: %v", err)
 	} else if !canWait {
 		h.errorResponse(c, http.StatusTooManyRequests, 429, "RESOURCE_EXHAUSTED", "Too many pending requests, please retry later")
 		return
 	}
-	defer h.concurrencyHelper.DecrementWaitCount(c.Request.Context(), user.ID)
+	defer h.concurrencyHelper.DecrementWaitCount(c.Request.Context(), subject.UserID)
 
 	// 1. First acquire user concurrency slot
-	userReleaseFunc, err := h.concurrencyHelper.AcquireUserSlotWithWait(c, user, isStream, &streamStarted)
+	userReleaseFunc, err := h.concurrencyHelper.AcquireUserSlotWithWait(c, subject.UserID, subject.Concurrency, isStream, &streamStarted)
 	if err != nil {
 		log.Printf("User concurrency acquire failed: %v", err)
 		h.handleConcurrencyError(c, err, "user", streamStarted)
@@ -144,7 +144,7 @@ func (h *GeminiGatewayHandler) handleGeminiRequest(c *gin.Context, modelName str
 	}
 
 	// 2. Re-check billing eligibility after wait
-	if err := h.billingCacheService.CheckBillingEligibility(c.Request.Context(), user, apiKey, apiKey.Group, subscription); err != nil {
+	if err := h.billingCacheService.CheckBillingEligibility(c.Request.Context(), apiKey.User, apiKey, apiKey.Group, subscription); err != nil {
 		log.Printf("Billing eligibility check failed after wait: %v", err)
 		h.handleStreamingAwareError(c, http.StatusForbidden, 403, "PERMISSION_DENIED", err.Error(), streamStarted)
 		return
@@ -164,7 +164,7 @@ func (h *GeminiGatewayHandler) handleGeminiRequest(c *gin.Context, modelName str
 	log.Printf("[Gemini Handler] Selected account: id=%d name=%s", account.ID, account.Name)
 
 	// 3. Acquire account concurrency slot
-	accountReleaseFunc, err := h.concurrencyHelper.AcquireAccountSlotWithWait(c, account, isStream, &streamStarted)
+	accountReleaseFunc, err := h.concurrencyHelper.AcquireAccountSlotWithWait(c, account.ID, account.Concurrency, isStream, &streamStarted)
 	if err != nil {
 		log.Printf("Account concurrency acquire failed: %v", err)
 		h.handleConcurrencyError(c, err, "account", streamStarted)
@@ -188,7 +188,7 @@ func (h *GeminiGatewayHandler) handleGeminiRequest(c *gin.Context, modelName str
 		if err := h.gatewayService.RecordUsage(ctx, &service.GeminiRecordUsageInput{
 			Result:       result,
 			ApiKey:       apiKey,
-			User:         user,
+			User:         apiKey.User,
 			Account:      account,
 			Subscription: subscription,
 		}); err != nil {
@@ -207,7 +207,7 @@ func (h *GeminiGatewayHandler) ChatCompletions(c *gin.Context) {
 		return
 	}
 
-	user, ok := middleware.GetUserFromContext(c)
+	subject, ok := middleware.GetAuthSubjectFromContext(c)
 	if !ok {
 		h.openaiErrorResponse(c, http.StatusInternalServerError, "api_error", "User context not found")
 		return
@@ -242,18 +242,18 @@ func (h *GeminiGatewayHandler) ChatCompletions(c *gin.Context) {
 	subscription, _ := middleware.GetSubscriptionFromContext(c)
 
 	// 0. Check wait queue
-	maxWait := service.CalculateMaxWait(user.Concurrency)
-	canWait, err := h.concurrencyHelper.IncrementWaitCount(c.Request.Context(), user.ID, maxWait)
+	maxWait := service.CalculateMaxWait(subject.Concurrency)
+	canWait, err := h.concurrencyHelper.IncrementWaitCount(c.Request.Context(), subject.UserID, maxWait)
 	if err != nil {
 		log.Printf("Increment wait count failed: %v", err)
 	} else if !canWait {
 		h.openaiErrorResponse(c, http.StatusTooManyRequests, "rate_limit_error", "Too many pending requests")
 		return
 	}
-	defer h.concurrencyHelper.DecrementWaitCount(c.Request.Context(), user.ID)
+	defer h.concurrencyHelper.DecrementWaitCount(c.Request.Context(), subject.UserID)
 
 	// 1. Acquire user concurrency slot
-	userReleaseFunc, err := h.concurrencyHelper.AcquireUserSlotWithWait(c, user, reqStream, &streamStarted)
+	userReleaseFunc, err := h.concurrencyHelper.AcquireUserSlotWithWait(c, subject.UserID, subject.Concurrency, reqStream, &streamStarted)
 	if err != nil {
 		h.handleOpenAIConcurrencyError(c, err, "user", streamStarted)
 		return
@@ -263,7 +263,7 @@ func (h *GeminiGatewayHandler) ChatCompletions(c *gin.Context) {
 	}
 
 	// 2. Re-check billing eligibility
-	if err := h.billingCacheService.CheckBillingEligibility(c.Request.Context(), user, apiKey, apiKey.Group, subscription); err != nil {
+	if err := h.billingCacheService.CheckBillingEligibility(c.Request.Context(), apiKey.User, apiKey, apiKey.Group, subscription); err != nil {
 		h.handleOpenAIStreamingAwareError(c, http.StatusForbidden, "billing_error", err.Error(), streamStarted)
 		return
 	}
@@ -282,7 +282,7 @@ func (h *GeminiGatewayHandler) ChatCompletions(c *gin.Context) {
 	log.Printf("[Gemini ChatCompletions] Selected account: id=%d name=%s", account.ID, account.Name)
 
 	// 3. Acquire account concurrency slot
-	accountReleaseFunc, err := h.concurrencyHelper.AcquireAccountSlotWithWait(c, account, reqStream, &streamStarted)
+	accountReleaseFunc, err := h.concurrencyHelper.AcquireAccountSlotWithWait(c, account.ID, account.Concurrency, reqStream, &streamStarted)
 	if err != nil {
 		h.handleOpenAIConcurrencyError(c, err, "account", streamStarted)
 		return
@@ -305,7 +305,7 @@ func (h *GeminiGatewayHandler) ChatCompletions(c *gin.Context) {
 		if err := h.gatewayService.RecordUsage(ctx, &service.GeminiRecordUsageInput{
 			Result:       result,
 			ApiKey:       apiKey,
-			User:         user,
+			User:         apiKey.User,
 			Account:      account,
 			Subscription: subscription,
 		}); err != nil {

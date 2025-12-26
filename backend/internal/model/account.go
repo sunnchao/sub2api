@@ -6,6 +6,8 @@ import (
 	"errors"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
+	"github.com/Wei-Shaw/sub2api/internal/service"
 	"gorm.io/gorm"
 )
 
@@ -64,12 +66,12 @@ type Account struct {
 	SessionWindowStatus string     `gorm:"size:20" json:"session_window_status"` // allowed/allowed_warning/rejected
 
 	// 关联
-	Proxy         *Proxy         `gorm:"foreignKey:ProxyID" json:"proxy,omitempty"`
-	AccountGroups []AccountGroup `gorm:"foreignKey:AccountID" json:"account_groups,omitempty"`
+	Proxy         *dto.Proxy         `gorm:"foreignKey:ProxyID" json:"proxy,omitempty"`
+	AccountGroups []dto.AccountGroup `gorm:"foreignKey:AccountID" json:"account_groups,omitempty"`
 
 	// 虚拟字段 (不存储到数据库)
-	GroupIDs []int64  `gorm:"-" json:"group_ids,omitempty"`
-	Groups   []*Group `gorm:"-" json:"groups,omitempty"`
+	GroupIDs []int64      `gorm:"-" json:"group_ids,omitempty"`
+	Groups   []*dto.Group `gorm:"-" json:"groups,omitempty"`
 }
 
 func (Account) TableName() string {
@@ -114,12 +116,12 @@ func (a *Account) IsOverloaded() bool {
 
 // IsOAuth 检查是否为OAuth类型账号（包括oauth和setup-token）
 func (a *Account) IsOAuth() bool {
-	return a.Type == AccountTypeOAuth || a.Type == AccountTypeSetupToken
+	return a.Type == service.AccountTypeOAuth || a.Type == service.AccountTypeSetupToken
 }
 
 // CanGetUsage 检查账号是否可以获取usage信息（只有oauth类型可以，setup-token没有profile权限）
 func (a *Account) CanGetUsage() bool {
-	return a.Type == AccountTypeOAuth
+	return a.Type == service.AccountTypeOAuth
 }
 
 // GetCredential 获取凭证字段
@@ -186,7 +188,7 @@ func (a *Account) GetMappedModel(requestedModel string) string {
 
 // GetBaseURL 获取API基础URL（用于apikey类型账号）
 func (a *Account) GetBaseURL() string {
-	if a.Type != AccountTypeApiKey {
+	if a.Type != service.AccountTypeApiKey {
 		return ""
 	}
 	baseURL := a.GetCredential("base_url")
@@ -211,7 +213,7 @@ func (a *Account) GetExtraString(key string) string {
 
 // IsCustomErrorCodesEnabled 检查是否启用自定义错误码功能（仅适用于 apikey 类型）
 func (a *Account) IsCustomErrorCodesEnabled() bool {
-	if a.Type != AccountTypeApiKey || a.Credentials == nil {
+	if a.Type != service.AccountTypeApiKey || a.Credentials == nil {
 		return false
 	}
 	if v, ok := a.Credentials["custom_error_codes_enabled"]; ok {
