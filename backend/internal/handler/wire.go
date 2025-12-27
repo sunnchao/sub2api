@@ -61,7 +61,6 @@ func ProvideHandlers(
 	adminHandlers *AdminHandlers,
 	gatewayHandler *GatewayHandler,
 	openaiGatewayHandler *OpenAIGatewayHandler,
-	geminiGatewayHandler *GeminiGatewayHandler,
 	settingHandler *SettingHandler,
 ) *Handlers {
 	return &Handlers{
@@ -74,7 +73,6 @@ func ProvideHandlers(
 		Admin:         adminHandlers,
 		Gateway:       gatewayHandler,
 		OpenAIGateway: openaiGatewayHandler,
-		GeminiGateway: geminiGatewayHandler,
 		Setting:       settingHandler,
 	}
 }
@@ -90,7 +88,6 @@ var ProviderSet = wire.NewSet(
 	NewSubscriptionHandler,
 	NewGatewayHandler,
 	NewOpenAIGatewayHandler,
-	NewGeminiGatewayHandler,
 	ProvideSettingHandler,
 
 	// Admin handlers

@@ -32,7 +32,6 @@ type Handlers struct {
 	Admin         *AdminHandlers
 	Gateway       *GatewayHandler
 	OpenAIGateway *OpenAIGatewayHandler
-	GeminiGateway *GeminiGatewayHandler
 	Setting       *SettingHandler
 }
 
