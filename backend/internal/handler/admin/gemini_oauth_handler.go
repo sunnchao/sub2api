@@ -1,7 +1,8 @@
 package admin
 
 import (
-	"strconv"
+	"fmt"
+	"strings"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -9,30 +10,30 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// GeminiOAuthHandler handles Gemini OAuth-related operations
 type GeminiOAuthHandler struct {
 	geminiOAuthService *service.GeminiOAuthService
-	adminService       service.AdminService
 }
 
-// NewGeminiOAuthHandler creates a new Gemini OAuth handler
-func NewGeminiOAuthHandler(geminiOAuthService *service.GeminiOAuthService, adminService service.AdminService) *GeminiOAuthHandler {
-	return &GeminiOAuthHandler{
-		geminiOAuthService: geminiOAuthService,
-		adminService:       adminService,
-	}
+func NewGeminiOAuthHandler(geminiOAuthService *service.GeminiOAuthService) *GeminiOAuthHandler {
+	return &GeminiOAuthHandler{geminiOAuthService: geminiOAuthService}
 }
 
-// GeminiGenerateAuthURLRequest represents the request for generating Gemini auth URL
+// GET /api/v1/admin/gemini/oauth/capabilities
+func (h *GeminiOAuthHandler) GetCapabilities(c *gin.Context) {
+	cfg := h.geminiOAuthService.GetOAuthConfig()
+	response.Success(c, cfg)
+}
+
 type GeminiGenerateAuthURLRequest struct {
-	ClientID     string `json:"client_id" binding:"required"`
-	ClientSecret string `json:"client_secret" binding:"required"`
-	RedirectURI  string `json:"redirect_uri" binding:"required"`
-	ProxyID      *int64 `json:"proxy_id"`
+	ProxyID   *int64 `json:"proxy_id"`
+	ProjectID string `json:"project_id"`
+	// OAuth 类型: "code_assist" (需要 project_id) 或 "ai_studio" (不需要 project_id)
+	// 默认为 "code_assist" 以保持向后兼容
+	OAuthType string `json:"oauth_type"`
 }
 
-// GenerateAuthURL generates Gemini OAuth authorization URL
-// POST /api/v1/admin/gemini/generate-auth-url
+// GenerateAuthURL generates Google OAuth authorization URL for Gemini.
+// POST /api/v1/admin/gemini/oauth/auth-url
 func (h *GeminiOAuthHandler) GenerateAuthURL(c *gin.Context) {
 	var req GeminiGenerateAuthURLRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -40,28 +41,45 @@ func (h *GeminiOAuthHandler) GenerateAuthURL(c *gin.Context) {
 		return
 	}
 
-	result, err := h.geminiOAuthService.GenerateAuthURL(c.Request.Context(), &service.GeminiAuthURLInput{
-		ClientID:     req.ClientID,
-		ClientSecret: req.ClientSecret,
-		RedirectURI:  req.RedirectURI,
-		ProxyID:      req.ProxyID,
-	})
+	// 默认使用 code_assist 以保持向后兼容
+	oauthType := strings.TrimSpace(req.OAuthType)
+	if oauthType == "" {
+		oauthType = "code_assist"
+	}
+	if oauthType != "code_assist" && oauthType != "ai_studio" {
+		response.BadRequest(c, "Invalid oauth_type: must be 'code_assist' or 'ai_studio'")
+		return
+	}
+
+	// Always pass the "hosted" callback URI; the OAuth service may override it depending on
+	// oauth_type and whether the built-in Gemini CLI OAuth client is used.
+	redirectURI := deriveGeminiRedirectURI(c)
+	result, err := h.geminiOAuthService.GenerateAuthURL(c.Request.Context(), req.ProxyID, redirectURI, req.ProjectID, oauthType)
 	if err != nil {
-		response.InternalError(c, "Failed to generate auth URL: "+err.Error())
+		msg := err.Error()
+		// Treat missing/invalid OAuth client configuration as a user/config error.
+		if strings.Contains(msg, "OAuth client not configured") || strings.Contains(msg, "requires your own OAuth Client") {
+			response.BadRequest(c, "Failed to generate auth URL: "+msg)
+			return
+		}
+		response.InternalError(c, "Failed to generate auth URL: "+msg)
 		return
 	}
 
 	response.Success(c, result)
 }
 
-// GeminiExchangeCodeRequest represents the request for exchanging Gemini auth code
 type GeminiExchangeCodeRequest struct {
 	SessionID string `json:"session_id" binding:"required"`
+	State     string `json:"state" binding:"required"`
 	Code      string `json:"code" binding:"required"`
+	ProxyID   *int64 `json:"proxy_id"`
+	// OAuth 类型: "code_assist" 或 "ai_studio"，需要与 GenerateAuthURL 时的类型一致
+	OAuthType string `json:"oauth_type"`
 }
 
-// ExchangeCode exchanges Gemini authorization code for tokens
-// POST /api/v1/admin/gemini/exchange-code
+// ExchangeCode exchanges authorization code for tokens.
+// POST /api/v1/admin/gemini/oauth/exchange-code
 func (h *GeminiOAuthHandler) ExchangeCode(c *gin.Context) {
 	var req GeminiExchangeCodeRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -69,9 +87,22 @@ func (h *GeminiOAuthHandler) ExchangeCode(c *gin.Context) {
 		return
 	}
 
+	// 默认使用 code_assist 以保持向后兼容
+	oauthType := strings.TrimSpace(req.OAuthType)
+	if oauthType == "" {
+		oauthType = "code_assist"
+	}
+	if oauthType != "code_assist" && oauthType != "ai_studio" {
+		response.BadRequest(c, "Invalid oauth_type: must be 'code_assist' or 'ai_studio'")
+		return
+	}
+
 	tokenInfo, err := h.geminiOAuthService.ExchangeCode(c.Request.Context(), &service.GeminiExchangeCodeInput{
 		SessionID: req.SessionID,
+		State:     req.State,
 		Code:      req.Code,
+		ProxyID:   req.ProxyID,
+		OAuthType: oauthType,
 	})
 	if err != nil {
 		response.BadRequest(c, "Failed to exchange code: "+err.Error())
@@ -81,143 +112,24 @@ func (h *GeminiOAuthHandler) ExchangeCode(c *gin.Context) {
 	response.Success(c, tokenInfo)
 }
 
-// GeminiRefreshTokenRequest represents the request for refreshing Gemini token
-type GeminiRefreshTokenRequest struct {
-	ClientID     string `json:"client_id" binding:"required"`
-	ClientSecret string `json:"client_secret" binding:"required"`
-	RefreshToken string `json:"refresh_token" binding:"required"`
-	ProxyID      *int64 `json:"proxy_id"`
-}
-
-// RefreshToken refreshes a Gemini OAuth token
-// POST /api/v1/admin/gemini/refresh-token
-func (h *GeminiOAuthHandler) RefreshToken(c *gin.Context) {
-	var req GeminiRefreshTokenRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "Invalid request: "+err.Error())
-		return
+func deriveGeminiRedirectURI(c *gin.Context) string {
+	origin := strings.TrimSpace(c.GetHeader("Origin"))
+	if origin != "" {
+		return strings.TrimRight(origin, "/") + "/auth/callback"
 	}
 
-	var proxyURL string
-	if req.ProxyID != nil {
-		proxy, err := h.adminService.GetProxy(c.Request.Context(), *req.ProxyID)
-		if err == nil && proxy != nil {
-			proxyURL = proxy.URL()
-		}
+	scheme := "http"
+	if c.Request.TLS != nil {
+		scheme = "https"
+	}
+	if xfProto := strings.TrimSpace(c.GetHeader("X-Forwarded-Proto")); xfProto != "" {
+		scheme = strings.TrimSpace(strings.Split(xfProto, ",")[0])
 	}
 
-	tokenInfo, err := h.geminiOAuthService.RefreshToken(c.Request.Context(), req.ClientID, req.ClientSecret, req.RefreshToken, proxyURL)
-	if err != nil {
-		response.BadRequest(c, "Failed to refresh token: "+err.Error())
-		return
+	host := strings.TrimSpace(c.Request.Host)
+	if xfHost := strings.TrimSpace(c.GetHeader("X-Forwarded-Host")); xfHost != "" {
+		host = strings.TrimSpace(strings.Split(xfHost, ",")[0])
 	}
 
-	response.Success(c, tokenInfo)
-}
-
-// RefreshAccountToken refreshes token for an existing account
-// POST /api/v1/admin/gemini/accounts/:id/refresh
-func (h *GeminiOAuthHandler) RefreshAccountToken(c *gin.Context) {
-	idStr := c.Param("id")
-	id, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		response.BadRequest(c, "Invalid account ID")
-		return
-	}
-
-	account, err := h.adminService.GetAccount(c.Request.Context(), id)
-	if err != nil {
-		response.NotFound(c, "Account not found")
-		return
-	}
-
-	if !account.IsGeminiOAuth() {
-		response.BadRequest(c, "Account is not a Gemini OAuth account")
-		return
-	}
-
-	tokenInfo, err := h.geminiOAuthService.RefreshAccountToken(c.Request.Context(), account)
-	if err != nil {
-		response.InternalError(c, "Failed to refresh token: "+err.Error())
-		return
-	}
-
-	// Update account credentials
-	clientID := account.GetCredential("client_id")
-	clientSecret := account.GetCredential("client_secret")
-	creds := h.geminiOAuthService.BuildAccountCredentials(tokenInfo, clientID, clientSecret)
-	if account.GetGeminiRefreshToken() != "" && tokenInfo.RefreshToken == "" {
-		// Keep existing refresh token if not returned
-		creds["refresh_token"] = account.GetGeminiRefreshToken()
-	}
-
-	// Preserve non-token settings from existing credentials
-	for k, v := range account.Credentials {
-		if _, exists := creds[k]; !exists {
-			creds[k] = v
-		}
-	}
-
-	_, err = h.adminService.UpdateAccount(c.Request.Context(), id, &service.UpdateAccountInput{
-		Credentials: creds,
-	})
-	if err != nil {
-		response.InternalError(c, "Failed to update account: "+err.Error())
-		return
-	}
-
-	response.Success(c, tokenInfo)
-}
-
-// GeminiCreateAccountRequest represents the request for creating account from OAuth
-type GeminiCreateAccountRequest struct {
-	Name         string    `json:"name" binding:"required"`
-	ClientID     string    `json:"client_id" binding:"required"`
-	ClientSecret string    `json:"client_secret" binding:"required"`
-	TokenInfo    TokenInfo `json:"token_info" binding:"required"`
-	ProxyID      *int64    `json:"proxy_id"`
-	GroupIDs     []int64   `json:"group_ids"`
-	Priority     int       `json:"priority"`
-	Concurrency  int       `json:"concurrency"`
-}
-
-type TokenInfo struct {
-	AccessToken  string `json:"access_token" binding:"required"`
-	RefreshToken string `json:"refresh_token"`
-	ExpiresAt    int64  `json:"expires_at"`
-}
-
-// CreateAccountFromOAuth creates a new Gemini account from OAuth credentials
-// POST /api/v1/admin/gemini/create-from-oauth
-func (h *GeminiOAuthHandler) CreateAccountFromOAuth(c *gin.Context) {
-	var req GeminiCreateAccountRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "Invalid request: "+err.Error())
-		return
-	}
-
-	// Build credentials
-	creds := h.geminiOAuthService.BuildAccountCredentials(&service.GeminiTokenInfo{
-		AccessToken:  req.TokenInfo.AccessToken,
-		RefreshToken: req.TokenInfo.RefreshToken,
-		ExpiresAt:    req.TokenInfo.ExpiresAt,
-	}, req.ClientID, req.ClientSecret)
-
-	// Create account using service input
-	account, err := h.adminService.CreateAccount(c.Request.Context(), &service.CreateAccountInput{
-		Name:        req.Name,
-		Platform:    "gemini",
-		Type:        "oauth",
-		Credentials: creds,
-		ProxyID:     req.ProxyID,
-		Concurrency: req.Concurrency,
-		Priority:    req.Priority,
-		GroupIDs:    req.GroupIDs,
-	})
-	if err != nil {
-		response.InternalError(c, "Failed to create account: "+err.Error())
-		return
-	}
-
-	response.Success(c, account)
+	return fmt.Sprintf("%s://%s/auth/callback", scheme, host)
 }

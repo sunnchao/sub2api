@@ -3,11 +3,11 @@ package service
 import (
 	"context"
 
-	"github.com/Wei-Shaw/sub2api/internal/pkg/gemini"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/geminicli"
 )
 
-// GeminiOAuthClient interface for Gemini OAuth operations
+// GeminiOAuthClient performs Google OAuth token exchange/refresh for Gemini integration.
 type GeminiOAuthClient interface {
-	ExchangeCode(ctx context.Context, code, codeVerifier, clientID, clientSecret, redirectURI, proxyURL string) (*gemini.TokenResponse, error)
-	RefreshToken(ctx context.Context, clientID, clientSecret, refreshToken, proxyURL string) (*gemini.TokenResponse, error)
+	ExchangeCode(ctx context.Context, oauthType, code, codeVerifier, redirectURI, proxyURL string) (*geminicli.TokenResponse, error)
+	RefreshToken(ctx context.Context, oauthType, refreshToken, proxyURL string) (*geminicli.TokenResponse, error)
 }

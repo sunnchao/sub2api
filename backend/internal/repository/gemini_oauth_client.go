@@ -2,118 +2,116 @@ package repository
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"net/url"
-	"strings"
 	"time"
 
-	"github.com/Wei-Shaw/sub2api/internal/pkg/gemini"
+	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/geminicli"
+	"github.com/Wei-Shaw/sub2api/internal/service"
+
+	"github.com/imroc/req/v3"
 )
 
-// GeminiOAuthClient implements Gemini OAuth HTTP operations
-type GeminiOAuthClient struct {
-	httpClient *http.Client
+type geminiOAuthClient struct {
+	tokenURL string
+	cfg      *config.Config
 }
 
-// NewGeminiOAuthClient creates a new GeminiOAuthClient
-func NewGeminiOAuthClient() *GeminiOAuthClient {
-	return &GeminiOAuthClient{
-		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
-		},
+func NewGeminiOAuthClient(cfg *config.Config) service.GeminiOAuthClient {
+	return &geminiOAuthClient{
+		tokenURL: geminicli.TokenURL,
+		cfg:      cfg,
 	}
 }
 
-// ExchangeCode exchanges authorization code for tokens
-func (c *GeminiOAuthClient) ExchangeCode(ctx context.Context, code, codeVerifier, clientID, clientSecret, redirectURI, proxyURL string) (*gemini.TokenResponse, error) {
-	req := gemini.BuildTokenRequest(clientID, clientSecret, code, redirectURI, codeVerifier)
+func (c *geminiOAuthClient) ExchangeCode(ctx context.Context, oauthType, code, codeVerifier, redirectURI, proxyURL string) (*geminicli.TokenResponse, error) {
+	client := createGeminiReqClient(proxyURL)
 
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", gemini.TokenURL, strings.NewReader(req.ToFormData()))
+	// Use different OAuth clients based on oauthType:
+	// - code_assist: always use built-in Gemini CLI OAuth client (public)
+	// - ai_studio: requires a user-provided OAuth client
+	oauthCfgInput := geminicli.OAuthConfig{
+		ClientID:     c.cfg.Gemini.OAuth.ClientID,
+		ClientSecret: c.cfg.Gemini.OAuth.ClientSecret,
+		Scopes:       c.cfg.Gemini.OAuth.Scopes,
+	}
+	if oauthType == "code_assist" {
+		oauthCfgInput.ClientID = ""
+		oauthCfgInput.ClientSecret = ""
+	}
+
+	oauthCfg, err := geminicli.EffectiveOAuthConfig(oauthCfgInput, oauthType)
 	if err != nil {
-		return nil, fmt.Errorf("create request: %w", err)
+		return nil, err
 	}
 
-	httpReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	formData := url.Values{}
+	formData.Set("grant_type", "authorization_code")
+	formData.Set("client_id", oauthCfg.ClientID)
+	formData.Set("client_secret", oauthCfg.ClientSecret)
+	formData.Set("code", code)
+	formData.Set("code_verifier", codeVerifier)
+	formData.Set("redirect_uri", redirectURI)
 
-	client := c.getHTTPClient(proxyURL)
-	resp, err := client.Do(httpReq)
+	var tokenResp geminicli.TokenResponse
+	resp, err := client.R().
+		SetContext(ctx).
+		SetFormDataFromValues(formData).
+		SetSuccessResult(&tokenResp).
+		Post(c.tokenURL)
 	if err != nil {
-		return nil, fmt.Errorf("send request: %w", err)
+		return nil, fmt.Errorf("request failed: %w", err)
 	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("read response: %w", err)
+	if !resp.IsSuccessState() {
+		return nil, fmt.Errorf("token exchange failed: status %d, body: %s", resp.StatusCode, geminicli.SanitizeBodyForLogs(resp.String()))
 	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("token exchange failed: %d - %s", resp.StatusCode, string(body))
-	}
-
-	var tokenResp gemini.TokenResponse
-	if err := json.Unmarshal(body, &tokenResp); err != nil {
-		return nil, fmt.Errorf("parse response: %w", err)
-	}
-
 	return &tokenResp, nil
 }
 
-// RefreshToken refreshes an access token
-func (c *GeminiOAuthClient) RefreshToken(ctx context.Context, clientID, clientSecret, refreshToken, proxyURL string) (*gemini.TokenResponse, error) {
-	req := gemini.BuildRefreshTokenRequest(clientID, clientSecret, refreshToken)
+func (c *geminiOAuthClient) RefreshToken(ctx context.Context, oauthType, refreshToken, proxyURL string) (*geminicli.TokenResponse, error) {
+	client := createGeminiReqClient(proxyURL)
 
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", gemini.TokenURL, strings.NewReader(req.ToFormData()))
+	oauthCfgInput := geminicli.OAuthConfig{
+		ClientID:     c.cfg.Gemini.OAuth.ClientID,
+		ClientSecret: c.cfg.Gemini.OAuth.ClientSecret,
+		Scopes:       c.cfg.Gemini.OAuth.Scopes,
+	}
+	if oauthType == "code_assist" {
+		oauthCfgInput.ClientID = ""
+		oauthCfgInput.ClientSecret = ""
+	}
+
+	oauthCfg, err := geminicli.EffectiveOAuthConfig(oauthCfgInput, oauthType)
 	if err != nil {
-		return nil, fmt.Errorf("create request: %w", err)
+		return nil, err
 	}
 
-	httpReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	formData := url.Values{}
+	formData.Set("grant_type", "refresh_token")
+	formData.Set("refresh_token", refreshToken)
+	formData.Set("client_id", oauthCfg.ClientID)
+	formData.Set("client_secret", oauthCfg.ClientSecret)
 
-	client := c.getHTTPClient(proxyURL)
-	resp, err := client.Do(httpReq)
+	var tokenResp geminicli.TokenResponse
+	resp, err := client.R().
+		SetContext(ctx).
+		SetFormDataFromValues(formData).
+		SetSuccessResult(&tokenResp).
+		Post(c.tokenURL)
 	if err != nil {
-		return nil, fmt.Errorf("send request: %w", err)
+		return nil, fmt.Errorf("request failed: %w", err)
 	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("read response: %w", err)
+	if !resp.IsSuccessState() {
+		return nil, fmt.Errorf("token refresh failed: status %d, body: %s", resp.StatusCode, geminicli.SanitizeBodyForLogs(resp.String()))
 	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("token refresh failed: %d - %s", resp.StatusCode, string(body))
-	}
-
-	var tokenResp gemini.TokenResponse
-	if err := json.Unmarshal(body, &tokenResp); err != nil {
-		return nil, fmt.Errorf("parse response: %w", err)
-	}
-
 	return &tokenResp, nil
 }
 
-// getHTTPClient returns an HTTP client with optional proxy
-func (c *GeminiOAuthClient) getHTTPClient(proxyURL string) *http.Client {
-	if proxyURL == "" {
-		return c.httpClient
+func createGeminiReqClient(proxyURL string) *req.Client {
+	client := req.C().SetTimeout(60 * time.Second)
+	if proxyURL != "" {
+		client.SetProxyURL(proxyURL)
 	}
-
-	parsedURL, err := url.Parse(proxyURL)
-	if err != nil {
-		return c.httpClient
-	}
-
-	transport := &http.Transport{
-		Proxy: http.ProxyURL(parsedURL),
-	}
-
-	return &http.Client{
-		Transport: transport,
-		Timeout:   30 * time.Second,
-	}
+	return client
 }
