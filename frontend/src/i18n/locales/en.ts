@@ -1196,7 +1196,9 @@ export default {
         free: 'Free',
         pro: 'Pro',
         ultra: 'Ultra'
-      }
+      },
+      ineligibleWarning:
+        'This account is not eligible for Antigravity, but API forwarding still works. Use at your own risk.'
     },
 
     // Proxies
