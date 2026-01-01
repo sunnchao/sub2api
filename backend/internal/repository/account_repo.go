@@ -14,6 +14,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"strconv"
 	"time"
 
@@ -56,7 +57,7 @@ func newAccountRepositoryWithSQL(client *dbent.Client, sqlq sqlExecutor) *accoun
 
 func (r *accountRepository) Create(ctx context.Context, account *service.Account) error {
 	if account == nil {
-		return nil
+		return service.ErrAccountNilInput
 	}
 
 	builder := r.client.Account.Create().
@@ -98,7 +99,7 @@ func (r *accountRepository) Create(ctx context.Context, account *service.Account
 
 	created, err := builder.Save(ctx)
 	if err != nil {
-		return err
+		return translatePersistenceError(err, service.ErrAccountNotFound, nil)
 	}
 
 	account.ID = created.ID
@@ -121,6 +122,90 @@ func (r *accountRepository) GetByID(ctx context.Context, id int64) (*service.Acc
 		return nil, service.ErrAccountNotFound
 	}
 	return &accounts[0], nil
+}
+
+func (r *accountRepository) GetByIDs(ctx context.Context, ids []int64) ([]*service.Account, error) {
+	if len(ids) == 0 {
+		return []*service.Account{}, nil
+	}
+
+	// De-duplicate while preserving order of first occurrence.
+	uniqueIDs := make([]int64, 0, len(ids))
+	seen := make(map[int64]struct{}, len(ids))
+	for _, id := range ids {
+		if id <= 0 {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		uniqueIDs = append(uniqueIDs, id)
+	}
+	if len(uniqueIDs) == 0 {
+		return []*service.Account{}, nil
+	}
+
+	entAccounts, err := r.client.Account.
+		Query().
+		Where(dbaccount.IDIn(uniqueIDs...)).
+		WithProxy().
+		All(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if len(entAccounts) == 0 {
+		return []*service.Account{}, nil
+	}
+
+	accountIDs := make([]int64, 0, len(entAccounts))
+	entByID := make(map[int64]*dbent.Account, len(entAccounts))
+	for _, acc := range entAccounts {
+		entByID[acc.ID] = acc
+		accountIDs = append(accountIDs, acc.ID)
+	}
+
+	groupsByAccount, groupIDsByAccount, accountGroupsByAccount, err := r.loadAccountGroups(ctx, accountIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	outByID := make(map[int64]*service.Account, len(entAccounts))
+	for _, entAcc := range entAccounts {
+		out := accountEntityToService(entAcc)
+		if out == nil {
+			continue
+		}
+
+		// Prefer the preloaded proxy edge when available.
+		if entAcc.Edges.Proxy != nil {
+			out.Proxy = proxyEntityToService(entAcc.Edges.Proxy)
+		}
+
+		if groups, ok := groupsByAccount[entAcc.ID]; ok {
+			out.Groups = groups
+		}
+		if groupIDs, ok := groupIDsByAccount[entAcc.ID]; ok {
+			out.GroupIDs = groupIDs
+		}
+		if ags, ok := accountGroupsByAccount[entAcc.ID]; ok {
+			out.AccountGroups = ags
+		}
+		outByID[entAcc.ID] = out
+	}
+
+	// Preserve input order (first occurrence), and ignore missing IDs.
+	out := make([]*service.Account, 0, len(uniqueIDs))
+	for _, id := range uniqueIDs {
+		if _, ok := entByID[id]; !ok {
+			continue
+		}
+		if acc, ok := outByID[id]; ok && acc != nil {
+			out = append(out, acc)
+		}
+	}
+
+	return out, nil
 }
 
 // ExistsByID 检查指定 ID 的账号是否存在。
@@ -231,11 +316,32 @@ func (r *accountRepository) Update(ctx context.Context, account *service.Account
 }
 
 func (r *accountRepository) Delete(ctx context.Context, id int64) error {
-	if _, err := r.client.AccountGroup.Delete().Where(dbaccountgroup.AccountIDEQ(id)).Exec(ctx); err != nil {
+	// 使用事务保证账号与关联分组的删除原子性
+	tx, err := r.client.Tx(ctx)
+	if err != nil && !errors.Is(err, dbent.ErrTxStarted) {
 		return err
 	}
-	_, err := r.client.Account.Delete().Where(dbaccount.IDEQ(id)).Exec(ctx)
-	return err
+
+	var txClient *dbent.Client
+	if err == nil {
+		defer func() { _ = tx.Rollback() }()
+		txClient = tx.Client()
+	} else {
+		// 已处于外部事务中（ErrTxStarted），复用当前 client
+		txClient = r.client
+	}
+
+	if _, err := txClient.AccountGroup.Delete().Where(dbaccountgroup.AccountIDEQ(id)).Exec(ctx); err != nil {
+		return err
+	}
+	if _, err := txClient.Account.Delete().Where(dbaccount.IDEQ(id)).Exec(ctx); err != nil {
+		return err
+	}
+
+	if tx != nil {
+		return tx.Commit()
+	}
+	return nil
 }
 
 func (r *accountRepository) List(ctx context.Context, params pagination.PaginationParams) ([]service.Account, *pagination.PaginationResult, error) {
@@ -393,25 +499,49 @@ func (r *accountRepository) GetGroups(ctx context.Context, accountID int64) ([]s
 }
 
 func (r *accountRepository) BindGroups(ctx context.Context, accountID int64, groupIDs []int64) error {
-	if _, err := r.client.AccountGroup.Delete().Where(dbaccountgroup.AccountIDEQ(accountID)).Exec(ctx); err != nil {
+	// 使用事务保证删除旧绑定与创建新绑定的原子性
+	tx, err := r.client.Tx(ctx)
+	if err != nil && !errors.Is(err, dbent.ErrTxStarted) {
+		return err
+	}
+
+	var txClient *dbent.Client
+	if err == nil {
+		defer func() { _ = tx.Rollback() }()
+		txClient = tx.Client()
+	} else {
+		// 已处于外部事务中（ErrTxStarted），复用当前 client
+		txClient = r.client
+	}
+
+	if _, err := txClient.AccountGroup.Delete().Where(dbaccountgroup.AccountIDEQ(accountID)).Exec(ctx); err != nil {
 		return err
 	}
 
 	if len(groupIDs) == 0 {
+		if tx != nil {
+			return tx.Commit()
+		}
 		return nil
 	}
 
 	builders := make([]*dbent.AccountGroupCreate, 0, len(groupIDs))
 	for i, groupID := range groupIDs {
-		builders = append(builders, r.client.AccountGroup.Create().
+		builders = append(builders, txClient.AccountGroup.Create().
 			SetAccountID(accountID).
 			SetGroupID(groupID).
 			SetPriority(i+1),
 		)
 	}
 
-	_, err := r.client.AccountGroup.CreateBulk(builders...).Save(ctx)
-	return err
+	if _, err := txClient.AccountGroup.CreateBulk(builders...).Save(ctx); err != nil {
+		return err
+	}
+
+	if tx != nil {
+		return tx.Commit()
+	}
+	return nil
 }
 
 func (r *accountRepository) ListSchedulable(ctx context.Context) ([]service.Account, error) {
@@ -555,24 +685,30 @@ func (r *accountRepository) UpdateExtra(ctx context.Context, id int64, updates m
 		return nil
 	}
 
-	accountExtra, err := r.client.Account.Query().
-		Where(dbaccount.IDEQ(id)).
-		Select(dbaccount.FieldExtra).
-		Only(ctx)
+	// 使用 JSONB 合并操作实现原子更新，避免读-改-写的并发丢失更新问题
+	payload, err := json.Marshal(updates)
 	if err != nil {
-		return translatePersistenceError(err, service.ErrAccountNotFound, nil)
+		return err
 	}
 
-	extra := normalizeJSONMap(accountExtra.Extra)
-	for k, v := range updates {
-		extra[k] = v
+	client := clientFromContext(ctx, r.client)
+	result, err := client.ExecContext(
+		ctx,
+		"UPDATE accounts SET extra = COALESCE(extra, '{}'::jsonb) || $1::jsonb, updated_at = NOW() WHERE id = $2 AND deleted_at IS NULL",
+		payload, id,
+	)
+	if err != nil {
+		return err
 	}
 
-	_, err = r.client.Account.Update().
-		Where(dbaccount.IDEQ(id)).
-		SetExtra(extra).
-		Save(ctx)
-	return err
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return service.ErrAccountNotFound
+	}
+	return nil
 }
 
 func (r *accountRepository) BulkUpdate(ctx context.Context, ids []int64, updates service.AccountBulkUpdate) (int64, error) {

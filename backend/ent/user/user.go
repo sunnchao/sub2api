@@ -35,8 +35,6 @@ const (
 	FieldStatus = "status"
 	// FieldUsername holds the string denoting the username field in the database.
 	FieldUsername = "username"
-	// FieldWechat holds the string denoting the wechat field in the database.
-	FieldWechat = "wechat"
 	// FieldNotes holds the string denoting the notes field in the database.
 	FieldNotes = "notes"
 	// EdgeAPIKeys holds the string denoting the api_keys edge name in mutations.
@@ -49,6 +47,10 @@ const (
 	EdgeAssignedSubscriptions = "assigned_subscriptions"
 	// EdgeAllowedGroups holds the string denoting the allowed_groups edge name in mutations.
 	EdgeAllowedGroups = "allowed_groups"
+	// EdgeUsageLogs holds the string denoting the usage_logs edge name in mutations.
+	EdgeUsageLogs = "usage_logs"
+	// EdgeAttributeValues holds the string denoting the attribute_values edge name in mutations.
+	EdgeAttributeValues = "attribute_values"
 	// EdgeUserAllowedGroups holds the string denoting the user_allowed_groups edge name in mutations.
 	EdgeUserAllowedGroups = "user_allowed_groups"
 	// Table holds the table name of the user in the database.
@@ -86,6 +88,20 @@ const (
 	// AllowedGroupsInverseTable is the table name for the Group entity.
 	// It exists in this package in order to avoid circular dependency with the "group" package.
 	AllowedGroupsInverseTable = "groups"
+	// UsageLogsTable is the table that holds the usage_logs relation/edge.
+	UsageLogsTable = "usage_logs"
+	// UsageLogsInverseTable is the table name for the UsageLog entity.
+	// It exists in this package in order to avoid circular dependency with the "usagelog" package.
+	UsageLogsInverseTable = "usage_logs"
+	// UsageLogsColumn is the table column denoting the usage_logs relation/edge.
+	UsageLogsColumn = "user_id"
+	// AttributeValuesTable is the table that holds the attribute_values relation/edge.
+	AttributeValuesTable = "user_attribute_values"
+	// AttributeValuesInverseTable is the table name for the UserAttributeValue entity.
+	// It exists in this package in order to avoid circular dependency with the "userattributevalue" package.
+	AttributeValuesInverseTable = "user_attribute_values"
+	// AttributeValuesColumn is the table column denoting the attribute_values relation/edge.
+	AttributeValuesColumn = "user_id"
 	// UserAllowedGroupsTable is the table that holds the user_allowed_groups relation/edge.
 	UserAllowedGroupsTable = "user_allowed_groups"
 	// UserAllowedGroupsInverseTable is the table name for the UserAllowedGroup entity.
@@ -108,7 +124,6 @@ var Columns = []string{
 	FieldConcurrency,
 	FieldStatus,
 	FieldUsername,
-	FieldWechat,
 	FieldNotes,
 }
 
@@ -162,10 +177,6 @@ var (
 	DefaultUsername string
 	// UsernameValidator is a validator for the "username" field. It is called by the builders before save.
 	UsernameValidator func(string) error
-	// DefaultWechat holds the default value on creation for the "wechat" field.
-	DefaultWechat string
-	// WechatValidator is a validator for the "wechat" field. It is called by the builders before save.
-	WechatValidator func(string) error
 	// DefaultNotes holds the default value on creation for the "notes" field.
 	DefaultNotes string
 )
@@ -226,11 +237,6 @@ func ByStatus(opts ...sql.OrderTermOption) OrderOption {
 // ByUsername orders the results by the username field.
 func ByUsername(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldUsername, opts...).ToFunc()
-}
-
-// ByWechat orders the results by the wechat field.
-func ByWechat(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldWechat, opts...).ToFunc()
 }
 
 // ByNotes orders the results by the notes field.
@@ -308,6 +314,34 @@ func ByAllowedGroups(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
 	}
 }
 
+// ByUsageLogsCount orders the results by usage_logs count.
+func ByUsageLogsCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newUsageLogsStep(), opts...)
+	}
+}
+
+// ByUsageLogs orders the results by usage_logs terms.
+func ByUsageLogs(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newUsageLogsStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
+// ByAttributeValuesCount orders the results by attribute_values count.
+func ByAttributeValuesCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newAttributeValuesStep(), opts...)
+	}
+}
+
+// ByAttributeValues orders the results by attribute_values terms.
+func ByAttributeValues(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newAttributeValuesStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
 // ByUserAllowedGroupsCount orders the results by user_allowed_groups count.
 func ByUserAllowedGroupsCount(opts ...sql.OrderTermOption) OrderOption {
 	return func(s *sql.Selector) {
@@ -354,6 +388,20 @@ func newAllowedGroupsStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(AllowedGroupsInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.M2M, false, AllowedGroupsTable, AllowedGroupsPrimaryKey...),
+	)
+}
+func newUsageLogsStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(UsageLogsInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, UsageLogsTable, UsageLogsColumn),
+	)
+}
+func newAttributeValuesStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(AttributeValuesInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, AttributeValuesTable, AttributeValuesColumn),
 	)
 }
 func newUserAllowedGroupsStep() *sqlgraph.Step {

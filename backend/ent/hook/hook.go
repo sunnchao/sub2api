@@ -93,6 +93,18 @@ func (f SettingFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, err
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.SettingMutation", m)
 }
 
+// The UsageLogFunc type is an adapter to allow the use of ordinary
+// function as UsageLog mutator.
+type UsageLogFunc func(context.Context, *ent.UsageLogMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f UsageLogFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.UsageLogMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.UsageLogMutation", m)
+}
+
 // The UserFunc type is an adapter to allow the use of ordinary
 // function as User mutator.
 type UserFunc func(context.Context, *ent.UserMutation) (ent.Value, error)
@@ -115,6 +127,30 @@ func (f UserAllowedGroupFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.V
 		return f(ctx, mv)
 	}
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.UserAllowedGroupMutation", m)
+}
+
+// The UserAttributeDefinitionFunc type is an adapter to allow the use of ordinary
+// function as UserAttributeDefinition mutator.
+type UserAttributeDefinitionFunc func(context.Context, *ent.UserAttributeDefinitionMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f UserAttributeDefinitionFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.UserAttributeDefinitionMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.UserAttributeDefinitionMutation", m)
+}
+
+// The UserAttributeValueFunc type is an adapter to allow the use of ordinary
+// function as UserAttributeValue mutator.
+type UserAttributeValueFunc func(context.Context, *ent.UserAttributeValueMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f UserAttributeValueFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.UserAttributeValueMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.UserAttributeValueMutation", m)
 }
 
 // The UserSubscriptionFunc type is an adapter to allow the use of ordinary

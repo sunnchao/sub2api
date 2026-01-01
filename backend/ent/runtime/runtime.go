@@ -13,8 +13,11 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/redeemcode"
 	"github.com/Wei-Shaw/sub2api/ent/schema"
 	"github.com/Wei-Shaw/sub2api/ent/setting"
+	"github.com/Wei-Shaw/sub2api/ent/usagelog"
 	"github.com/Wei-Shaw/sub2api/ent/user"
 	"github.com/Wei-Shaw/sub2api/ent/userallowedgroup"
+	"github.com/Wei-Shaw/sub2api/ent/userattributedefinition"
+	"github.com/Wei-Shaw/sub2api/ent/userattributevalue"
 	"github.com/Wei-Shaw/sub2api/ent/usersubscription"
 )
 
@@ -259,6 +262,10 @@ func init() {
 	group.DefaultSubscriptionType = groupDescSubscriptionType.Default.(string)
 	// group.SubscriptionTypeValidator is a validator for the "subscription_type" field. It is called by the builders before save.
 	group.SubscriptionTypeValidator = groupDescSubscriptionType.Validators[0].(func(string) error)
+	// groupDescDefaultValidityDays is the schema descriptor for default_validity_days field.
+	groupDescDefaultValidityDays := groupFields[10].Descriptor()
+	// group.DefaultDefaultValidityDays holds the default value on creation for the default_validity_days field.
+	group.DefaultDefaultValidityDays = groupDescDefaultValidityDays.Default.(int)
 	proxyMixin := schema.Proxy{}.Mixin()
 	proxyMixinHooks1 := proxyMixin[1].Hooks()
 	proxy.Hooks[0] = proxyMixinHooks1[0]
@@ -410,16 +417,114 @@ func init() {
 			return nil
 		}
 	}()
-	// settingDescValue is the schema descriptor for value field.
-	settingDescValue := settingFields[1].Descriptor()
-	// setting.ValueValidator is a validator for the "value" field. It is called by the builders before save.
-	setting.ValueValidator = settingDescValue.Validators[0].(func(string) error)
 	// settingDescUpdatedAt is the schema descriptor for updated_at field.
 	settingDescUpdatedAt := settingFields[2].Descriptor()
 	// setting.DefaultUpdatedAt holds the default value on creation for the updated_at field.
 	setting.DefaultUpdatedAt = settingDescUpdatedAt.Default.(func() time.Time)
 	// setting.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
 	setting.UpdateDefaultUpdatedAt = settingDescUpdatedAt.UpdateDefault.(func() time.Time)
+	usagelogFields := schema.UsageLog{}.Fields()
+	_ = usagelogFields
+	// usagelogDescRequestID is the schema descriptor for request_id field.
+	usagelogDescRequestID := usagelogFields[3].Descriptor()
+	// usagelog.RequestIDValidator is a validator for the "request_id" field. It is called by the builders before save.
+	usagelog.RequestIDValidator = func() func(string) error {
+		validators := usagelogDescRequestID.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(request_id string) error {
+			for _, fn := range fns {
+				if err := fn(request_id); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// usagelogDescModel is the schema descriptor for model field.
+	usagelogDescModel := usagelogFields[4].Descriptor()
+	// usagelog.ModelValidator is a validator for the "model" field. It is called by the builders before save.
+	usagelog.ModelValidator = func() func(string) error {
+		validators := usagelogDescModel.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(model string) error {
+			for _, fn := range fns {
+				if err := fn(model); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// usagelogDescInputTokens is the schema descriptor for input_tokens field.
+	usagelogDescInputTokens := usagelogFields[7].Descriptor()
+	// usagelog.DefaultInputTokens holds the default value on creation for the input_tokens field.
+	usagelog.DefaultInputTokens = usagelogDescInputTokens.Default.(int)
+	// usagelogDescOutputTokens is the schema descriptor for output_tokens field.
+	usagelogDescOutputTokens := usagelogFields[8].Descriptor()
+	// usagelog.DefaultOutputTokens holds the default value on creation for the output_tokens field.
+	usagelog.DefaultOutputTokens = usagelogDescOutputTokens.Default.(int)
+	// usagelogDescCacheCreationTokens is the schema descriptor for cache_creation_tokens field.
+	usagelogDescCacheCreationTokens := usagelogFields[9].Descriptor()
+	// usagelog.DefaultCacheCreationTokens holds the default value on creation for the cache_creation_tokens field.
+	usagelog.DefaultCacheCreationTokens = usagelogDescCacheCreationTokens.Default.(int)
+	// usagelogDescCacheReadTokens is the schema descriptor for cache_read_tokens field.
+	usagelogDescCacheReadTokens := usagelogFields[10].Descriptor()
+	// usagelog.DefaultCacheReadTokens holds the default value on creation for the cache_read_tokens field.
+	usagelog.DefaultCacheReadTokens = usagelogDescCacheReadTokens.Default.(int)
+	// usagelogDescCacheCreation5mTokens is the schema descriptor for cache_creation_5m_tokens field.
+	usagelogDescCacheCreation5mTokens := usagelogFields[11].Descriptor()
+	// usagelog.DefaultCacheCreation5mTokens holds the default value on creation for the cache_creation_5m_tokens field.
+	usagelog.DefaultCacheCreation5mTokens = usagelogDescCacheCreation5mTokens.Default.(int)
+	// usagelogDescCacheCreation1hTokens is the schema descriptor for cache_creation_1h_tokens field.
+	usagelogDescCacheCreation1hTokens := usagelogFields[12].Descriptor()
+	// usagelog.DefaultCacheCreation1hTokens holds the default value on creation for the cache_creation_1h_tokens field.
+	usagelog.DefaultCacheCreation1hTokens = usagelogDescCacheCreation1hTokens.Default.(int)
+	// usagelogDescInputCost is the schema descriptor for input_cost field.
+	usagelogDescInputCost := usagelogFields[13].Descriptor()
+	// usagelog.DefaultInputCost holds the default value on creation for the input_cost field.
+	usagelog.DefaultInputCost = usagelogDescInputCost.Default.(float64)
+	// usagelogDescOutputCost is the schema descriptor for output_cost field.
+	usagelogDescOutputCost := usagelogFields[14].Descriptor()
+	// usagelog.DefaultOutputCost holds the default value on creation for the output_cost field.
+	usagelog.DefaultOutputCost = usagelogDescOutputCost.Default.(float64)
+	// usagelogDescCacheCreationCost is the schema descriptor for cache_creation_cost field.
+	usagelogDescCacheCreationCost := usagelogFields[15].Descriptor()
+	// usagelog.DefaultCacheCreationCost holds the default value on creation for the cache_creation_cost field.
+	usagelog.DefaultCacheCreationCost = usagelogDescCacheCreationCost.Default.(float64)
+	// usagelogDescCacheReadCost is the schema descriptor for cache_read_cost field.
+	usagelogDescCacheReadCost := usagelogFields[16].Descriptor()
+	// usagelog.DefaultCacheReadCost holds the default value on creation for the cache_read_cost field.
+	usagelog.DefaultCacheReadCost = usagelogDescCacheReadCost.Default.(float64)
+	// usagelogDescTotalCost is the schema descriptor for total_cost field.
+	usagelogDescTotalCost := usagelogFields[17].Descriptor()
+	// usagelog.DefaultTotalCost holds the default value on creation for the total_cost field.
+	usagelog.DefaultTotalCost = usagelogDescTotalCost.Default.(float64)
+	// usagelogDescActualCost is the schema descriptor for actual_cost field.
+	usagelogDescActualCost := usagelogFields[18].Descriptor()
+	// usagelog.DefaultActualCost holds the default value on creation for the actual_cost field.
+	usagelog.DefaultActualCost = usagelogDescActualCost.Default.(float64)
+	// usagelogDescRateMultiplier is the schema descriptor for rate_multiplier field.
+	usagelogDescRateMultiplier := usagelogFields[19].Descriptor()
+	// usagelog.DefaultRateMultiplier holds the default value on creation for the rate_multiplier field.
+	usagelog.DefaultRateMultiplier = usagelogDescRateMultiplier.Default.(float64)
+	// usagelogDescBillingType is the schema descriptor for billing_type field.
+	usagelogDescBillingType := usagelogFields[20].Descriptor()
+	// usagelog.DefaultBillingType holds the default value on creation for the billing_type field.
+	usagelog.DefaultBillingType = usagelogDescBillingType.Default.(int8)
+	// usagelogDescStream is the schema descriptor for stream field.
+	usagelogDescStream := usagelogFields[21].Descriptor()
+	// usagelog.DefaultStream holds the default value on creation for the stream field.
+	usagelog.DefaultStream = usagelogDescStream.Default.(bool)
+	// usagelogDescCreatedAt is the schema descriptor for created_at field.
+	usagelogDescCreatedAt := usagelogFields[24].Descriptor()
+	// usagelog.DefaultCreatedAt holds the default value on creation for the created_at field.
+	usagelog.DefaultCreatedAt = usagelogDescCreatedAt.Default.(func() time.Time)
 	userMixin := schema.User{}.Mixin()
 	userMixinHooks1 := userMixin[1].Hooks()
 	user.Hooks[0] = userMixinHooks1[0]
@@ -501,14 +606,8 @@ func init() {
 	user.DefaultUsername = userDescUsername.Default.(string)
 	// user.UsernameValidator is a validator for the "username" field. It is called by the builders before save.
 	user.UsernameValidator = userDescUsername.Validators[0].(func(string) error)
-	// userDescWechat is the schema descriptor for wechat field.
-	userDescWechat := userFields[7].Descriptor()
-	// user.DefaultWechat holds the default value on creation for the wechat field.
-	user.DefaultWechat = userDescWechat.Default.(string)
-	// user.WechatValidator is a validator for the "wechat" field. It is called by the builders before save.
-	user.WechatValidator = userDescWechat.Validators[0].(func(string) error)
 	// userDescNotes is the schema descriptor for notes field.
-	userDescNotes := userFields[8].Descriptor()
+	userDescNotes := userFields[7].Descriptor()
 	// user.DefaultNotes holds the default value on creation for the notes field.
 	user.DefaultNotes = userDescNotes.Default.(string)
 	userallowedgroupFields := schema.UserAllowedGroup{}.Fields()
@@ -517,7 +616,133 @@ func init() {
 	userallowedgroupDescCreatedAt := userallowedgroupFields[2].Descriptor()
 	// userallowedgroup.DefaultCreatedAt holds the default value on creation for the created_at field.
 	userallowedgroup.DefaultCreatedAt = userallowedgroupDescCreatedAt.Default.(func() time.Time)
+	userattributedefinitionMixin := schema.UserAttributeDefinition{}.Mixin()
+	userattributedefinitionMixinHooks1 := userattributedefinitionMixin[1].Hooks()
+	userattributedefinition.Hooks[0] = userattributedefinitionMixinHooks1[0]
+	userattributedefinitionMixinInters1 := userattributedefinitionMixin[1].Interceptors()
+	userattributedefinition.Interceptors[0] = userattributedefinitionMixinInters1[0]
+	userattributedefinitionMixinFields0 := userattributedefinitionMixin[0].Fields()
+	_ = userattributedefinitionMixinFields0
+	userattributedefinitionFields := schema.UserAttributeDefinition{}.Fields()
+	_ = userattributedefinitionFields
+	// userattributedefinitionDescCreatedAt is the schema descriptor for created_at field.
+	userattributedefinitionDescCreatedAt := userattributedefinitionMixinFields0[0].Descriptor()
+	// userattributedefinition.DefaultCreatedAt holds the default value on creation for the created_at field.
+	userattributedefinition.DefaultCreatedAt = userattributedefinitionDescCreatedAt.Default.(func() time.Time)
+	// userattributedefinitionDescUpdatedAt is the schema descriptor for updated_at field.
+	userattributedefinitionDescUpdatedAt := userattributedefinitionMixinFields0[1].Descriptor()
+	// userattributedefinition.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	userattributedefinition.DefaultUpdatedAt = userattributedefinitionDescUpdatedAt.Default.(func() time.Time)
+	// userattributedefinition.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	userattributedefinition.UpdateDefaultUpdatedAt = userattributedefinitionDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// userattributedefinitionDescKey is the schema descriptor for key field.
+	userattributedefinitionDescKey := userattributedefinitionFields[0].Descriptor()
+	// userattributedefinition.KeyValidator is a validator for the "key" field. It is called by the builders before save.
+	userattributedefinition.KeyValidator = func() func(string) error {
+		validators := userattributedefinitionDescKey.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(key string) error {
+			for _, fn := range fns {
+				if err := fn(key); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// userattributedefinitionDescName is the schema descriptor for name field.
+	userattributedefinitionDescName := userattributedefinitionFields[1].Descriptor()
+	// userattributedefinition.NameValidator is a validator for the "name" field. It is called by the builders before save.
+	userattributedefinition.NameValidator = func() func(string) error {
+		validators := userattributedefinitionDescName.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(name string) error {
+			for _, fn := range fns {
+				if err := fn(name); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// userattributedefinitionDescDescription is the schema descriptor for description field.
+	userattributedefinitionDescDescription := userattributedefinitionFields[2].Descriptor()
+	// userattributedefinition.DefaultDescription holds the default value on creation for the description field.
+	userattributedefinition.DefaultDescription = userattributedefinitionDescDescription.Default.(string)
+	// userattributedefinitionDescType is the schema descriptor for type field.
+	userattributedefinitionDescType := userattributedefinitionFields[3].Descriptor()
+	// userattributedefinition.TypeValidator is a validator for the "type" field. It is called by the builders before save.
+	userattributedefinition.TypeValidator = func() func(string) error {
+		validators := userattributedefinitionDescType.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(_type string) error {
+			for _, fn := range fns {
+				if err := fn(_type); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// userattributedefinitionDescOptions is the schema descriptor for options field.
+	userattributedefinitionDescOptions := userattributedefinitionFields[4].Descriptor()
+	// userattributedefinition.DefaultOptions holds the default value on creation for the options field.
+	userattributedefinition.DefaultOptions = userattributedefinitionDescOptions.Default.([]map[string]interface{})
+	// userattributedefinitionDescRequired is the schema descriptor for required field.
+	userattributedefinitionDescRequired := userattributedefinitionFields[5].Descriptor()
+	// userattributedefinition.DefaultRequired holds the default value on creation for the required field.
+	userattributedefinition.DefaultRequired = userattributedefinitionDescRequired.Default.(bool)
+	// userattributedefinitionDescValidation is the schema descriptor for validation field.
+	userattributedefinitionDescValidation := userattributedefinitionFields[6].Descriptor()
+	// userattributedefinition.DefaultValidation holds the default value on creation for the validation field.
+	userattributedefinition.DefaultValidation = userattributedefinitionDescValidation.Default.(map[string]interface{})
+	// userattributedefinitionDescPlaceholder is the schema descriptor for placeholder field.
+	userattributedefinitionDescPlaceholder := userattributedefinitionFields[7].Descriptor()
+	// userattributedefinition.DefaultPlaceholder holds the default value on creation for the placeholder field.
+	userattributedefinition.DefaultPlaceholder = userattributedefinitionDescPlaceholder.Default.(string)
+	// userattributedefinition.PlaceholderValidator is a validator for the "placeholder" field. It is called by the builders before save.
+	userattributedefinition.PlaceholderValidator = userattributedefinitionDescPlaceholder.Validators[0].(func(string) error)
+	// userattributedefinitionDescDisplayOrder is the schema descriptor for display_order field.
+	userattributedefinitionDescDisplayOrder := userattributedefinitionFields[8].Descriptor()
+	// userattributedefinition.DefaultDisplayOrder holds the default value on creation for the display_order field.
+	userattributedefinition.DefaultDisplayOrder = userattributedefinitionDescDisplayOrder.Default.(int)
+	// userattributedefinitionDescEnabled is the schema descriptor for enabled field.
+	userattributedefinitionDescEnabled := userattributedefinitionFields[9].Descriptor()
+	// userattributedefinition.DefaultEnabled holds the default value on creation for the enabled field.
+	userattributedefinition.DefaultEnabled = userattributedefinitionDescEnabled.Default.(bool)
+	userattributevalueMixin := schema.UserAttributeValue{}.Mixin()
+	userattributevalueMixinFields0 := userattributevalueMixin[0].Fields()
+	_ = userattributevalueMixinFields0
+	userattributevalueFields := schema.UserAttributeValue{}.Fields()
+	_ = userattributevalueFields
+	// userattributevalueDescCreatedAt is the schema descriptor for created_at field.
+	userattributevalueDescCreatedAt := userattributevalueMixinFields0[0].Descriptor()
+	// userattributevalue.DefaultCreatedAt holds the default value on creation for the created_at field.
+	userattributevalue.DefaultCreatedAt = userattributevalueDescCreatedAt.Default.(func() time.Time)
+	// userattributevalueDescUpdatedAt is the schema descriptor for updated_at field.
+	userattributevalueDescUpdatedAt := userattributevalueMixinFields0[1].Descriptor()
+	// userattributevalue.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	userattributevalue.DefaultUpdatedAt = userattributevalueDescUpdatedAt.Default.(func() time.Time)
+	// userattributevalue.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	userattributevalue.UpdateDefaultUpdatedAt = userattributevalueDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// userattributevalueDescValue is the schema descriptor for value field.
+	userattributevalueDescValue := userattributevalueFields[2].Descriptor()
+	// userattributevalue.DefaultValue holds the default value on creation for the value field.
+	userattributevalue.DefaultValue = userattributevalueDescValue.Default.(string)
 	usersubscriptionMixin := schema.UserSubscription{}.Mixin()
+	usersubscriptionMixinHooks1 := usersubscriptionMixin[1].Hooks()
+	usersubscription.Hooks[0] = usersubscriptionMixinHooks1[0]
+	usersubscriptionMixinInters1 := usersubscriptionMixin[1].Interceptors()
+	usersubscription.Interceptors[0] = usersubscriptionMixinInters1[0]
 	usersubscriptionMixinFields0 := usersubscriptionMixin[0].Fields()
 	_ = usersubscriptionMixinFields0
 	usersubscriptionFields := schema.UserSubscription{}.Fields()

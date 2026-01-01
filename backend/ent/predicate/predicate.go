@@ -27,11 +27,20 @@ type RedeemCode func(*sql.Selector)
 // Setting is the predicate function for setting builders.
 type Setting func(*sql.Selector)
 
+// UsageLog is the predicate function for usagelog builders.
+type UsageLog func(*sql.Selector)
+
 // User is the predicate function for user builders.
 type User func(*sql.Selector)
 
 // UserAllowedGroup is the predicate function for userallowedgroup builders.
 type UserAllowedGroup func(*sql.Selector)
+
+// UserAttributeDefinition is the predicate function for userattributedefinition builders.
+type UserAttributeDefinition func(*sql.Selector)
+
+// UserAttributeValue is the predicate function for userattributevalue builders.
+type UserAttributeValue func(*sql.Selector)
 
 // UserSubscription is the predicate function for usersubscription builders.
 type UserSubscription func(*sql.Selector)

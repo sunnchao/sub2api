@@ -37,8 +37,6 @@ type User struct {
 	Status string `json:"status,omitempty"`
 	// Username holds the value of the "username" field.
 	Username string `json:"username,omitempty"`
-	// Wechat holds the value of the "wechat" field.
-	Wechat string `json:"wechat,omitempty"`
 	// Notes holds the value of the "notes" field.
 	Notes string `json:"notes,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
@@ -59,11 +57,15 @@ type UserEdges struct {
 	AssignedSubscriptions []*UserSubscription `json:"assigned_subscriptions,omitempty"`
 	// AllowedGroups holds the value of the allowed_groups edge.
 	AllowedGroups []*Group `json:"allowed_groups,omitempty"`
+	// UsageLogs holds the value of the usage_logs edge.
+	UsageLogs []*UsageLog `json:"usage_logs,omitempty"`
+	// AttributeValues holds the value of the attribute_values edge.
+	AttributeValues []*UserAttributeValue `json:"attribute_values,omitempty"`
 	// UserAllowedGroups holds the value of the user_allowed_groups edge.
 	UserAllowedGroups []*UserAllowedGroup `json:"user_allowed_groups,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [6]bool
+	loadedTypes [8]bool
 }
 
 // APIKeysOrErr returns the APIKeys value or an error if the edge
@@ -111,10 +113,28 @@ func (e UserEdges) AllowedGroupsOrErr() ([]*Group, error) {
 	return nil, &NotLoadedError{edge: "allowed_groups"}
 }
 
+// UsageLogsOrErr returns the UsageLogs value or an error if the edge
+// was not loaded in eager-loading.
+func (e UserEdges) UsageLogsOrErr() ([]*UsageLog, error) {
+	if e.loadedTypes[5] {
+		return e.UsageLogs, nil
+	}
+	return nil, &NotLoadedError{edge: "usage_logs"}
+}
+
+// AttributeValuesOrErr returns the AttributeValues value or an error if the edge
+// was not loaded in eager-loading.
+func (e UserEdges) AttributeValuesOrErr() ([]*UserAttributeValue, error) {
+	if e.loadedTypes[6] {
+		return e.AttributeValues, nil
+	}
+	return nil, &NotLoadedError{edge: "attribute_values"}
+}
+
 // UserAllowedGroupsOrErr returns the UserAllowedGroups value or an error if the edge
 // was not loaded in eager-loading.
 func (e UserEdges) UserAllowedGroupsOrErr() ([]*UserAllowedGroup, error) {
-	if e.loadedTypes[5] {
+	if e.loadedTypes[7] {
 		return e.UserAllowedGroups, nil
 	}
 	return nil, &NotLoadedError{edge: "user_allowed_groups"}
@@ -129,7 +149,7 @@ func (*User) scanValues(columns []string) ([]any, error) {
 			values[i] = new(sql.NullFloat64)
 		case user.FieldID, user.FieldConcurrency:
 			values[i] = new(sql.NullInt64)
-		case user.FieldEmail, user.FieldPasswordHash, user.FieldRole, user.FieldStatus, user.FieldUsername, user.FieldWechat, user.FieldNotes:
+		case user.FieldEmail, user.FieldPasswordHash, user.FieldRole, user.FieldStatus, user.FieldUsername, user.FieldNotes:
 			values[i] = new(sql.NullString)
 		case user.FieldCreatedAt, user.FieldUpdatedAt, user.FieldDeletedAt:
 			values[i] = new(sql.NullTime)
@@ -215,12 +235,6 @@ func (_m *User) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.Username = value.String
 			}
-		case user.FieldWechat:
-			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field wechat", values[i])
-			} else if value.Valid {
-				_m.Wechat = value.String
-			}
 		case user.FieldNotes:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field notes", values[i])
@@ -263,6 +277,16 @@ func (_m *User) QueryAssignedSubscriptions() *UserSubscriptionQuery {
 // QueryAllowedGroups queries the "allowed_groups" edge of the User entity.
 func (_m *User) QueryAllowedGroups() *GroupQuery {
 	return NewUserClient(_m.config).QueryAllowedGroups(_m)
+}
+
+// QueryUsageLogs queries the "usage_logs" edge of the User entity.
+func (_m *User) QueryUsageLogs() *UsageLogQuery {
+	return NewUserClient(_m.config).QueryUsageLogs(_m)
+}
+
+// QueryAttributeValues queries the "attribute_values" edge of the User entity.
+func (_m *User) QueryAttributeValues() *UserAttributeValueQuery {
+	return NewUserClient(_m.config).QueryAttributeValues(_m)
 }
 
 // QueryUserAllowedGroups queries the "user_allowed_groups" edge of the User entity.
@@ -324,9 +348,6 @@ func (_m *User) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("username=")
 	builder.WriteString(_m.Username)
-	builder.WriteString(", ")
-	builder.WriteString("wechat=")
-	builder.WriteString(_m.Wechat)
 	builder.WriteString(", ")
 	builder.WriteString("notes=")
 	builder.WriteString(_m.Notes)
