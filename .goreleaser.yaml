@@ -58,7 +58,7 @@ dockers:
     goos: linux
     goarch: amd64
     image_templates:
-      - "ghcr.io/{{ .Env.GITHUB_REPO_OWNER }}/{{ .Env.GITHUB_REPO_NAME }}:{{ .Version }}-amd64"
+      - "{{ .Env.DOCKERHUB_USERNAME }}/sub2api:{{ .Version }}-amd64"
     dockerfile: Dockerfile.goreleaser
     use: buildx
     build_flag_templates:
@@ -70,7 +70,7 @@ dockers:
     goos: linux
     goarch: arm64
     image_templates:
-      - "ghcr.io/{{ .Env.GITHUB_REPO_OWNER }}/{{ .Env.GITHUB_REPO_NAME }}:{{ .Version }}-arm64"
+      - "{{ .Env.DOCKERHUB_USERNAME }}/sub2api:{{ .Version }}-arm64"
     dockerfile: Dockerfile.goreleaser
     use: buildx
     build_flag_templates:
@@ -107,25 +107,25 @@ dockers:
 
 # Docker manifests for multi-arch support
 docker_manifests:
-  - name_template: "ghcr.io/{{ .Env.GITHUB_REPO_OWNER }}/{{ .Env.GITHUB_REPO_NAME }}:{{ .Version }}"
+  - name_template: "{{ .Env.DOCKERHUB_USERNAME }}/sub2api:{{ .Version }}"
     image_templates:
-      - "ghcr.io/{{ .Env.GITHUB_REPO_OWNER }}/{{ .Env.GITHUB_REPO_NAME }}:{{ .Version }}-amd64"
-      - "ghcr.io/{{ .Env.GITHUB_REPO_OWNER }}/{{ .Env.GITHUB_REPO_NAME }}:{{ .Version }}-arm64"
+      - "{{ .Env.DOCKERHUB_USERNAME }}/sub2api:{{ .Version }}-amd64"
+      - "{{ .Env.DOCKERHUB_USERNAME }}/sub2api:{{ .Version }}-arm64"
 
-  - name_template: "ghcr.io/{{ .Env.GITHUB_REPO_OWNER }}/{{ .Env.GITHUB_REPO_NAME }}:latest"
+  - name_template: "{{ .Env.DOCKERHUB_USERNAME }}/sub2api:latest"
     image_templates:
-      - "ghcr.io/{{ .Env.GITHUB_REPO_OWNER }}/{{ .Env.GITHUB_REPO_NAME }}:{{ .Version }}-amd64"
-      - "ghcr.io/{{ .Env.GITHUB_REPO_OWNER }}/{{ .Env.GITHUB_REPO_NAME }}:{{ .Version }}-arm64"
+      - "{{ .Env.DOCKERHUB_USERNAME }}/sub2api:{{ .Version }}-amd64"
+      - "{{ .Env.DOCKERHUB_USERNAME }}/sub2api:{{ .Version }}-arm64"
 
-  - name_template: "ghcr.io/{{ .Env.GITHUB_REPO_OWNER }}/{{ .Env.GITHUB_REPO_NAME }}:{{ .Major }}.{{ .Minor }}"
+  - name_template: "{{ .Env.DOCKERHUB_USERNAME }}/sub2api:{{ .Major }}.{{ .Minor }}"
     image_templates:
-      - "ghcr.io/{{ .Env.GITHUB_REPO_OWNER }}/{{ .Env.GITHUB_REPO_NAME }}:{{ .Version }}-amd64"
-      - "ghcr.io/{{ .Env.GITHUB_REPO_OWNER }}/{{ .Env.GITHUB_REPO_NAME }}:{{ .Version }}-arm64"
+      - "{{ .Env.DOCKERHUB_USERNAME }}/sub2api:{{ .Version }}-amd64"
+      - "{{ .Env.DOCKERHUB_USERNAME }}/sub2api:{{ .Version }}-arm64"
 
-  - name_template: "ghcr.io/{{ .Env.GITHUB_REPO_OWNER }}/{{ .Env.GITHUB_REPO_NAME }}:{{ .Major }}"
+  - name_template: "{{ .Env.DOCKERHUB_USERNAME }}/sub2api:{{ .Major }}"
     image_templates:
-      - "ghcr.io/{{ .Env.GITHUB_REPO_OWNER }}/{{ .Env.GITHUB_REPO_NAME }}:{{ .Version }}-amd64"
-      - "ghcr.io/{{ .Env.GITHUB_REPO_OWNER }}/{{ .Env.GITHUB_REPO_NAME }}:{{ .Version }}-arm64"
+      - "{{ .Env.DOCKERHUB_USERNAME }}/sub2api:{{ .Version }}-amd64"
+      - "{{ .Env.DOCKERHUB_USERNAME }}/sub2api:{{ .Version }}-arm64"
 
   # GHCR manifests (owner must be lowercase)
   - name_template: "ghcr.io/{{ .Env.GITHUB_REPO_OWNER_LOWER }}/sub2api:{{ .Version }}"
@@ -147,44 +147,44 @@ docker_manifests:
     image_templates:
       - "ghcr.io/{{ .Env.GITHUB_REPO_OWNER_LOWER }}/sub2api:{{ .Version }}-amd64"
       - "ghcr.io/{{ .Env.GITHUB_REPO_OWNER_LOWER }}/sub2api:{{ .Version }}-arm64"
-#
-#release:
-#  github:
-#    owner: "{{ .Env.GITHUB_REPO_OWNER }}"
-#    name: "{{ .Env.GITHUB_REPO_NAME }}"
-#  draft: false
-#  prerelease: auto
-#  name_template: "Sub2API {{.Version}}"
-#  # 完全使用 tag 消息作为 release 内容（通过环境变量传入）
-#  header: |
-#    > AI API Gateway Platform - 将 AI 订阅配额分发和管理
-#
-#    {{ .Env.TAG_MESSAGE }}
-#
-#  footer: |
-#
-#    ---
-#
-#    ## 📥 Installation
-#
-#    **Docker:**
-#    ```bash
-#    # Docker Hub
-#    docker pull {{ .Env.DOCKERHUB_USERNAME }}/sub2api:{{ .Version }}
-#
-#    # GitHub Container Registry
-#    docker pull ghcr.io/{{ .Env.GITHUB_REPO_OWNER_LOWER }}/sub2api:{{ .Version }}
-#    ```
-#
-#    **One-line install (Linux):**
-#    ```bash
-#    curl -sSL https://raw.githubusercontent.com/{{ .Env.GITHUB_REPO_OWNER }}/{{ .Env.GITHUB_REPO_NAME }}/main/deploy/install.sh | sudo bash
-#    ```
-#
-#    **Manual download:**
-#    Download the appropriate archive for your platform from the assets below.
-#
-#    ## 📚 Documentation
-#
-#    - [GitHub Repository](https://github.com/{{ .Env.GITHUB_REPO_OWNER }}/{{ .Env.GITHUB_REPO_NAME }})
-#    - [Installation Guide](https://github.com/{{ .Env.GITHUB_REPO_OWNER }}/{{ .Env.GITHUB_REPO_NAME }}/blob/main/deploy/README.md)
+
+release:
+  github:
+    owner: "{{ .Env.GITHUB_REPO_OWNER }}"
+    name: "{{ .Env.GITHUB_REPO_NAME }}"
+  draft: false
+  prerelease: auto
+  name_template: "Sub2API {{.Version}}"
+  # 完全使用 tag 消息作为 release 内容（通过环境变量传入）
+  header: |
+    > AI API Gateway Platform - 将 AI 订阅配额分发和管理
+
+    {{ .Env.TAG_MESSAGE }}
+
+  footer: |
+
+    ---
+
+    ## 📥 Installation
+
+    **Docker:**
+    ```bash
+    # Docker Hub
+    docker pull {{ .Env.DOCKERHUB_USERNAME }}/sub2api:{{ .Version }}
+
+    # GitHub Container Registry
+    docker pull ghcr.io/{{ .Env.GITHUB_REPO_OWNER_LOWER }}/sub2api:{{ .Version }}
+    ```
+
+    **One-line install (Linux):**
+    ```bash
+    curl -sSL https://raw.githubusercontent.com/{{ .Env.GITHUB_REPO_OWNER }}/{{ .Env.GITHUB_REPO_NAME }}/main/deploy/install.sh | sudo bash
+    ```
+
+    **Manual download:**
+    Download the appropriate archive for your platform from the assets below.
+
+    ## 📚 Documentation
+
+    - [GitHub Repository](https://github.com/{{ .Env.GITHUB_REPO_OWNER }}/{{ .Env.GITHUB_REPO_NAME }})
+    - [Installation Guide](https://github.com/{{ .Env.GITHUB_REPO_OWNER }}/{{ .Env.GITHUB_REPO_NAME }}/blob/main/deploy/README.md)
