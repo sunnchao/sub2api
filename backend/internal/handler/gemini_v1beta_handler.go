@@ -146,7 +146,6 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 	}
 
 	stream := action == "streamGenerateContent"
-	requestStart := time.Now()
 
 	body, err := io.ReadAll(c.Request.Body)
 	if err != nil {
@@ -287,7 +286,6 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 				failedAccountIDs[account.ID] = struct{}{}
 				if switchCount >= maxAccountSwitches {
 					lastFailoverStatus = failoverErr.StatusCode
-					h.recordFailedUsage(apiKey, account, subscription, modelName, stream, requestStart)
 					handleGeminiFailoverExhausted(c, lastFailoverStatus)
 					return
 				}
@@ -297,7 +295,6 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 				continue
 			}
 			// ForwardNative already wrote the response
-			h.recordFailedUsage(apiKey, account, subscription, modelName, stream, requestStart)
 			log.Printf("Gemini native forward failed: %v", err)
 			return
 		}

@@ -1178,44 +1178,6 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	return nil
 }
 
-func (s *OpenAIGatewayService) RecordFailedUsage(ctx context.Context, input *RecordFailedUsageInput) error {
-	if input == nil || input.ApiKey == nil || input.User == nil || input.Account == nil {
-		return fmt.Errorf("invalid failed usage input")
-	}
-
-	multiplier := s.cfg.Default.RateMultiplier
-	if input.ApiKey.GroupID != nil && input.ApiKey.Group != nil {
-		multiplier = input.ApiKey.Group.RateMultiplier
-	}
-
-	billingType := BillingTypeBalance
-	if input.Subscription != nil && input.ApiKey.Group != nil && input.ApiKey.Group.IsSubscriptionType() {
-		billingType = BillingTypeSubscription
-	}
-
-	usageLog := &UsageLog{
-		UserID:         input.User.ID,
-		ApiKeyID:       input.ApiKey.ID,
-		AccountID:      input.Account.ID,
-		RequestID:      input.RequestID,
-		Model:          input.Model,
-		RateMultiplier: multiplier,
-		BillingType:    billingType,
-		Stream:         input.Stream,
-		DurationMs:     input.DurationMs,
-		CreatedAt:      time.Now(),
-	}
-
-	if input.ApiKey.GroupID != nil {
-		usageLog.GroupID = input.ApiKey.GroupID
-	}
-	if input.Subscription != nil {
-		usageLog.SubscriptionID = &input.Subscription.ID
-	}
-
-	return s.usageLogRepo.Create(ctx, usageLog)
-}
-
 // extractCodexUsageHeaders extracts Codex usage limits from response headers
 func extractCodexUsageHeaders(headers http.Header) *OpenAICodexUsageSnapshot {
 	snapshot := &OpenAICodexUsageSnapshot{}

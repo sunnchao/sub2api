@@ -63,6 +63,7 @@ var antigravityPrefixMapping = []struct {
 	target string
 }{
 	// 长前缀优先
+	{"gemini-3-flash", "gemini-3-flash"},             // gemini-3-flash → 3-flash
 	{"gemini-2.5-flash-image", "gemini-3-pro-image"}, // gemini-2.5-flash-image → 3-pro-image
 	{"gemini-3-pro-image", "gemini-3-pro-image"},     // gemini-3-pro-image-preview 等
 	{"claude-3-5-sonnet", "claude-sonnet-4-5"},       // 旧版 claude-3-5-sonnet-xxx
