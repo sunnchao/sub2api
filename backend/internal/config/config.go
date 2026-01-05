@@ -18,7 +18,8 @@ const (
 	RunModeSimple   = "simple"
 )
 
-const DefaultCSPPolicy = "default-src 'self'; script-src 'self' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https:; frame-src 'self' https://challenges.cloudflare.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+const DefaultCSPPolicy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+//const DefaultCSPPolicy = "default-src 'self'; script-src 'self' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https:; frame-src 'self' https://challenges.cloudflare.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
 
 // 连接池隔离策略常量
 // 用于控制上游 HTTP 连接池的隔离粒度，影响连接复用和资源消耗
@@ -127,13 +128,17 @@ type SecurityConfig struct {
 }
 
 type URLAllowlistConfig struct {
+	Enabled           bool     `mapstructure:"enabled"`
 	UpstreamHosts     []string `mapstructure:"upstream_hosts"`
 	PricingHosts      []string `mapstructure:"pricing_hosts"`
 	CRSHosts          []string `mapstructure:"crs_hosts"`
 	AllowPrivateHosts bool     `mapstructure:"allow_private_hosts"`
+	// 关闭 URL 白名单校验时，是否允许 http URL（默认只允许 https）
+	AllowInsecureHTTP bool `mapstructure:"allow_insecure_http"`
 }
 
 type ResponseHeaderConfig struct {
+	Enabled           bool     `mapstructure:"enabled"`
 	AdditionalAllowed []string `mapstructure:"additional_allowed"`
 	ForceRemove       []string `mapstructure:"force_remove"`
 }
@@ -390,6 +395,13 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("validate config error: %w", err)
 	}
 
+	if !cfg.Security.URLAllowlist.Enabled {
+		log.Println("Warning: security.url_allowlist.enabled=false; allowlist/SSRF checks disabled (minimal format validation only).")
+	}
+	if !cfg.Security.ResponseHeaders.Enabled {
+		log.Println("Warning: security.response_headers.enabled=false; configurable header filtering disabled (default allowlist only).")
+	}
+
 	if cfg.Server.Mode != "release" && cfg.JWT.Secret != "" && isWeakJWTSecret(cfg.JWT.Secret) {
 		log.Println("Warning: JWT secret appears weak; use a 32+ character random secret in production.")
 	}
@@ -419,9 +431,13 @@ func setDefaults() {
 	viper.SetDefault("cors.allow_credentials", true)
 
 	// Security
+	viper.SetDefault("security.url_allowlist.enabled", false)
 	viper.SetDefault("security.url_allowlist.upstream_hosts", []string{
 		"api.openai.com",
 		"api.anthropic.com",
+		"api.kimi.com",
+		"open.bigmodel.cn",
+		"api.minimaxi.com",
 		"generativelanguage.googleapis.com",
 		"cloudcode-pa.googleapis.com",
 		"*.openai.azure.com",
@@ -431,6 +447,8 @@ func setDefaults() {
 	})
 	viper.SetDefault("security.url_allowlist.crs_hosts", []string{})
 	viper.SetDefault("security.url_allowlist.allow_private_hosts", false)
+	viper.SetDefault("security.url_allowlist.allow_insecure_http", false)
+	viper.SetDefault("security.response_headers.enabled", false)
 	viper.SetDefault("security.response_headers.additional_allowed", []string{})
 	viper.SetDefault("security.response_headers.force_remove", []string{})
 	viper.SetDefault("security.csp.enabled", true)

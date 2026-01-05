@@ -32,11 +32,11 @@ export default defineConfig({
     port: 8081,
     proxy: {
       '/api': {
-        target: 'http://localhost:8080',
+        target: process.env.VITE_DEV_PROXY_TARGET || 'http://localhost:8080',
         changeOrigin: true
       },
       '/setup': {
-        target: 'http://localhost:8080',
+        target: process.env.VITE_DEV_PROXY_TARGET || 'http://localhost:8080',
         changeOrigin: true
       }
     }

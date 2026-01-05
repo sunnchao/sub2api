@@ -46,21 +46,27 @@ func FilterHeaders(src http.Header, cfg config.ResponseHeaderConfig) http.Header
 	for key := range defaultAllowed {
 		allowed[key] = struct{}{}
 	}
-	for _, key := range cfg.AdditionalAllowed {
-		normalized := strings.ToLower(strings.TrimSpace(key))
-		if normalized == "" {
-			continue
+	// 关闭时只使用默认白名单，additional/force_remove 不生效
+	if cfg.Enabled {
+		for _, key := range cfg.AdditionalAllowed {
+			normalized := strings.ToLower(strings.TrimSpace(key))
+			if normalized == "" {
+				continue
+			}
+			allowed[normalized] = struct{}{}
 		}
-		allowed[normalized] = struct{}{}
 	}
 
-	forceRemove := make(map[string]struct{}, len(cfg.ForceRemove))
-	for _, key := range cfg.ForceRemove {
-		normalized := strings.ToLower(strings.TrimSpace(key))
-		if normalized == "" {
-			continue
+	forceRemove := map[string]struct{}{}
+	if cfg.Enabled {
+		forceRemove = make(map[string]struct{}, len(cfg.ForceRemove))
+		for _, key := range cfg.ForceRemove {
+			normalized := strings.ToLower(strings.TrimSpace(key))
+			if normalized == "" {
+				continue
+			}
+			forceRemove[normalized] = struct{}{}
 		}
-		forceRemove[normalized] = struct{}{}
 	}
 
 	filtered := make(http.Header, len(src))

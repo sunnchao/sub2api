@@ -275,10 +275,19 @@ default:
 
 - `cors.allowed_origins` 配置 CORS 白名单
 - `security.url_allowlist` 配置上游/价格数据/CRS 主机白名单
+- `security.url_allowlist.enabled` 可关闭 URL 校验（慎用）
+- `security.url_allowlist.allow_insecure_http` 关闭校验时允许 http URL
+- `security.response_headers.enabled` 可启用可配置响应头过滤（关闭时使用默认白名单）
 - `security.csp` 配置 Content-Security-Policy
 - `billing.circuit_breaker` 计费异常时 fail-closed
 - `server.trusted_proxies` 启用可信代理解析 X-Forwarded-For
 - `turnstile.required` 在 release 模式强制启用 Turnstile
+
+如关闭 URL 校验或响应头过滤，请加强网络层防护：
+- 出站访问白名单限制上游域名/IP
+- 阻断私网/回环/链路本地地址
+- 强制仅允许 TLS 出站
+- 在反向代理层移除敏感响应头
 
 ```bash
 # 6. 运行应用
