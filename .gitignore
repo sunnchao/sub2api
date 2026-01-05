@@ -48,6 +48,7 @@ pnpm-debug.log*
 .env.*.local
 *.env
 !.env.example
+docker-compose.override.yml
 
 # ===================
 # IDE / 编辑器
@@ -117,6 +118,9 @@ openspec/
 docs/
 code-reviews/
 backend/cmd/server/server
+deploy/docker-compose.override.yml
+.gocache/
+vite.config.js
 
 config.yaml
 .installed

@@ -20,7 +20,10 @@ type ProxyProbeServiceSuite struct {
 
 func (s *ProxyProbeServiceSuite) SetupTest() {
 	s.ctx = context.Background()
-	s.prober = &proxyProbeService{ipInfoURL: "http://ipinfo.test/json"}
+	s.prober = &proxyProbeService{
+		ipInfoURL:         "http://ipinfo.test/json",
+		allowPrivateHosts: true,
+	}
 }
 
 func (s *ProxyProbeServiceSuite) TearDownTest() {
@@ -31,7 +34,7 @@ func (s *ProxyProbeServiceSuite) TearDownTest() {
 }
 
 func (s *ProxyProbeServiceSuite) setupProxyServer(handler http.HandlerFunc) {
-	s.proxySrv = httptest.NewServer(handler)
+	s.proxySrv = newLocalTestServer(s.T(), handler)
 }
 
 func (s *ProxyProbeServiceSuite) TestProbeProxy_InvalidProxyURL() {

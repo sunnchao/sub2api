@@ -11,14 +11,21 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// NewApiKeyAuthMiddleware 创建 API Key 认证中间件
-func NewApiKeyAuthMiddleware(apiKeyService *service.ApiKeyService, subscriptionService *service.SubscriptionService, cfg *config.Config) ApiKeyAuthMiddleware {
-	return ApiKeyAuthMiddleware(apiKeyAuthWithSubscription(apiKeyService, subscriptionService, cfg))
+// NewAPIKeyAuthMiddleware 创建 API Key 认证中间件
+func NewAPIKeyAuthMiddleware(apiKeyService *service.APIKeyService, subscriptionService *service.SubscriptionService, cfg *config.Config) APIKeyAuthMiddleware {
+	return APIKeyAuthMiddleware(apiKeyAuthWithSubscription(apiKeyService, subscriptionService, cfg))
 }
 
 // apiKeyAuthWithSubscription API Key认证中间件（支持订阅验证）
-func apiKeyAuthWithSubscription(apiKeyService *service.ApiKeyService, subscriptionService *service.SubscriptionService, cfg *config.Config) gin.HandlerFunc {
+func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscriptionService *service.SubscriptionService, cfg *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		queryKey := strings.TrimSpace(c.Query("key"))
+		queryApiKey := strings.TrimSpace(c.Query("api_key"))
+		if queryKey != "" || queryApiKey != "" {
+			AbortWithError(c, 400, "api_key_in_query_deprecated", "API key in query parameter is deprecated. Please use Authorization header instead.")
+			return
+		}
+
 		// 尝试从Authorization header中提取API key (Bearer scheme)
 		authHeader := c.GetHeader("Authorization")
 		var apiKeyString string
@@ -45,26 +52,16 @@ func apiKeyAuthWithSubscription(apiKeyService *service.ApiKeyService, subscripti
 			apiKeyString = c.GetHeader("x-goog-api-key")
 		}
 
-		// 如果header中没有，尝试从query参数中提取（Google API key风格）
-		if apiKeyString == "" {
-			apiKeyString = c.Query("key")
-		}
-
-		// 兼容常见别名
-		if apiKeyString == "" {
-			apiKeyString = c.Query("api_key")
-		}
-
 		// 如果所有header都没有API key
 		if apiKeyString == "" {
-			AbortWithError(c, 401, "API_KEY_REQUIRED", "API key is required in Authorization header (Bearer scheme), x-api-key header, x-goog-api-key header, or key/api_key query parameter")
+			AbortWithError(c, 401, "API_KEY_REQUIRED", "API key is required in Authorization header (Bearer scheme), x-api-key header, or x-goog-api-key header")
 			return
 		}
 
 		// 从数据库验证API key
 		apiKey, err := apiKeyService.GetByKey(c.Request.Context(), apiKeyString)
 		if err != nil {
-			if errors.Is(err, service.ErrApiKeyNotFound) {
+			if errors.Is(err, service.ErrAPIKeyNotFound) {
 				AbortWithError(c, 401, "INVALID_API_KEY", "Invalid API key")
 				return
 			}
@@ -92,7 +89,7 @@ func apiKeyAuthWithSubscription(apiKeyService *service.ApiKeyService, subscripti
 
 		if cfg.RunMode == config.RunModeSimple {
 			// 简易模式：跳过余额和订阅检查，但仍需设置必要的上下文
-			c.Set(string(ContextKeyApiKey), apiKey)
+			c.Set(string(ContextKeyAPIKey), apiKey)
 			c.Set(string(ContextKeyUser), AuthSubject{
 				UserID:      apiKey.User.ID,
 				Concurrency: apiKey.User.Concurrency,
@@ -150,7 +147,7 @@ func apiKeyAuthWithSubscription(apiKeyService *service.ApiKeyService, subscripti
 		}
 
 		// 将API key和用户信息存入上下文
-		c.Set(string(ContextKeyApiKey), apiKey)
+		c.Set(string(ContextKeyAPIKey), apiKey)
 		c.Set(string(ContextKeyUser), AuthSubject{
 			UserID:      apiKey.User.ID,
 			Concurrency: apiKey.User.Concurrency,
@@ -161,13 +158,13 @@ func apiKeyAuthWithSubscription(apiKeyService *service.ApiKeyService, subscripti
 	}
 }
 
-// GetApiKeyFromContext 从上下文中获取API key
-func GetApiKeyFromContext(c *gin.Context) (*service.ApiKey, bool) {
-	value, exists := c.Get(string(ContextKeyApiKey))
+// GetAPIKeyFromContext 从上下文中获取API key
+func GetAPIKeyFromContext(c *gin.Context) (*service.APIKey, bool) {
+	value, exists := c.Get(string(ContextKeyAPIKey))
 	if !exists {
 		return nil, false
 	}
-	apiKey, ok := value.(*service.ApiKey)
+	apiKey, ok := value.(*service.APIKey)
 	return apiKey, ok
 }
 

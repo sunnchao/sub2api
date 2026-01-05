@@ -17,14 +17,15 @@ func SetupRouter(
 	handlers *handler.Handlers,
 	jwtAuth middleware2.JWTAuthMiddleware,
 	adminAuth middleware2.AdminAuthMiddleware,
-	apiKeyAuth middleware2.ApiKeyAuthMiddleware,
-	apiKeyService *service.ApiKeyService,
+	apiKeyAuth middleware2.APIKeyAuthMiddleware,
+	apiKeyService *service.APIKeyService,
 	subscriptionService *service.SubscriptionService,
 	cfg *config.Config,
 ) *gin.Engine {
 	// 应用中间件
 	r.Use(middleware2.Logger())
-	r.Use(middleware2.CORS())
+	r.Use(middleware2.CORS(cfg.CORS))
+	r.Use(middleware2.SecurityHeaders(cfg.Security.CSP))
 
 	// Serve embedded frontend if available
 	if web.HasEmbeddedFrontend() {
@@ -43,8 +44,8 @@ func registerRoutes(
 	h *handler.Handlers,
 	jwtAuth middleware2.JWTAuthMiddleware,
 	adminAuth middleware2.AdminAuthMiddleware,
-	apiKeyAuth middleware2.ApiKeyAuthMiddleware,
-	apiKeyService *service.ApiKeyService,
+	apiKeyAuth middleware2.APIKeyAuthMiddleware,
+	apiKeyService *service.APIKeyService,
 	subscriptionService *service.SubscriptionService,
 	cfg *config.Config,
 ) {

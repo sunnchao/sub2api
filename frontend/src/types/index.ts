@@ -2,6 +2,26 @@
  * Core Type Definitions for Sub2API Frontend
  */
 
+// ==================== Common Types ====================
+
+export interface SelectOption {
+  value: string | number | boolean | null
+  label: string
+  [key: string]: any // Support extra properties for custom templates
+}
+
+export interface BasePaginationResponse<T> {
+  items: T[]
+  total: number
+  page: number
+  page_size: number
+  pages: number
+}
+
+export interface FetchOptions {
+  signal?: AbortSignal
+}
+
 // ==================== User & Auth Types ====================
 
 export interface User {
@@ -290,7 +310,7 @@ export interface UpdateGroupRequest {
 export type AccountPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity'
 export type AccountType = 'oauth' | 'setup-token' | 'apikey'
 export type OAuthAddMethod = 'oauth' | 'setup-token'
-export type ProxyProtocol = 'http' | 'https' | 'socks5'
+export type ProxyProtocol = 'http' | 'https' | 'socks5' | 'socks5h'
 
 // Claude Model type (returned by /v1/models and account models API)
 export interface ClaudeModel {
@@ -322,12 +342,44 @@ export interface GeminiCredentials {
   // OAuth authentication
   access_token?: string
   refresh_token?: string
-  oauth_type?: 'code_assist' | 'ai_studio' | string
-  tier_id?: 'LEGACY' | 'PRO' | 'ULTRA' | string
+  oauth_type?: 'code_assist' | 'google_one' | 'ai_studio' | string
+  tier_id?:
+    | 'google_one_free'
+    | 'google_ai_pro'
+    | 'google_ai_ultra'
+    | 'gcp_standard'
+    | 'gcp_enterprise'
+    | 'aistudio_free'
+    | 'aistudio_paid'
+    | 'LEGACY'
+    | 'PRO'
+    | 'ULTRA'
+    | string
   project_id?: string
   token_type?: string
   scope?: string
   expires_at?: string
+}
+
+export interface TempUnschedulableRule {
+  error_code: number
+  keywords: string[]
+  duration_minutes: number
+  description: string
+}
+
+export interface TempUnschedulableState {
+  until_unix: number
+  triggered_at_unix: number
+  status_code: number
+  matched_keyword: string
+  rule_index: number
+  error_message: string
+}
+
+export interface TempUnschedulableStatus {
+  active: boolean
+  state?: TempUnschedulableState
 }
 
 export interface Account {
@@ -355,6 +407,8 @@ export interface Account {
   rate_limited_at: string | null
   rate_limit_reset_at: string | null
   overload_until: string | null
+  temp_unschedulable_until: string | null
+  temp_unschedulable_reason: string | null
 
   // Session window fields (5-hour window)
   session_window_start: string | null
@@ -374,6 +428,8 @@ export interface UsageProgress {
   resets_at: string | null
   remaining_seconds: number
   window_stats?: WindowStats | null // 窗口期统计（从窗口开始到当前的使用量）
+  used_requests?: number
+  limit_requests?: number
 }
 
 // Antigravity 单个模型的配额信息
@@ -387,8 +443,12 @@ export interface AccountUsageInfo {
   five_hour: UsageProgress | null
   seven_day: UsageProgress | null
   seven_day_sonnet: UsageProgress | null
+  gemini_shared_daily?: UsageProgress | null
   gemini_pro_daily?: UsageProgress | null
   gemini_flash_daily?: UsageProgress | null
+  gemini_shared_minute?: UsageProgress | null
+  gemini_pro_minute?: UsageProgress | null
+  gemini_flash_minute?: UsageProgress | null
   antigravity_quota?: Record<string, AntigravityModelQuota> | null
 }
 
@@ -425,6 +485,7 @@ export interface CreateAccountRequest {
   concurrency?: number
   priority?: number
   group_ids?: number[]
+  confirm_mixed_channel_risk?: boolean
 }
 
 export interface UpdateAccountRequest {
@@ -435,8 +496,10 @@ export interface UpdateAccountRequest {
   proxy_id?: number | null
   concurrency?: number
   priority?: number
+  schedulable?: boolean
   status?: 'active' | 'inactive'
   group_ids?: number[]
+  confirm_mixed_channel_risk?: boolean
 }
 
 export interface CreateProxyRequest {
@@ -788,6 +851,7 @@ export type UserAttributeType = 'text' | 'textarea' | 'number' | 'email' | 'url'
 export interface UserAttributeOption {
   value: string
   label: string
+  [key: string]: unknown
 }
 
 export interface UserAttributeValidation {

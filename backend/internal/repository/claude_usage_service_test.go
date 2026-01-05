@@ -33,7 +33,7 @@ type usageRequestCapture struct {
 func (s *ClaudeUsageServiceSuite) TestFetchUsage_Success() {
 	var captured usageRequestCapture
 
-	s.srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	s.srv = newLocalTestServer(s.T(), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		captured.authorization = r.Header.Get("Authorization")
 		captured.anthropicBeta = r.Header.Get("anthropic-beta")
 
@@ -45,7 +45,10 @@ func (s *ClaudeUsageServiceSuite) TestFetchUsage_Success() {
 }`)
 	}))
 
-	s.fetcher = &claudeUsageService{usageURL: s.srv.URL}
+	s.fetcher = &claudeUsageService{
+		usageURL:          s.srv.URL,
+		allowPrivateHosts: true,
+	}
 
 	resp, err := s.fetcher.FetchUsage(context.Background(), "at", "://bad-proxy-url")
 	require.NoError(s.T(), err, "FetchUsage")
@@ -59,12 +62,15 @@ func (s *ClaudeUsageServiceSuite) TestFetchUsage_Success() {
 }
 
 func (s *ClaudeUsageServiceSuite) TestFetchUsage_NonOK() {
-	s.srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	s.srv = newLocalTestServer(s.T(), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
 		_, _ = io.WriteString(w, "nope")
 	}))
 
-	s.fetcher = &claudeUsageService{usageURL: s.srv.URL}
+	s.fetcher = &claudeUsageService{
+		usageURL:          s.srv.URL,
+		allowPrivateHosts: true,
+	}
 
 	_, err := s.fetcher.FetchUsage(context.Background(), "at", "")
 	require.Error(s.T(), err)
@@ -73,12 +79,15 @@ func (s *ClaudeUsageServiceSuite) TestFetchUsage_NonOK() {
 }
 
 func (s *ClaudeUsageServiceSuite) TestFetchUsage_BadJSON() {
-	s.srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	s.srv = newLocalTestServer(s.T(), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = io.WriteString(w, "not-json")
 	}))
 
-	s.fetcher = &claudeUsageService{usageURL: s.srv.URL}
+	s.fetcher = &claudeUsageService{
+		usageURL:          s.srv.URL,
+		allowPrivateHosts: true,
+	}
 
 	_, err := s.fetcher.FetchUsage(context.Background(), "at", "")
 	require.Error(s.T(), err)
@@ -86,12 +95,15 @@ func (s *ClaudeUsageServiceSuite) TestFetchUsage_BadJSON() {
 }
 
 func (s *ClaudeUsageServiceSuite) TestFetchUsage_ContextCancel() {
-	s.srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	s.srv = newLocalTestServer(s.T(), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Never respond - simulate slow server
 		<-r.Context().Done()
 	}))
 
-	s.fetcher = &claudeUsageService{usageURL: s.srv.URL}
+	s.fetcher = &claudeUsageService{
+		usageURL:          s.srv.URL,
+		allowPrivateHosts: true,
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // Cancel immediately

@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
@@ -19,7 +20,13 @@ type PricingServiceSuite struct {
 
 func (s *PricingServiceSuite) SetupTest() {
 	s.ctx = context.Background()
-	client, ok := NewPricingRemoteClient().(*pricingRemoteClient)
+	client, ok := NewPricingRemoteClient(&config.Config{
+		Security: config.SecurityConfig{
+			URLAllowlist: config.URLAllowlistConfig{
+				AllowPrivateHosts: true,
+			},
+		},
+	}).(*pricingRemoteClient)
 	require.True(s.T(), ok, "type assertion failed")
 	s.client = client
 }
@@ -32,7 +39,7 @@ func (s *PricingServiceSuite) TearDownTest() {
 }
 
 func (s *PricingServiceSuite) setupServer(handler http.HandlerFunc) {
-	s.srv = httptest.NewServer(handler)
+	s.srv = newLocalTestServer(s.T(), handler)
 }
 
 func (s *PricingServiceSuite) TestFetchPricingJSON_Success() {

@@ -11,38 +11,39 @@
 // 新实现使用统一的客户端池：
 // 1. 相同配置复用同一 http.Client 实例
 // 2. 复用 Transport 连接池，减少 TCP/TLS 握手开销
-// 3. 支持 HTTP/HTTPS/SOCKS5 代理
-// 4. 支持严格代理模式（代理失败则返回错误）
+// 3. 支持 HTTP/HTTPS/SOCKS5/SOCKS5H 代理
+// 4. 代理配置失败时直接返回错误，不会回退到直连（避免 IP 关联风险）
 package httpclient
 
 import (
-	"context"
 	"crypto/tls"
 	"fmt"
-	"net"
 	"net/http"
 	"net/url"
 	"strings"
 	"sync"
 	"time"
 
-	"golang.org/x/net/proxy"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/proxyutil"
+	"github.com/Wei-Shaw/sub2api/internal/util/urlvalidator"
 )
 
 // Transport 连接池默认配置
 const (
 	defaultMaxIdleConns        = 100              // 最大空闲连接数
 	defaultMaxIdleConnsPerHost = 10               // 每个主机最大空闲连接数
-	defaultIdleConnTimeout     = 90 * time.Second // 空闲连接超时时间
+	defaultIdleConnTimeout     = 90 * time.Second // 空闲连接超时时间（建议小于上游 LB 超时）
 )
 
 // Options 定义共享 HTTP 客户端的构建参数
 type Options struct {
-	ProxyURL              string        // 代理 URL（支持 http/https/socks5）
+	ProxyURL              string        // 代理 URL（支持 http/https/socks5/socks5h）
 	Timeout               time.Duration // 请求总超时时间
 	ResponseHeaderTimeout time.Duration // 等待响应头超时时间
 	InsecureSkipVerify    bool          // 是否跳过 TLS 证书验证
 	ProxyStrict           bool          // 严格代理模式：代理失败时返回错误而非回退
+	ValidateResolvedIP    bool          // 是否校验解析后的 IP（防止 DNS Rebinding）
+	AllowPrivateHosts     bool          // 允许私有地址解析（与 ValidateResolvedIP 一起使用）
 
 	// 可选的连接池参数（不设置则使用默认值）
 	MaxIdleConns        int // 最大空闲连接总数（默认 100）
@@ -55,6 +56,7 @@ var sharedClients sync.Map
 
 // GetClient 返回共享的 HTTP 客户端实例
 // 性能优化：相同配置复用同一客户端，避免重复创建 Transport
+// 安全说明：代理配置失败时直接返回错误，不会回退到直连，避免 IP 关联风险
 func GetClient(opts Options) (*http.Client, error) {
 	key := buildClientKey(opts)
 	if cached, ok := sharedClients.Load(key); ok {
@@ -65,12 +67,7 @@ func GetClient(opts Options) (*http.Client, error) {
 
 	client, err := buildClient(opts)
 	if err != nil {
-		if opts.ProxyStrict {
-			return nil, err
-		}
-		fallback := opts
-		fallback.ProxyURL = ""
-		client, _ = buildClient(fallback)
+		return nil, err
 	}
 
 	actual, _ := sharedClients.LoadOrStore(key, client)
@@ -86,8 +83,12 @@ func buildClient(opts Options) (*http.Client, error) {
 		return nil, err
 	}
 
+	var rt http.RoundTripper = transport
+	if opts.ValidateResolvedIP && !opts.AllowPrivateHosts {
+		rt = &validatedTransport{base: transport}
+	}
 	return &http.Client{
-		Transport: transport,
+		Transport: rt,
 		Timeout:   opts.Timeout,
 	}, nil
 }
@@ -125,33 +126,40 @@ func buildTransport(opts Options) (*http.Transport, error) {
 		return nil, err
 	}
 
-	switch strings.ToLower(parsed.Scheme) {
-	case "http", "https":
-		transport.Proxy = http.ProxyURL(parsed)
-	case "socks5", "socks5h":
-		dialer, err := proxy.FromURL(parsed, proxy.Direct)
-		if err != nil {
-			return nil, err
-		}
-		transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
-			return dialer.Dial(network, addr)
-		}
-	default:
-		return nil, fmt.Errorf("unsupported proxy protocol: %s", parsed.Scheme)
+	if err := proxyutil.ConfigureTransportProxy(transport, parsed); err != nil {
+		return nil, err
 	}
 
 	return transport, nil
 }
 
 func buildClientKey(opts Options) string {
-	return fmt.Sprintf("%s|%s|%s|%t|%t|%d|%d|%d",
+	return fmt.Sprintf("%s|%s|%s|%t|%t|%t|%t|%d|%d|%d",
 		strings.TrimSpace(opts.ProxyURL),
 		opts.Timeout.String(),
 		opts.ResponseHeaderTimeout.String(),
 		opts.InsecureSkipVerify,
 		opts.ProxyStrict,
+		opts.ValidateResolvedIP,
+		opts.AllowPrivateHosts,
 		opts.MaxIdleConns,
 		opts.MaxIdleConnsPerHost,
 		opts.MaxConnsPerHost,
 	)
+}
+
+type validatedTransport struct {
+	base http.RoundTripper
+}
+
+func (t *validatedTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	if req != nil && req.URL != nil {
+		host := strings.TrimSpace(req.URL.Hostname())
+		if host != "" {
+			if err := urlvalidator.ValidateResolvedIP(host); err != nil {
+				return nil, err
+			}
+		}
+	}
+	return t.base.RoundTrip(req)
 }

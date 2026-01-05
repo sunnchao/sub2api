@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
 	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -29,11 +30,16 @@ func NewOpenAIGatewayHandler(
 	gatewayService *service.OpenAIGatewayService,
 	concurrencyService *service.ConcurrencyService,
 	billingCacheService *service.BillingCacheService,
+	cfg *config.Config,
 ) *OpenAIGatewayHandler {
+	pingInterval := time.Duration(0)
+	if cfg != nil {
+		pingInterval = time.Duration(cfg.Concurrency.PingInterval) * time.Second
+	}
 	return &OpenAIGatewayHandler{
 		gatewayService:      gatewayService,
 		billingCacheService: billingCacheService,
-		concurrencyHelper:   NewConcurrencyHelper(concurrencyService, SSEPingFormatNone),
+		concurrencyHelper:   NewConcurrencyHelper(concurrencyService, SSEPingFormatComment, pingInterval),
 	}
 }
 
@@ -41,7 +47,7 @@ func NewOpenAIGatewayHandler(
 // POST /openai/v1/responses
 func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 	// Get apiKey and user from context (set by ApiKeyAuth middleware)
-	apiKey, ok := middleware2.GetApiKeyFromContext(c)
+	apiKey, ok := middleware2.GetAPIKeyFromContext(c)
 	if !ok {
 		h.errorResponse(c, http.StatusUnauthorized, "authentication_error", "Invalid API key")
 		return
@@ -79,7 +85,6 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 	// Extract model and stream
 	reqModel, _ := reqBody["model"].(string)
 	reqStream, _ := reqBody["stream"].(bool)
-	requestStart := time.Now()
 
 	// 验证 model 必填
 	if reqModel == "" {
@@ -125,6 +130,8 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 		h.handleConcurrencyError(c, err, "user", streamStarted)
 		return
 	}
+	// 确保请求取消时也会释放槽位，避免长连接被动中断造成泄漏
+	userReleaseFunc = wrapReleaseOnDone(c.Request.Context(), userReleaseFunc)
 	if userReleaseFunc != nil {
 		defer userReleaseFunc()
 	}
@@ -132,7 +139,8 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 	// 2. Re-check billing eligibility after wait
 	if err := h.billingCacheService.CheckBillingEligibility(c.Request.Context(), apiKey.User, apiKey, apiKey.Group, subscription); err != nil {
 		log.Printf("Billing eligibility check failed after wait: %v", err)
-		h.handleStreamingAwareError(c, http.StatusForbidden, "billing_error", err.Error(), streamStarted)
+		status, code, message := billingErrorDetails(err)
+		h.handleStreamingAwareError(c, status, code, message, streamStarted)
 		return
 	}
 
@@ -202,6 +210,9 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 				log.Printf("Bind sticky session failed: %v", err)
 			}
 		}
+		// 账号槽位/等待计数需要在超时或断开时安全回收
+		accountReleaseFunc = wrapReleaseOnDone(c.Request.Context(), accountReleaseFunc)
+		accountWaitRelease = wrapReleaseOnDone(c.Request.Context(), accountWaitRelease)
 
 		// Forward request
 		result, err := h.gatewayService.Forward(c.Request.Context(), c, account, body)
@@ -217,7 +228,6 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 				failedAccountIDs[account.ID] = struct{}{}
 				if switchCount >= maxAccountSwitches {
 					lastFailoverStatus = failoverErr.StatusCode
-					h.recordFailedUsage(apiKey, account, subscription, reqModel, reqStream, requestStart)
 					h.handleFailoverExhausted(c, lastFailoverStatus, streamStarted)
 					return
 				}
@@ -227,8 +237,7 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 				continue
 			}
 			// Error response already handled in Forward, just log
-			h.recordFailedUsage(apiKey, account, subscription, reqModel, reqStream, requestStart)
-			log.Printf("Forward request failed: %v", err)
+			log.Printf("Account %d: Forward request failed: %v", account.ID, err)
 			return
 		}
 
@@ -238,7 +247,7 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 			defer cancel()
 			if err := h.gatewayService.RecordUsage(ctx, &service.OpenAIRecordUsageInput{
 				Result:       result,
-				ApiKey:       apiKey,
+				APIKey:       apiKey,
 				User:         apiKey.User,
 				Account:      usedAccount,
 				Subscription: subscription,
@@ -254,31 +263,6 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 func (h *OpenAIGatewayHandler) handleConcurrencyError(c *gin.Context, err error, slotType string, streamStarted bool) {
 	h.handleStreamingAwareError(c, http.StatusTooManyRequests, "rate_limit_error",
 		fmt.Sprintf("Concurrency limit exceeded for %s, please retry later", slotType), streamStarted)
-}
-
-func (h *OpenAIGatewayHandler) recordFailedUsage(apiKey *service.ApiKey, account *service.Account, subscription *service.UserSubscription, model string, stream bool, start time.Time) {
-	if apiKey == nil || apiKey.User == nil || account == nil {
-		return
-	}
-
-	durationMs := int(time.Since(start).Milliseconds())
-
-	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-
-		if err := h.gatewayService.RecordFailedUsage(ctx, &service.RecordFailedUsageInput{
-			ApiKey:       apiKey,
-			User:         apiKey.User,
-			Account:      account,
-			Subscription: subscription,
-			Model:        model,
-			Stream:       stream,
-			DurationMs:   &durationMs,
-		}); err != nil {
-			log.Printf("Record failed usage failed: %v", err)
-		}
-	}()
 }
 
 func (h *OpenAIGatewayHandler) handleFailoverExhausted(c *gin.Context, statusCode int, streamStarted bool) {

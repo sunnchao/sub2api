@@ -13,7 +13,9 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/proxyutil"
 	"github.com/Wei-Shaw/sub2api/internal/service"
+	"github.com/Wei-Shaw/sub2api/internal/util/urlvalidator"
 )
 
 // 默认配置常量
@@ -29,9 +31,9 @@ const (
 	// defaultMaxConnsPerHost: 默认每主机最大连接数（含活跃连接）
 	// 达到上限后新请求会等待，而非无限创建连接
 	defaultMaxConnsPerHost = 240
-	// defaultIdleConnTimeout: 默认空闲连接超时时间（5分钟）
-	// 超时后连接会被关闭，释放系统资源
-	defaultIdleConnTimeout = 300 * time.Second
+	// defaultIdleConnTimeout: 默认空闲连接超时时间（90秒）
+	// 超时后连接会被关闭，释放系统资源（建议小于上游 LB 超时）
+	defaultIdleConnTimeout = 90 * time.Second
 	// defaultResponseHeaderTimeout: 默认等待响应头超时时间（5分钟）
 	// LLM 请求可能排队较久，需要较长超时
 	defaultResponseHeaderTimeout = 300 * time.Second
@@ -119,6 +121,10 @@ func NewHTTPUpstream(cfg *config.Config) service.HTTPUpstream {
 //   - 调用方必须关闭 resp.Body，否则会导致 inFlight 计数泄漏
 //   - inFlight > 0 的客户端不会被淘汰，确保活跃请求不被中断
 func (s *httpUpstreamService) Do(req *http.Request, proxyURL string, accountID int64, accountConcurrency int) (*http.Response, error) {
+	if err := s.validateRequestHost(req); err != nil {
+		return nil, err
+	}
+
 	// 获取或创建对应的客户端，并标记请求占用
 	entry, err := s.acquireClient(proxyURL, accountID, accountConcurrency)
 	if err != nil {
@@ -142,6 +148,37 @@ func (s *httpUpstreamService) Do(req *http.Request, proxyURL string, accountID i
 	})
 
 	return resp, nil
+}
+
+func (s *httpUpstreamService) shouldValidateResolvedIP() bool {
+	if s.cfg == nil {
+		return false
+	}
+	return !s.cfg.Security.URLAllowlist.AllowPrivateHosts
+}
+
+func (s *httpUpstreamService) validateRequestHost(req *http.Request) error {
+	if !s.shouldValidateResolvedIP() {
+		return nil
+	}
+	if req == nil || req.URL == nil {
+		return errors.New("request url is nil")
+	}
+	host := strings.TrimSpace(req.URL.Hostname())
+	if host == "" {
+		return errors.New("request host is empty")
+	}
+	if err := urlvalidator.ValidateResolvedIP(host); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *httpUpstreamService) redirectChecker(req *http.Request, via []*http.Request) error {
+	if len(via) >= 10 {
+		return errors.New("stopped after 10 redirects")
+	}
+	return s.validateRequestHost(req)
 }
 
 // acquireClient 获取或创建客户端，并标记为进行中请求
@@ -225,7 +262,15 @@ func (s *httpUpstreamService) getClientEntry(proxyURL string, accountID int64, a
 
 	// 缓存未命中或需要重建，创建新客户端
 	settings := s.resolvePoolSettings(isolation, accountConcurrency)
-	client := &http.Client{Transport: buildUpstreamTransport(settings, parsedProxy)}
+	transport, err := buildUpstreamTransport(settings, parsedProxy)
+	if err != nil {
+		s.mu.Unlock()
+		return nil, fmt.Errorf("build transport: %w", err)
+	}
+	client := &http.Client{Transport: transport}
+	if s.shouldValidateResolvedIP() {
+		client.CheckRedirect = s.redirectChecker
+	}
 	entry := &upstreamClientEntry{
 		client:   client,
 		proxyKey: proxyKey,
@@ -548,6 +593,7 @@ func defaultPoolSettings(cfg *config.Config) poolSettings {
 //
 // 返回:
 //   - *http.Transport: 配置好的 Transport 实例
+//   - error: 代理配置错误
 //
 // Transport 参数说明:
 //   - MaxIdleConns: 所有主机的最大空闲连接总数
@@ -555,7 +601,7 @@ func defaultPoolSettings(cfg *config.Config) poolSettings {
 //   - MaxConnsPerHost: 每主机最大连接数（达到后新请求等待）
 //   - IdleConnTimeout: 空闲连接超时（超时后关闭）
 //   - ResponseHeaderTimeout: 等待响应头超时（不影响流式传输）
-func buildUpstreamTransport(settings poolSettings, proxyURL *url.URL) *http.Transport {
+func buildUpstreamTransport(settings poolSettings, proxyURL *url.URL) (*http.Transport, error) {
 	transport := &http.Transport{
 		MaxIdleConns:          settings.maxIdleConns,
 		MaxIdleConnsPerHost:   settings.maxIdleConnsPerHost,
@@ -563,10 +609,10 @@ func buildUpstreamTransport(settings poolSettings, proxyURL *url.URL) *http.Tran
 		IdleConnTimeout:       settings.idleConnTimeout,
 		ResponseHeaderTimeout: settings.responseHeaderTimeout,
 	}
-	if proxyURL != nil {
-		transport.Proxy = http.ProxyURL(proxyURL)
+	if err := proxyutil.ConfigureTransportProxy(transport, proxyURL); err != nil {
+		return nil, err
 	}
-	return transport
+	return transport, nil
 }
 
 // trackedBody 带跟踪功能的响应体包装器

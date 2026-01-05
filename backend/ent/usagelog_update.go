@@ -543,8 +543,8 @@ func (_u *UsageLogUpdate) SetUser(v *User) *UsageLogUpdate {
 	return _u.SetUserID(v.ID)
 }
 
-// SetAPIKey sets the "api_key" edge to the ApiKey entity.
-func (_u *UsageLogUpdate) SetAPIKey(v *ApiKey) *UsageLogUpdate {
+// SetAPIKey sets the "api_key" edge to the APIKey entity.
+func (_u *UsageLogUpdate) SetAPIKey(v *APIKey) *UsageLogUpdate {
 	return _u.SetAPIKeyID(v.ID)
 }
 
@@ -574,7 +574,7 @@ func (_u *UsageLogUpdate) ClearUser() *UsageLogUpdate {
 	return _u
 }
 
-// ClearAPIKey clears the "api_key" edge to the ApiKey entity.
+// ClearAPIKey clears the "api_key" edge to the APIKey entity.
 func (_u *UsageLogUpdate) ClearAPIKey() *UsageLogUpdate {
 	_u.mutation.ClearAPIKey()
 	return _u
@@ -1462,8 +1462,8 @@ func (_u *UsageLogUpdateOne) SetUser(v *User) *UsageLogUpdateOne {
 	return _u.SetUserID(v.ID)
 }
 
-// SetAPIKey sets the "api_key" edge to the ApiKey entity.
-func (_u *UsageLogUpdateOne) SetAPIKey(v *ApiKey) *UsageLogUpdateOne {
+// SetAPIKey sets the "api_key" edge to the APIKey entity.
+func (_u *UsageLogUpdateOne) SetAPIKey(v *APIKey) *UsageLogUpdateOne {
 	return _u.SetAPIKeyID(v.ID)
 }
 
@@ -1493,7 +1493,7 @@ func (_u *UsageLogUpdateOne) ClearUser() *UsageLogUpdateOne {
 	return _u
 }
 
-// ClearAPIKey clears the "api_key" edge to the ApiKey entity.
+// ClearAPIKey clears the "api_key" edge to the APIKey entity.
 func (_u *UsageLogUpdateOne) ClearAPIKey() *UsageLogUpdateOne {
 	_u.mutation.ClearAPIKey()
 	return _u

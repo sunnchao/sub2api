@@ -11,8 +11,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/antigravity"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/claude"
+	pkgerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
 	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -38,14 +40,19 @@ func NewGatewayHandler(
 	userService *service.UserService,
 	concurrencyService *service.ConcurrencyService,
 	billingCacheService *service.BillingCacheService,
+	cfg *config.Config,
 ) *GatewayHandler {
+	pingInterval := time.Duration(0)
+	if cfg != nil {
+		pingInterval = time.Duration(cfg.Concurrency.PingInterval) * time.Second
+	}
 	return &GatewayHandler{
 		gatewayService:            gatewayService,
 		geminiCompatService:       geminiCompatService,
 		antigravityGatewayService: antigravityGatewayService,
 		userService:               userService,
 		billingCacheService:       billingCacheService,
-		concurrencyHelper:         NewConcurrencyHelper(concurrencyService, SSEPingFormatClaude),
+		concurrencyHelper:         NewConcurrencyHelper(concurrencyService, SSEPingFormatClaude, pingInterval),
 	}
 }
 
@@ -53,7 +60,7 @@ func NewGatewayHandler(
 // POST /v1/messages
 func (h *GatewayHandler) Messages(c *gin.Context) {
 	// 从context获取apiKey和user（ApiKeyAuth中间件已设置）
-	apiKey, ok := middleware2.GetApiKeyFromContext(c)
+	apiKey, ok := middleware2.GetAPIKeyFromContext(c)
 	if !ok {
 		h.errorResponse(c, http.StatusUnauthorized, "authentication_error", "Invalid API key")
 		return
@@ -89,8 +96,6 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 	reqModel := parsedReq.Model
 	reqStream := parsedReq.Stream
 
-	requestStart := time.Now()
-
 	// 验证 model 必填
 	if reqModel == "" {
 		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "model is required")
@@ -123,6 +128,8 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 		h.handleConcurrencyError(c, err, "user", streamStarted)
 		return
 	}
+	// 在请求结束或 Context 取消时确保释放槽位，避免客户端断开造成泄漏
+	userReleaseFunc = wrapReleaseOnDone(c.Request.Context(), userReleaseFunc)
 	if userReleaseFunc != nil {
 		defer userReleaseFunc()
 	}
@@ -130,7 +137,8 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 	// 2. 【新增】Wait后二次检查余额/订阅
 	if err := h.billingCacheService.CheckBillingEligibility(c.Request.Context(), apiKey.User, apiKey, apiKey.Group, subscription); err != nil {
 		log.Printf("Billing eligibility check failed after wait: %v", err)
-		h.handleStreamingAwareError(c, http.StatusForbidden, "billing_error", err.Error(), streamStarted)
+		status, code, message := billingErrorDetails(err)
+		h.handleStreamingAwareError(c, status, code, message, streamStarted)
 		return
 	}
 
@@ -222,6 +230,9 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 					log.Printf("Bind sticky session failed: %v", err)
 				}
 			}
+			// 账号槽位/等待计数需要在超时或断开时安全回收
+			accountReleaseFunc = wrapReleaseOnDone(c.Request.Context(), accountReleaseFunc)
+			accountWaitRelease = wrapReleaseOnDone(c.Request.Context(), accountWaitRelease)
 
 			// 转发请求 - 根据账号平台分流
 			var result *service.ForwardResult
@@ -242,7 +253,6 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 					failedAccountIDs[account.ID] = struct{}{}
 					if switchCount >= maxAccountSwitches {
 						lastFailoverStatus = failoverErr.StatusCode
-						h.recordFailedUsage(apiKey, account, subscription, reqModel, reqStream, requestStart)
 						h.handleFailoverExhausted(c, lastFailoverStatus, streamStarted)
 						return
 					}
@@ -252,7 +262,6 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 					continue
 				}
 				// 错误响应已在Forward中处理，这里只记录日志
-				h.recordFailedUsage(apiKey, account, subscription, reqModel, reqStream, requestStart)
 				log.Printf("Forward request failed: %v", err)
 				return
 			}
@@ -263,7 +272,7 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 				defer cancel()
 				if err := h.gatewayService.RecordUsage(ctx, &service.RecordUsageInput{
 					Result:       result,
-					ApiKey:       apiKey,
+					APIKey:       apiKey,
 					User:         apiKey.User,
 					Account:      usedAccount,
 					Subscription: subscription,
@@ -348,6 +357,9 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 				log.Printf("Bind sticky session failed: %v", err)
 			}
 		}
+		// 账号槽位/等待计数需要在超时或断开时安全回收
+		accountReleaseFunc = wrapReleaseOnDone(c.Request.Context(), accountReleaseFunc)
+		accountWaitRelease = wrapReleaseOnDone(c.Request.Context(), accountWaitRelease)
 
 		// 转发请求 - 根据账号平台分流
 		var result *service.ForwardResult
@@ -368,7 +380,6 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 				failedAccountIDs[account.ID] = struct{}{}
 				if switchCount >= maxAccountSwitches {
 					lastFailoverStatus = failoverErr.StatusCode
-					h.recordFailedUsage(apiKey, account, subscription, reqModel, reqStream, requestStart)
 					h.handleFailoverExhausted(c, lastFailoverStatus, streamStarted)
 					return
 				}
@@ -378,8 +389,7 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 				continue
 			}
 			// 错误响应已在Forward中处理，这里只记录日志
-			h.recordFailedUsage(apiKey, account, subscription, reqModel, reqStream, requestStart)
-			log.Printf("Forward request failed: %v", err)
+			log.Printf("Account %d: Forward request failed: %v", account.ID, err)
 			return
 		}
 
@@ -389,7 +399,7 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 			defer cancel()
 			if err := h.gatewayService.RecordUsage(ctx, &service.RecordUsageInput{
 				Result:       result,
-				ApiKey:       apiKey,
+				APIKey:       apiKey,
 				User:         apiKey.User,
 				Account:      usedAccount,
 				Subscription: subscription,
@@ -406,7 +416,7 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 // Returns models based on account configurations (model_mapping whitelist)
 // Falls back to default models if no whitelist is configured
 func (h *GatewayHandler) Models(c *gin.Context) {
-	apiKey, _ := middleware2.GetApiKeyFromContext(c)
+	apiKey, _ := middleware2.GetAPIKeyFromContext(c)
 
 	var groupID *int64
 	var platform string
@@ -464,7 +474,7 @@ func (h *GatewayHandler) AntigravityModels(c *gin.Context) {
 // Usage handles getting account balance for CC Switch integration
 // GET /v1/usage
 func (h *GatewayHandler) Usage(c *gin.Context) {
-	apiKey, ok := middleware2.GetApiKeyFromContext(c)
+	apiKey, ok := middleware2.GetAPIKeyFromContext(c)
 	if !ok {
 		h.errorResponse(c, http.StatusUnauthorized, "authentication_error", "Invalid API key")
 		return
@@ -564,31 +574,6 @@ func (h *GatewayHandler) handleConcurrencyError(c *gin.Context, err error, slotT
 		fmt.Sprintf("Concurrency limit exceeded for %s, please retry later", slotType), streamStarted)
 }
 
-func (h *GatewayHandler) recordFailedUsage(apiKey *service.ApiKey, account *service.Account, subscription *service.UserSubscription, model string, stream bool, start time.Time) {
-	if apiKey == nil || apiKey.User == nil || account == nil {
-		return
-	}
-
-	durationMs := int(time.Since(start).Milliseconds())
-
-	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-
-		if err := h.gatewayService.RecordFailedUsage(ctx, &service.RecordFailedUsageInput{
-			ApiKey:       apiKey,
-			User:         apiKey.User,
-			Account:      account,
-			Subscription: subscription,
-			Model:        model,
-			Stream:       stream,
-			DurationMs:   &durationMs,
-		}); err != nil {
-			log.Printf("Record failed usage failed: %v", err)
-		}
-	}()
-}
-
 func (h *GatewayHandler) handleFailoverExhausted(c *gin.Context, statusCode int, streamStarted bool) {
 	status, errType, errMsg := h.mapUpstreamError(statusCode)
 	h.handleStreamingAwareError(c, status, errType, errMsg, streamStarted)
@@ -659,7 +644,7 @@ func (h *GatewayHandler) errorResponse(c *gin.Context, status int, errType, mess
 // 特点：校验订阅/余额，但不计算并发、不记录使用量
 func (h *GatewayHandler) CountTokens(c *gin.Context) {
 	// 从context获取apiKey和user（ApiKeyAuth中间件已设置）
-	apiKey, ok := middleware2.GetApiKeyFromContext(c)
+	apiKey, ok := middleware2.GetAPIKeyFromContext(c)
 	if !ok {
 		h.errorResponse(c, http.StatusUnauthorized, "authentication_error", "Invalid API key")
 		return
@@ -705,7 +690,8 @@ func (h *GatewayHandler) CountTokens(c *gin.Context) {
 	// 校验 billing eligibility（订阅/余额）
 	// 【注意】不计算并发，但需要校验订阅/余额
 	if err := h.billingCacheService.CheckBillingEligibility(c.Request.Context(), apiKey.User, apiKey, apiKey.Group, subscription); err != nil {
-		h.errorResponse(c, http.StatusForbidden, "billing_error", err.Error())
+		status, code, message := billingErrorDetails(err)
+		h.errorResponse(c, status, code, message)
 		return
 	}
 
@@ -830,4 +816,19 @@ func sendMockWarmupResponse(c *gin.Context, model string) {
 			"output_tokens": 2,
 		},
 	})
+}
+
+func billingErrorDetails(err error) (status int, code, message string) {
+	if errors.Is(err, service.ErrBillingServiceUnavailable) {
+		msg := pkgerrors.Message(err)
+		if msg == "" {
+			msg = "Billing service temporarily unavailable. Please retry later."
+		}
+		return http.StatusServiceUnavailable, "billing_service_error", msg
+	}
+	msg := pkgerrors.Message(err)
+	if msg == "" {
+		msg = err.Error()
+	}
+	return http.StatusForbidden, "billing_error", msg
 }

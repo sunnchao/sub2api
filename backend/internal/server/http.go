@@ -1,6 +1,8 @@
+// Package server provides HTTP server initialization and configuration.
 package server
 
 import (
+	"log"
 	"net/http"
 	"time"
 
@@ -25,8 +27,8 @@ func ProvideRouter(
 	handlers *handler.Handlers,
 	jwtAuth middleware2.JWTAuthMiddleware,
 	adminAuth middleware2.AdminAuthMiddleware,
-	apiKeyAuth middleware2.ApiKeyAuthMiddleware,
-	apiKeyService *service.ApiKeyService,
+	apiKeyAuth middleware2.APIKeyAuthMiddleware,
+	apiKeyService *service.APIKeyService,
 	subscriptionService *service.SubscriptionService,
 ) *gin.Engine {
 	if cfg.Server.Mode == "release" {
@@ -35,6 +37,15 @@ func ProvideRouter(
 
 	r := gin.New()
 	r.Use(middleware2.Recovery())
+	if len(cfg.Server.TrustedProxies) > 0 {
+		if err := r.SetTrustedProxies(cfg.Server.TrustedProxies); err != nil {
+			log.Printf("Failed to set trusted proxies: %v", err)
+		}
+	} else {
+		if err := r.SetTrustedProxies(nil); err != nil {
+			log.Printf("Failed to disable trusted proxies: %v", err)
+		}
+	}
 
 	return SetupRouter(r, handlers, jwtAuth, adminAuth, apiKeyAuth, apiKeyService, subscriptionService, cfg)
 }
