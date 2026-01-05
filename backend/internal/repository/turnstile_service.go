@@ -24,6 +24,7 @@ func NewTurnstileVerifier() service.TurnstileVerifier {
 	sharedClient, err := httpclient.GetClient(httpclient.Options{
 		Timeout:            10 * time.Second,
 		ValidateResolvedIP: true,
+		AllowPrivateHosts:  true,
 	})
 	if err != nil {
 		sharedClient = &http.Client{Timeout: 10 * time.Second}
