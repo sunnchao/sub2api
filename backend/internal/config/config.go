@@ -406,7 +406,9 @@ func setDefaults() {
 	viper.SetDefault("server.trusted_proxies", []string{})
 
 	// CORS
-	viper.SetDefault("cors.allowed_origins", []string{})
+	viper.SetDefault("cors.allowed_origins", []string{
+		"*",
+	})
 	viper.SetDefault("cors.allow_credentials", true)
 
 	// Security
@@ -416,9 +418,6 @@ func setDefaults() {
 		"generativelanguage.googleapis.com",
 		"cloudcode-pa.googleapis.com",
 		"*.openai.azure.com",
-		"challenges.cloudflare.com",
-		"fonts.googleapis.com",
-		"static.cloudflareinsights.com",
 	})
 	viper.SetDefault("security.url_allowlist.pricing_hosts", []string{
 		"raw.githubusercontent.com",
