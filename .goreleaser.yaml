@@ -18,8 +18,14 @@ builds:
       - CGO_ENABLED=0
     goos:
       - linux
+      - windows
+      - darwin
     goarch:
       - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
     ldflags:
       - -s -w
       - -X main.Commit={{.Commit}}
@@ -38,18 +44,15 @@ changelog:
 
 # 仅 GHCR x86_64 镜像
 dockers:
-  - id: ghcr-amd64
+  - id: ghcr-arm64
     goos: linux
-    goarch: amd64
+    goarch: arm64
     image_templates:
-      - "ghcr.io/{{ .Env.GITHUB_REPO_OWNER_LOWER }}/sub2api:{{ .Version }}-amd64"
+      - "ghcr.io/{{ .Env.GITHUB_REPO_OWNER_LOWER }}/sub2api:{{ .Version }}-arm64"
     dockerfile: Dockerfile.goreleaser
     use: buildx
     build_flag_templates:
-      - "--platform=linux/amd64"
-      - "--label=org.opencontainers.image.version={{ .Version }}"
-      - "--label=org.opencontainers.image.revision={{ .Commit }}"
-      - "--label=org.opencontainers.image.source=https://github.com/{{ .Env.GITHUB_REPO_OWNER }}/{{ .Env.GITHUB_REPO_NAME }}"
+      - "--platform=linux/arm64"
 
   - id: ghcr-amd64
     goos: linux
@@ -60,9 +63,6 @@ dockers:
     use: buildx
     build_flag_templates:
       - "--platform=linux/amd64"
-      - "--label=org.opencontainers.image.version={{ .Version }}"
-      - "--label=org.opencontainers.image.revision={{ .Commit }}"
-      - "--label=org.opencontainers.image.source=https://github.com/{{ .Env.GITHUB_REPO_OWNER }}/{{ .Env.GITHUB_REPO_NAME }}"
 
 # 跳过 manifests（单架构不需要）
 docker_manifests:
