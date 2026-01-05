@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log"
+	"os"
 	"strings"
 	"time"
 
@@ -17,7 +18,7 @@ const (
 	RunModeSimple   = "simple"
 )
 
-const DefaultCSPPolicy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+const DefaultCSPPolicy = "default-src 'self'; script-src 'self' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
 
 // 连接池隔离策略常量
 // 用于控制上游 HTTP 连接池的隔离粒度，影响连接复用和资源消耗
@@ -363,7 +364,15 @@ func Load() (*Config, error) {
 		cfg.Server.Mode = "debug"
 	}
 	cfg.JWT.Secret = strings.TrimSpace(cfg.JWT.Secret)
-	cfg.CORS.AllowedOrigins = normalizeStringSlice(cfg.CORS.AllowedOrigins)
+
+	// Handle comma-separated environment variables for slice configs
+	// Priority: ENV > config file > defaults
+	if envOrigins := parseEnvStringSlice("CORS_ALLOWED_ORIGINS"); envOrigins != nil {
+		cfg.CORS.AllowedOrigins = envOrigins
+	} else {
+		cfg.CORS.AllowedOrigins = normalizeStringSlice(cfg.CORS.AllowedOrigins)
+	}
+
 	cfg.Security.ResponseHeaders.AdditionalAllowed = normalizeStringSlice(cfg.Security.ResponseHeaders.AdditionalAllowed)
 	cfg.Security.ResponseHeaders.ForceRemove = normalizeStringSlice(cfg.Security.ResponseHeaders.ForceRemove)
 	cfg.Security.CSP.Policy = strings.TrimSpace(cfg.Security.CSP.Policy)
@@ -406,9 +415,7 @@ func setDefaults() {
 	viper.SetDefault("server.trusted_proxies", []string{})
 
 	// CORS
-	viper.SetDefault("cors.allowed_origins", []string{
-		"*",
-	})
+	viper.SetDefault("cors.allowed_origins", []string{})
 	viper.SetDefault("cors.allow_credentials", true)
 
 	// Security
@@ -690,6 +697,28 @@ func normalizeStringSlice(values []string) []string {
 		normalized = append(normalized, trimmed)
 	}
 	return normalized
+}
+
+// parseEnvStringSlice parses a comma-separated environment variable into a string slice.
+// Returns nil if the environment variable is not set (allowing config file or default to take precedence).
+// Returns empty slice if env var is set but empty.
+func parseEnvStringSlice(envKey string) []string {
+	value, exists := os.LookupEnv(envKey)
+	if !exists {
+		return nil
+	}
+	if strings.TrimSpace(value) == "" {
+		return []string{}
+	}
+	parts := strings.Split(value, ",")
+	result := make([]string, 0, len(parts))
+	for _, p := range parts {
+		trimmed := strings.TrimSpace(p)
+		if trimmed != "" {
+			result = append(result, trimmed)
+		}
+	}
+	return result
 }
 
 func isWeakJWTSecret(secret string) bool {
