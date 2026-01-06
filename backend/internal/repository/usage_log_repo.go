@@ -22,7 +22,7 @@ import (
 	"github.com/lib/pq"
 )
 
-const usageLogSelectColumns = "id, user_id, api_key_id, account_id, request_id, model, group_id, subscription_id, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens, cache_creation_5m_tokens, cache_creation_1h_tokens, input_cost, output_cost, cache_creation_cost, cache_read_cost, total_cost, actual_cost, rate_multiplier, billing_type, stream, duration_ms, first_token_ms, success, error_message, created_at"
+const usageLogSelectColumns = "id, user_id, api_key_id, account_id, request_id, model, group_id, subscription_id, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens, cache_creation_5m_tokens, cache_creation_1h_tokens, input_cost, output_cost, cache_creation_cost, cache_read_cost, total_cost, actual_cost, rate_multiplier, billing_type, stream, duration_ms, first_token_ms, image_count, image_size, created_at"
 
 type usageLogRepository struct {
 	client *dbent.Client
@@ -109,8 +109,8 @@ func (r *usageLogRepository) Create(ctx context.Context, log *service.UsageLog) 
 			stream,
 			duration_ms,
 			first_token_ms,
-			success,
-			error_message,
+			image_count,
+			image_size,
 			created_at
 		) VALUES (
 			$1, $2, $3, $4, $5,
@@ -129,7 +129,7 @@ func (r *usageLogRepository) Create(ctx context.Context, log *service.UsageLog) 
 	subscriptionID := nullInt64(log.SubscriptionID)
 	duration := nullInt(log.DurationMs)
 	firstToken := nullInt(log.FirstTokenMs)
-	errorMsg := nullString(log.ErrorMessage)
+	imageSize := nullString(log.ImageSize)
 
 	var requestIDArg any
 	if requestID != "" {
@@ -161,8 +161,8 @@ func (r *usageLogRepository) Create(ctx context.Context, log *service.UsageLog) 
 		log.Stream,
 		duration,
 		firstToken,
-		log.Success,
-		errorMsg,
+		log.ImageCount,
+		imageSize,
 		createdAt,
 	}
 	if err := scanSingleRow(ctx, sqlq, query, args, &log.ID, &log.CreatedAt); err != nil {
@@ -1795,8 +1795,8 @@ func scanUsageLog(scanner interface{ Scan(...any) error }) (*service.UsageLog, e
 		stream              bool
 		durationMs          sql.NullInt64
 		firstTokenMs        sql.NullInt64
-		success             bool
-		errorMessage        sql.NullString
+		imageCount          int
+		imageSize           sql.NullString
 		createdAt           time.Time
 	)
 
@@ -1826,8 +1826,8 @@ func scanUsageLog(scanner interface{ Scan(...any) error }) (*service.UsageLog, e
 		&stream,
 		&durationMs,
 		&firstTokenMs,
-		&success,
-		&errorMessage,
+		&imageCount,
+		&imageSize,
 		&createdAt,
 	); err != nil {
 		return nil, err
@@ -1854,7 +1854,7 @@ func scanUsageLog(scanner interface{ Scan(...any) error }) (*service.UsageLog, e
 		RateMultiplier:        rateMultiplier,
 		BillingType:           int8(billingType),
 		Stream:                stream,
-		Success:               success,
+		ImageCount:            imageCount,
 		CreatedAt:             createdAt,
 	}
 
@@ -1877,8 +1877,8 @@ func scanUsageLog(scanner interface{ Scan(...any) error }) (*service.UsageLog, e
 		value := int(firstTokenMs.Int64)
 		log.FirstTokenMs = &value
 	}
-	if errorMessage.Valid {
-		log.ErrorMessage = &errorMessage.String
+	if imageSize.Valid {
+		log.ImageSize = &imageSize.String
 	}
 
 	return log, nil
@@ -1953,7 +1953,7 @@ func nullInt(v *int) sql.NullInt64 {
 }
 
 func nullString(v *string) sql.NullString {
-	if v == nil {
+	if v == nil || *v == "" {
 		return sql.NullString{}
 	}
 	return sql.NullString{String: *v, Valid: true}

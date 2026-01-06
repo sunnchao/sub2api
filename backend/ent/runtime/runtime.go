@@ -521,14 +521,14 @@ func init() {
 	usagelogDescStream := usagelogFields[21].Descriptor()
 	// usagelog.DefaultStream holds the default value on creation for the stream field.
 	usagelog.DefaultStream = usagelogDescStream.Default.(bool)
-	// usagelogDescSuccess is the schema descriptor for success field.
-	usagelogDescSuccess := usagelogFields[24].Descriptor()
-	// usagelog.DefaultSuccess holds the default value on creation for the success field.
-	usagelog.DefaultSuccess = usagelogDescSuccess.Default.(bool)
-	// usagelogDescErrorMessage is the schema descriptor for error_message field.
-	usagelogDescErrorMessage := usagelogFields[25].Descriptor()
-	// usagelog.ErrorMessageValidator is a validator for the "error_message" field. It is called by the builders before save.
-	usagelog.ErrorMessageValidator = usagelogDescErrorMessage.Validators[0].(func(string) error)
+	// usagelogDescImageCount is the schema descriptor for image_count field.
+	usagelogDescImageCount := usagelogFields[24].Descriptor()
+	// usagelog.DefaultImageCount holds the default value on creation for the image_count field.
+	usagelog.DefaultImageCount = usagelogDescImageCount.Default.(int)
+	// usagelogDescImageSize is the schema descriptor for image_size field.
+	usagelogDescImageSize := usagelogFields[25].Descriptor()
+	// usagelog.ImageSizeValidator is a validator for the "image_size" field. It is called by the builders before save.
+	usagelog.ImageSizeValidator = usagelogDescImageSize.Validators[0].(func(string) error)
 	// usagelogDescCreatedAt is the schema descriptor for created_at field.
 	usagelogDescCreatedAt := usagelogFields[26].Descriptor()
 	// usagelog.DefaultCreatedAt holds the default value on creation for the created_at field.

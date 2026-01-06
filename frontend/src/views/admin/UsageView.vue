@@ -28,7 +28,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import * as XLSX from 'xlsx'; import { saveAs } from 'file-saver'
+import { saveAs } from 'file-saver'
 import { useAppStore } from '@/stores/app'; import { adminAPI } from '@/api/admin'; import { adminUsageAPI } from '@/api/admin/usage'
 import AppLayout from '@/components/layout/AppLayout.vue'; import Pagination from '@/components/common/Pagination.vue'; import Select from '@/components/common/Select.vue'
 import UsageStatsCards from '@/components/admin/usage/UsageStatsCards.vue'; import UsageFilters from '@/components/admin/usage/UsageFilters.vue'
@@ -55,16 +55,16 @@ const loadLogs = async () => {
   try {
     const res = await adminAPI.usage.list({ page: pagination.page, page_size: pagination.page_size, ...filters.value }, { signal: c.signal })
     if(!c.signal.aborted) { usageLogs.value = res.items; pagination.total = res.total }
-  } catch {} finally { if(abortController === c) loading.value = false }
+  } catch (error: any) { if(error?.name !== 'AbortError') console.error('Failed to load usage logs:', error) } finally { if(abortController === c) loading.value = false }
 }
-const loadStats = async () => { try { const s = await adminAPI.usage.getStats(filters.value); usageStats.value = s } catch {} }
+const loadStats = async () => { try { const s = await adminAPI.usage.getStats(filters.value); usageStats.value = s } catch (error) { console.error('Failed to load usage stats:', error) } }
 const loadChartData = async () => {
   chartsLoading.value = true
   try {
     const params = { start_date: filters.value.start_date || startDate.value, end_date: filters.value.end_date || endDate.value, granularity: granularity.value, user_id: filters.value.user_id }
     const [trendRes, modelRes] = await Promise.all([adminAPI.dashboard.getUsageTrend(params), adminAPI.dashboard.getModelStats({ start_date: params.start_date, end_date: params.end_date, user_id: params.user_id })])
     trendData.value = trendRes.trend || []; modelStats.value = modelRes.models || []
-  } catch {} finally { chartsLoading.value = false }
+  } catch (error) { console.error('Failed to load chart data:', error) } finally { chartsLoading.value = false }
 }
 const applyFilters = () => { pagination.page = 1; loadLogs(); loadStats(); loadChartData() }
 const resetFilters = () => { startDate.value = formatLD(weekAgo); endDate.value = formatLD(now); filters.value = { start_date: startDate.value, end_date: endDate.value }; granularity.value = 'day'; applyFilters() }
@@ -85,11 +85,13 @@ const exportToExcel = async () => {
       if (all.length >= total || res.items.length < 100) break; p++
     }
     if(!c.signal.aborted) {
+      // 动态加载 xlsx，降低首屏包体并减少高危依赖的常驻暴露面。
+      const XLSX = await import('xlsx')
       const ws = XLSX.utils.json_to_sheet(all); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Usage')
       saveAs(new Blob([XLSX.write(wb, { bookType: 'xlsx', type: 'array' })], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `usage_${Date.now()}.xlsx`)
       appStore.showSuccess('Export Success')
     }
-  } catch { appStore.showError('Export Failed') }
+  } catch (error) { console.error('Failed to export:', error); appStore.showError('Export Failed') }
   finally { if(exportAbortController === c) { exportAbortController = null; exporting.value = false; exportProgress.show = false } }
 }
 

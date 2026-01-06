@@ -18,9 +18,7 @@ const (
 	RunModeSimple   = "simple"
 )
 
-const DefaultCSPPolicy = "default-src 'self'; script-src 'self' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https:; frame-src 'self' https://challenges.cloudflare.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
-
-//const DefaultCSPPolicy = "default-src 'self'; script-src 'self' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https:; frame-src 'self' https://challenges.cloudflare.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+const DefaultCSPPolicy = "default-src 'self'; script-src 'self' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https:; frame-src https://challenges.cloudflare.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
 
 // 连接池隔离策略常量
 // 用于控制上游 HTTP 连接池的隔离粒度，影响连接复用和资源消耗
@@ -150,7 +148,7 @@ type CSPConfig struct {
 }
 
 type ProxyProbeConfig struct {
-	InsecureSkipVerify bool `mapstructure:"insecure_skip_verify"`
+	InsecureSkipVerify bool `mapstructure:"insecure_skip_verify"` // 已禁用：禁止跳过 TLS 证书验证
 }
 
 type BillingConfig struct {
@@ -341,8 +339,19 @@ func NormalizeRunMode(value string) string {
 func Load() (*Config, error) {
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
+
+	// Add config paths in priority order
+	// 1. DATA_DIR environment variable (highest priority)
+	if dataDir := os.Getenv("DATA_DIR"); dataDir != "" {
+		viper.AddConfigPath(dataDir)
+	}
+	// 2. Docker data directory
+	viper.AddConfigPath("/app/data")
+	// 3. Current directory
 	viper.AddConfigPath(".")
+	// 4. Config subdirectory
 	viper.AddConfigPath("./config")
+	// 5. System config directory
 	viper.AddConfigPath("/etc/sub2api")
 
 	// 环境变量支持
@@ -370,26 +379,18 @@ func Load() (*Config, error) {
 		cfg.Server.Mode = "debug"
 	}
 	cfg.JWT.Secret = strings.TrimSpace(cfg.JWT.Secret)
-
-	// Handle comma-separated environment variables for slice configs
-	// Priority: ENV > config file > defaults
-	if envOrigins := parseEnvStringSlice("CORS_ALLOWED_ORIGINS"); envOrigins != nil {
-		cfg.CORS.AllowedOrigins = envOrigins
-	} else {
-		cfg.CORS.AllowedOrigins = normalizeStringSlice(cfg.CORS.AllowedOrigins)
-	}
-
+	cfg.CORS.AllowedOrigins = normalizeStringSlice(cfg.CORS.AllowedOrigins)
 	cfg.Security.ResponseHeaders.AdditionalAllowed = normalizeStringSlice(cfg.Security.ResponseHeaders.AdditionalAllowed)
 	cfg.Security.ResponseHeaders.ForceRemove = normalizeStringSlice(cfg.Security.ResponseHeaders.ForceRemove)
 	cfg.Security.CSP.Policy = strings.TrimSpace(cfg.Security.CSP.Policy)
 
-	if cfg.Server.Mode != "release" && cfg.JWT.Secret == "" {
+	if cfg.JWT.Secret == "" {
 		secret, err := generateJWTSecret(64)
 		if err != nil {
 			return nil, fmt.Errorf("generate jwt secret error: %w", err)
 		}
 		cfg.JWT.Secret = secret
-		log.Println("Warning: JWT secret auto-generated for non-release mode. Do not use in production.")
+		log.Println("Warning: JWT secret auto-generated. Consider setting a fixed secret for production.")
 	}
 
 	if err := cfg.Validate(); err != nil {
@@ -403,7 +404,7 @@ func Load() (*Config, error) {
 		log.Println("Warning: security.response_headers.enabled=false; configurable header filtering disabled (default allowlist only).")
 	}
 
-	if cfg.Server.Mode != "release" && cfg.JWT.Secret != "" && isWeakJWTSecret(cfg.JWT.Secret) {
+	if cfg.JWT.Secret != "" && isWeakJWTSecret(cfg.JWT.Secret) {
 		log.Println("Warning: JWT secret appears weak; use a 32+ character random secret in production.")
 	}
 	if len(cfg.Security.ResponseHeaders.AdditionalAllowed) > 0 || len(cfg.Security.ResponseHeaders.ForceRemove) > 0 {
@@ -447,8 +448,8 @@ func setDefaults() {
 		"raw.githubusercontent.com",
 	})
 	viper.SetDefault("security.url_allowlist.crs_hosts", []string{})
-	viper.SetDefault("security.url_allowlist.allow_private_hosts", false)
-	viper.SetDefault("security.url_allowlist.allow_insecure_http", false)
+	viper.SetDefault("security.url_allowlist.allow_private_hosts", true)
+	viper.SetDefault("security.url_allowlist.allow_insecure_http", true)
 	viper.SetDefault("security.response_headers.enabled", false)
 	viper.SetDefault("security.response_headers.additional_allowed", []string{})
 	viper.SetDefault("security.response_headers.force_remove", []string{})
@@ -560,17 +561,6 @@ func setDefaults() {
 }
 
 func (c *Config) Validate() error {
-	if c.Server.Mode == "release" {
-		if c.JWT.Secret == "" {
-			return fmt.Errorf("jwt.secret is required in release mode")
-		}
-		if len(c.JWT.Secret) < 32 {
-			return fmt.Errorf("jwt.secret must be at least 32 characters")
-		}
-		if isWeakJWTSecret(c.JWT.Secret) {
-			return fmt.Errorf("jwt.secret is too weak")
-		}
-	}
 	if c.JWT.ExpireHour <= 0 {
 		return fmt.Errorf("jwt.expire_hour must be positive")
 	}
@@ -716,28 +706,6 @@ func normalizeStringSlice(values []string) []string {
 		normalized = append(normalized, trimmed)
 	}
 	return normalized
-}
-
-// parseEnvStringSlice parses a comma-separated environment variable into a string slice.
-// Returns nil if the environment variable is not set (allowing config file or default to take precedence).
-// Returns empty slice if env var is set but empty.
-func parseEnvStringSlice(envKey string) []string {
-	value, exists := os.LookupEnv(envKey)
-	if !exists {
-		return nil
-	}
-	if strings.TrimSpace(value) == "" {
-		return []string{}
-	}
-	parts := strings.Split(value, ",")
-	result := make([]string, 0, len(parts))
-	for _, p := range parts {
-		trimmed := strings.TrimSpace(p)
-		if trimmed != "" {
-			result = append(result, trimmed)
-		}
-	}
-	return result
 }
 
 func isWeakJWTSecret(secret string) bool {

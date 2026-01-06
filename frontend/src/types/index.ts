@@ -259,6 +259,10 @@ export interface Group {
   daily_limit_usd: number | null
   weekly_limit_usd: number | null
   monthly_limit_usd: number | null
+  // 图片生成计费配置（仅 antigravity 平台使用）
+  image_price_1k: number | null
+  image_price_2k: number | null
+  image_price_4k: number | null
   account_count?: number
   created_at: string
   updated_at: string
@@ -562,8 +566,9 @@ export interface UsageLog {
   duration_ms: number
   first_token_ms: number | null
 
-  success: boolean // 请求是否成功
-  error_message: string | null // 错误信息（失败时记录）
+  // 图片生成字段
+  image_count: number
+  image_size: string | null
 
   created_at: string
 

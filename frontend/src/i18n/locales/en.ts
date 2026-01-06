@@ -424,10 +424,7 @@ export default {
     billingType: 'Billing',
     balance: 'Balance',
     subscription: 'Subscription',
-    status: 'Status',
-    success: 'Success',
-    failed: 'Failed',
-    errorInfo: 'Error Info'
+    imageUnit: ' images'
   },
 
   // Redeem
@@ -855,6 +852,10 @@ export default {
         defaultValidityDays: 'Default Validity (Days)',
         validityHint: 'Number of days the subscription is valid when assigned to a user',
         noLimit: 'No limit'
+      },
+      imagePricing: {
+        title: 'Image Generation Pricing',
+        description: 'Configure pricing for gemini-3-pro-image model. Leave empty to use default prices.'
       }
     },
 
@@ -1667,7 +1668,10 @@ export default {
       types: {
         balance: 'Balance',
         concurrency: 'Concurrency',
-        subscription: 'Subscription'
+        subscription: 'Subscription',
+        // Admin adjustment types (created when admin modifies user balance/concurrency)
+        admin_balance: 'Balance (Admin)',
+        admin_concurrency: 'Concurrency (Admin)'
       },
       selectGroup: 'Select Group',
       selectGroupPlaceholder: 'Choose a subscription group',

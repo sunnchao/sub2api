@@ -1053,6 +1053,10 @@ const handleSubmit = async () => {
   submitting.value = true
   try {
     const updatePayload: Record<string, unknown> = { ...form }
+    // 后端期望 proxy_id: 0 表示清除代理，而不是 null
+    if (updatePayload.proxy_id === null) {
+      updatePayload.proxy_id = 0
+    }
 
     // For apikey type, handle credentials update
     if (props.account.type === 'apikey') {
@@ -1136,7 +1140,7 @@ const handleSubmit = async () => {
     emit('updated')
     handleClose()
   } catch (error: any) {
-    appStore.showError(error.response?.data?.detail || t('admin.accounts.failedToUpdate'))
+    appStore.showError(error.response?.data?.message || error.response?.data?.detail || t('admin.accounts.failedToUpdate'))
   } finally {
     submitting.value = false
   }

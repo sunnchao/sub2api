@@ -421,10 +421,7 @@ export default {
     billingType: '消费类型',
     balance: '余额',
     subscription: '订阅',
-    status: '状态',
-    success: '成功',
-    failed: '失败',
-    errorInfo: '错误信息'
+    imageUnit: '张'
   },
 
   // Redeem
@@ -932,6 +929,10 @@ export default {
         defaultValidityDays: '默认有效期（天）',
         validityHint: '分配给用户时订阅的有效天数',
         noLimit: '无限制'
+      },
+      imagePricing: {
+        title: '图片生成计费',
+        description: '配置 gemini-3-pro-image 模型的图片生成价格，留空则使用默认价格'
       }
     },
 
@@ -1742,7 +1743,10 @@ export default {
       types: {
         balance: '余额',
         concurrency: '并发数',
-        subscription: '订阅'
+        subscription: '订阅',
+        // 管理员在用户管理页面调整余额/并发时产生的记录
+        admin_balance: '余额（管理员）',
+        admin_concurrency: '并发数（管理员）'
       },
       // 用于选择器和筛选器的直接键
       balance: '余额',

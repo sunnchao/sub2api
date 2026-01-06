@@ -62,10 +62,10 @@ const (
 	FieldDurationMs = "duration_ms"
 	// FieldFirstTokenMs holds the string denoting the first_token_ms field in the database.
 	FieldFirstTokenMs = "first_token_ms"
-	// FieldSuccess holds the string denoting the success field in the database.
-	FieldSuccess = "success"
-	// FieldErrorMessage holds the string denoting the error_message field in the database.
-	FieldErrorMessage = "error_message"
+	// FieldImageCount holds the string denoting the image_count field in the database.
+	FieldImageCount = "image_count"
+	// FieldImageSize holds the string denoting the image_size field in the database.
+	FieldImageSize = "image_size"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
 	FieldCreatedAt = "created_at"
 	// EdgeUser holds the string denoting the user edge name in mutations.
@@ -144,8 +144,8 @@ var Columns = []string{
 	FieldStream,
 	FieldDurationMs,
 	FieldFirstTokenMs,
-	FieldSuccess,
-	FieldErrorMessage,
+	FieldImageCount,
+	FieldImageSize,
 	FieldCreatedAt,
 }
 
@@ -194,10 +194,10 @@ var (
 	DefaultBillingType int8
 	// DefaultStream holds the default value on creation for the "stream" field.
 	DefaultStream bool
-	// DefaultSuccess holds the default value on creation for the "success" field.
-	DefaultSuccess bool
-	// ErrorMessageValidator is a validator for the "error_message" field. It is called by the builders before save.
-	ErrorMessageValidator func(string) error
+	// DefaultImageCount holds the default value on creation for the "image_count" field.
+	DefaultImageCount int
+	// ImageSizeValidator is a validator for the "image_size" field. It is called by the builders before save.
+	ImageSizeValidator func(string) error
 	// DefaultCreatedAt holds the default value on creation for the "created_at" field.
 	DefaultCreatedAt func() time.Time
 )
@@ -330,14 +330,14 @@ func ByFirstTokenMs(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldFirstTokenMs, opts...).ToFunc()
 }
 
-// BySuccess orders the results by the success field.
-func BySuccess(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldSuccess, opts...).ToFunc()
+// ByImageCount orders the results by the image_count field.
+func ByImageCount(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldImageCount, opts...).ToFunc()
 }
 
-// ByErrorMessage orders the results by the error_message field.
-func ByErrorMessage(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldErrorMessage, opts...).ToFunc()
+// ByImageSize orders the results by the image_size field.
+func ByImageSize(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldImageSize, opts...).ToFunc()
 }
 
 // ByCreatedAt orders the results by the created_at field.

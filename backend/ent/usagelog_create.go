@@ -323,30 +323,30 @@ func (_c *UsageLogCreate) SetNillableFirstTokenMs(v *int) *UsageLogCreate {
 	return _c
 }
 
-// SetSuccess sets the "success" field.
-func (_c *UsageLogCreate) SetSuccess(v bool) *UsageLogCreate {
-	_c.mutation.SetSuccess(v)
+// SetImageCount sets the "image_count" field.
+func (_c *UsageLogCreate) SetImageCount(v int) *UsageLogCreate {
+	_c.mutation.SetImageCount(v)
 	return _c
 }
 
-// SetNillableSuccess sets the "success" field if the given value is not nil.
-func (_c *UsageLogCreate) SetNillableSuccess(v *bool) *UsageLogCreate {
+// SetNillableImageCount sets the "image_count" field if the given value is not nil.
+func (_c *UsageLogCreate) SetNillableImageCount(v *int) *UsageLogCreate {
 	if v != nil {
-		_c.SetSuccess(*v)
+		_c.SetImageCount(*v)
 	}
 	return _c
 }
 
-// SetErrorMessage sets the "error_message" field.
-func (_c *UsageLogCreate) SetErrorMessage(v string) *UsageLogCreate {
-	_c.mutation.SetErrorMessage(v)
+// SetImageSize sets the "image_size" field.
+func (_c *UsageLogCreate) SetImageSize(v string) *UsageLogCreate {
+	_c.mutation.SetImageSize(v)
 	return _c
 }
 
-// SetNillableErrorMessage sets the "error_message" field if the given value is not nil.
-func (_c *UsageLogCreate) SetNillableErrorMessage(v *string) *UsageLogCreate {
+// SetNillableImageSize sets the "image_size" field if the given value is not nil.
+func (_c *UsageLogCreate) SetNillableImageSize(v *string) *UsageLogCreate {
 	if v != nil {
-		_c.SetErrorMessage(*v)
+		_c.SetImageSize(*v)
 	}
 	return _c
 }
@@ -485,9 +485,9 @@ func (_c *UsageLogCreate) defaults() {
 		v := usagelog.DefaultStream
 		_c.mutation.SetStream(v)
 	}
-	if _, ok := _c.mutation.Success(); !ok {
-		v := usagelog.DefaultSuccess
-		_c.mutation.SetSuccess(v)
+	if _, ok := _c.mutation.ImageCount(); !ok {
+		v := usagelog.DefaultImageCount
+		_c.mutation.SetImageCount(v)
 	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		v := usagelog.DefaultCreatedAt()
@@ -567,12 +567,12 @@ func (_c *UsageLogCreate) check() error {
 	if _, ok := _c.mutation.Stream(); !ok {
 		return &ValidationError{Name: "stream", err: errors.New(`ent: missing required field "UsageLog.stream"`)}
 	}
-	if _, ok := _c.mutation.Success(); !ok {
-		return &ValidationError{Name: "success", err: errors.New(`ent: missing required field "UsageLog.success"`)}
+	if _, ok := _c.mutation.ImageCount(); !ok {
+		return &ValidationError{Name: "image_count", err: errors.New(`ent: missing required field "UsageLog.image_count"`)}
 	}
-	if v, ok := _c.mutation.ErrorMessage(); ok {
-		if err := usagelog.ErrorMessageValidator(v); err != nil {
-			return &ValidationError{Name: "error_message", err: fmt.Errorf(`ent: validator failed for field "UsageLog.error_message": %w`, err)}
+	if v, ok := _c.mutation.ImageSize(); ok {
+		if err := usagelog.ImageSizeValidator(v); err != nil {
+			return &ValidationError{Name: "image_size", err: fmt.Errorf(`ent: validator failed for field "UsageLog.image_size": %w`, err)}
 		}
 	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
@@ -690,13 +690,13 @@ func (_c *UsageLogCreate) createSpec() (*UsageLog, *sqlgraph.CreateSpec) {
 		_spec.SetField(usagelog.FieldFirstTokenMs, field.TypeInt, value)
 		_node.FirstTokenMs = &value
 	}
-	if value, ok := _c.mutation.Success(); ok {
-		_spec.SetField(usagelog.FieldSuccess, field.TypeBool, value)
-		_node.Success = value
+	if value, ok := _c.mutation.ImageCount(); ok {
+		_spec.SetField(usagelog.FieldImageCount, field.TypeInt, value)
+		_node.ImageCount = value
 	}
-	if value, ok := _c.mutation.ErrorMessage(); ok {
-		_spec.SetField(usagelog.FieldErrorMessage, field.TypeString, value)
-		_node.ErrorMessage = &value
+	if value, ok := _c.mutation.ImageSize(); ok {
+		_spec.SetField(usagelog.FieldImageSize, field.TypeString, value)
+		_node.ImageSize = &value
 	}
 	if value, ok := _c.mutation.CreatedAt(); ok {
 		_spec.SetField(usagelog.FieldCreatedAt, field.TypeTime, value)
@@ -1247,33 +1247,39 @@ func (u *UsageLogUpsert) ClearFirstTokenMs() *UsageLogUpsert {
 	return u
 }
 
-// SetSuccess sets the "success" field.
-func (u *UsageLogUpsert) SetSuccess(v bool) *UsageLogUpsert {
-	u.Set(usagelog.FieldSuccess, v)
+// SetImageCount sets the "image_count" field.
+func (u *UsageLogUpsert) SetImageCount(v int) *UsageLogUpsert {
+	u.Set(usagelog.FieldImageCount, v)
 	return u
 }
 
-// UpdateSuccess sets the "success" field to the value that was provided on create.
-func (u *UsageLogUpsert) UpdateSuccess() *UsageLogUpsert {
-	u.SetExcluded(usagelog.FieldSuccess)
+// UpdateImageCount sets the "image_count" field to the value that was provided on create.
+func (u *UsageLogUpsert) UpdateImageCount() *UsageLogUpsert {
+	u.SetExcluded(usagelog.FieldImageCount)
 	return u
 }
 
-// SetErrorMessage sets the "error_message" field.
-func (u *UsageLogUpsert) SetErrorMessage(v string) *UsageLogUpsert {
-	u.Set(usagelog.FieldErrorMessage, v)
+// AddImageCount adds v to the "image_count" field.
+func (u *UsageLogUpsert) AddImageCount(v int) *UsageLogUpsert {
+	u.Add(usagelog.FieldImageCount, v)
 	return u
 }
 
-// UpdateErrorMessage sets the "error_message" field to the value that was provided on create.
-func (u *UsageLogUpsert) UpdateErrorMessage() *UsageLogUpsert {
-	u.SetExcluded(usagelog.FieldErrorMessage)
+// SetImageSize sets the "image_size" field.
+func (u *UsageLogUpsert) SetImageSize(v string) *UsageLogUpsert {
+	u.Set(usagelog.FieldImageSize, v)
 	return u
 }
 
-// ClearErrorMessage clears the value of the "error_message" field.
-func (u *UsageLogUpsert) ClearErrorMessage() *UsageLogUpsert {
-	u.SetNull(usagelog.FieldErrorMessage)
+// UpdateImageSize sets the "image_size" field to the value that was provided on create.
+func (u *UsageLogUpsert) UpdateImageSize() *UsageLogUpsert {
+	u.SetExcluded(usagelog.FieldImageSize)
+	return u
+}
+
+// ClearImageSize clears the value of the "image_size" field.
+func (u *UsageLogUpsert) ClearImageSize() *UsageLogUpsert {
+	u.SetNull(usagelog.FieldImageSize)
 	return u
 }
 
@@ -1798,38 +1804,45 @@ func (u *UsageLogUpsertOne) ClearFirstTokenMs() *UsageLogUpsertOne {
 	})
 }
 
-// SetSuccess sets the "success" field.
-func (u *UsageLogUpsertOne) SetSuccess(v bool) *UsageLogUpsertOne {
+// SetImageCount sets the "image_count" field.
+func (u *UsageLogUpsertOne) SetImageCount(v int) *UsageLogUpsertOne {
 	return u.Update(func(s *UsageLogUpsert) {
-		s.SetSuccess(v)
+		s.SetImageCount(v)
 	})
 }
 
-// UpdateSuccess sets the "success" field to the value that was provided on create.
-func (u *UsageLogUpsertOne) UpdateSuccess() *UsageLogUpsertOne {
+// AddImageCount adds v to the "image_count" field.
+func (u *UsageLogUpsertOne) AddImageCount(v int) *UsageLogUpsertOne {
 	return u.Update(func(s *UsageLogUpsert) {
-		s.UpdateSuccess()
+		s.AddImageCount(v)
 	})
 }
 
-// SetErrorMessage sets the "error_message" field.
-func (u *UsageLogUpsertOne) SetErrorMessage(v string) *UsageLogUpsertOne {
+// UpdateImageCount sets the "image_count" field to the value that was provided on create.
+func (u *UsageLogUpsertOne) UpdateImageCount() *UsageLogUpsertOne {
 	return u.Update(func(s *UsageLogUpsert) {
-		s.SetErrorMessage(v)
+		s.UpdateImageCount()
 	})
 }
 
-// UpdateErrorMessage sets the "error_message" field to the value that was provided on create.
-func (u *UsageLogUpsertOne) UpdateErrorMessage() *UsageLogUpsertOne {
+// SetImageSize sets the "image_size" field.
+func (u *UsageLogUpsertOne) SetImageSize(v string) *UsageLogUpsertOne {
 	return u.Update(func(s *UsageLogUpsert) {
-		s.UpdateErrorMessage()
+		s.SetImageSize(v)
 	})
 }
 
-// ClearErrorMessage clears the value of the "error_message" field.
-func (u *UsageLogUpsertOne) ClearErrorMessage() *UsageLogUpsertOne {
+// UpdateImageSize sets the "image_size" field to the value that was provided on create.
+func (u *UsageLogUpsertOne) UpdateImageSize() *UsageLogUpsertOne {
 	return u.Update(func(s *UsageLogUpsert) {
-		s.ClearErrorMessage()
+		s.UpdateImageSize()
+	})
+}
+
+// ClearImageSize clears the value of the "image_size" field.
+func (u *UsageLogUpsertOne) ClearImageSize() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearImageSize()
 	})
 }
 
@@ -2520,38 +2533,45 @@ func (u *UsageLogUpsertBulk) ClearFirstTokenMs() *UsageLogUpsertBulk {
 	})
 }
 
-// SetSuccess sets the "success" field.
-func (u *UsageLogUpsertBulk) SetSuccess(v bool) *UsageLogUpsertBulk {
+// SetImageCount sets the "image_count" field.
+func (u *UsageLogUpsertBulk) SetImageCount(v int) *UsageLogUpsertBulk {
 	return u.Update(func(s *UsageLogUpsert) {
-		s.SetSuccess(v)
+		s.SetImageCount(v)
 	})
 }
 
-// UpdateSuccess sets the "success" field to the value that was provided on create.
-func (u *UsageLogUpsertBulk) UpdateSuccess() *UsageLogUpsertBulk {
+// AddImageCount adds v to the "image_count" field.
+func (u *UsageLogUpsertBulk) AddImageCount(v int) *UsageLogUpsertBulk {
 	return u.Update(func(s *UsageLogUpsert) {
-		s.UpdateSuccess()
+		s.AddImageCount(v)
 	})
 }
 
-// SetErrorMessage sets the "error_message" field.
-func (u *UsageLogUpsertBulk) SetErrorMessage(v string) *UsageLogUpsertBulk {
+// UpdateImageCount sets the "image_count" field to the value that was provided on create.
+func (u *UsageLogUpsertBulk) UpdateImageCount() *UsageLogUpsertBulk {
 	return u.Update(func(s *UsageLogUpsert) {
-		s.SetErrorMessage(v)
+		s.UpdateImageCount()
 	})
 }
 
-// UpdateErrorMessage sets the "error_message" field to the value that was provided on create.
-func (u *UsageLogUpsertBulk) UpdateErrorMessage() *UsageLogUpsertBulk {
+// SetImageSize sets the "image_size" field.
+func (u *UsageLogUpsertBulk) SetImageSize(v string) *UsageLogUpsertBulk {
 	return u.Update(func(s *UsageLogUpsert) {
-		s.UpdateErrorMessage()
+		s.SetImageSize(v)
 	})
 }
 
-// ClearErrorMessage clears the value of the "error_message" field.
-func (u *UsageLogUpsertBulk) ClearErrorMessage() *UsageLogUpsertBulk {
+// UpdateImageSize sets the "image_size" field to the value that was provided on create.
+func (u *UsageLogUpsertBulk) UpdateImageSize() *UsageLogUpsertBulk {
 	return u.Update(func(s *UsageLogUpsert) {
-		s.ClearErrorMessage()
+		s.UpdateImageSize()
+	})
+}
+
+// ClearImageSize clears the value of the "image_size" field.
+func (u *UsageLogUpsertBulk) ClearImageSize() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearImageSize()
 	})
 }
 
