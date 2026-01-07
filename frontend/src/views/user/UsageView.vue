@@ -147,44 +147,6 @@
 
       <template #table>
         <DataTable :columns="columns" :data="usageLogs" :loading="loading">
-          <template #cell-status="{ row }">
-            <div class="flex items-center gap-1.5">
-              <span
-                class="inline-flex items-center rounded px-2 py-0.5 text-xs font-medium"
-                :class="
-                  row.success
-                    ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                    : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
-                "
-              >
-                {{ row.success ? t('usage.success') : t('usage.failed') }}
-              </span>
-              <!-- Error tooltip for failed requests -->
-              <div
-                v-if="!row.success && row.error_message"
-                class="group relative"
-                @mouseenter="showErrorTooltip($event, row)"
-                @mouseleave="hideErrorTooltip"
-              >
-                <div
-                  class="flex h-4 w-4 cursor-help items-center justify-center rounded-full bg-red-100 transition-colors group-hover:bg-red-200 dark:bg-red-900/50 dark:group-hover:bg-red-800/50"
-                >
-                  <svg
-                    class="h-3 w-3 text-red-500 dark:text-red-400"
-                    fill="currentColor"
-                    viewBox="0 0 20 20"
-                  >
-                    <path
-                      fill-rule="evenodd"
-                      d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
-                      clip-rule="evenodd"
-                    />
-                  </svg>
-                </div>
-              </div>
-            </div>
-          </template>
-
           <template #cell-api_key="{ row }">
             <span class="text-sm text-gray-900 dark:text-white">{{
               row.api_key?.name || '-'
@@ -488,31 +450,6 @@
       </div>
     </div>
   </Teleport>
-
-  <!-- Error Tooltip Portal -->
-  <Teleport to="body">
-    <div
-      v-if="errorTooltipVisible"
-      class="fixed z-[9999] pointer-events-none -translate-y-1/2"
-      :style="{
-        left: errorTooltipPosition.x + 'px',
-        top: errorTooltipPosition.y + 'px'
-      }"
-    >
-      <div
-        class="max-w-xs rounded-lg border border-red-700 bg-red-900 px-3 py-2.5 text-xs text-white shadow-xl dark:border-red-600 dark:bg-red-800"
-      >
-        <div class="space-y-1.5">
-          <div class="text-xs font-semibold text-red-300">{{ t('usage.errorInfo') }}</div>
-          <div class="text-white break-words">{{ errorTooltipData?.error_message }}</div>
-        </div>
-        <!-- Tooltip Arrow (left side) -->
-        <div
-          class="absolute right-full top-1/2 h-0 w-0 -translate-y-1/2 border-b-[6px] border-r-[6px] border-t-[6px] border-b-transparent border-r-red-900 border-t-transparent dark:border-r-red-800"
-        ></div>
-      </div>
-    </div>
-  </Teleport>
 </template>
 
 <script setup lang="ts">
@@ -547,16 +484,10 @@ const tokenTooltipVisible = ref(false)
 const tokenTooltipPosition = ref({ x: 0, y: 0 })
 const tokenTooltipData = ref<UsageLog | null>(null)
 
-// Error tooltip state
-const errorTooltipVisible = ref(false)
-const errorTooltipPosition = ref({ x: 0, y: 0 })
-const errorTooltipData = ref<UsageLog | null>(null)
-
 // Usage stats from API
 const usageStats = ref<UsageStatsResponse | null>(null)
 
 const columns = computed<Column[]>(() => [
-  { key: 'status', label: t('usage.status'), sortable: false },
   { key: 'api_key', label: t('usage.apiKeyFilter'), sortable: false },
   { key: 'account', label: t('usage.account'), sortable: false },
   { key: 'group', label: t('usage.group'), sortable: false },
@@ -590,11 +521,13 @@ const formatLocalDate = (date: Date): string => {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 }
 
-// Initialize date range immediately (default to today)
+// Initialize date range immediately
 const now = new Date()
+const weekAgo = new Date(now)
+weekAgo.setDate(weekAgo.getDate() - 6)
 
 // Date range state
-const startDate = ref(formatLocalDate(now))
+const startDate = ref(formatLocalDate(weekAgo))
 const endDate = ref(formatLocalDate(now))
 
 const filters = ref<UsageQueryParams>({
@@ -724,9 +657,11 @@ const resetFilters = () => {
     start_date: undefined,
     end_date: undefined
   }
-  // Reset date range to default (today)
+  // Reset date range to default (last 7 days)
   const now = new Date()
-  startDate.value = formatLocalDate(now)
+  const weekAgo = new Date(now)
+  weekAgo.setDate(weekAgo.getDate() - 6)
+  startDate.value = formatLocalDate(weekAgo)
   endDate.value = formatLocalDate(now)
   filters.value.start_date = startDate.value
   filters.value.end_date = endDate.value
@@ -889,22 +824,6 @@ const showTokenTooltip = (event: MouseEvent, row: UsageLog) => {
 const hideTokenTooltip = () => {
   tokenTooltipVisible.value = false
   tokenTooltipData.value = null
-}
-
-// Error tooltip functions
-const showErrorTooltip = (event: MouseEvent, row: UsageLog) => {
-  const target = event.currentTarget as HTMLElement
-  const rect = target.getBoundingClientRect()
-
-  errorTooltipData.value = row
-  errorTooltipPosition.value.x = rect.right + 8
-  errorTooltipPosition.value.y = rect.top + rect.height / 2
-  errorTooltipVisible.value = true
-}
-
-const hideErrorTooltip = () => {
-  errorTooltipVisible.value = false
-  errorTooltipData.value = null
 }
 
 onMounted(() => {
