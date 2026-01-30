@@ -305,6 +305,19 @@ func (s *GatewayService) BindStickySession(ctx context.Context, groupID *int64, 
 	return s.cache.SetSessionAccountID(ctx, derefGroupID(groupID), sessionHash, accountID, stickySessionTTL)
 }
 
+// GetCachedSessionAccountID retrieves the account ID bound to a sticky session.
+// Returns 0 if no binding exists or on error.
+func (s *GatewayService) GetCachedSessionAccountID(ctx context.Context, groupID *int64, sessionHash string) (int64, error) {
+	if sessionHash == "" || s.cache == nil {
+		return 0, nil
+	}
+	accountID, err := s.cache.GetSessionAccountID(ctx, derefGroupID(groupID), sessionHash)
+	if err != nil {
+		return 0, err
+	}
+	return accountID, nil
+}
+
 func (s *GatewayService) extractCacheableContent(parsed *ParsedRequest) string {
 	if parsed == nil {
 		return ""
@@ -3359,17 +3372,19 @@ func (s *GatewayService) parseSSEUsage(data string, usage *ClaudeUsage) {
 		} `json:"usage"`
 	}
 	if json.Unmarshal([]byte(data), &msgDelta) == nil && msgDelta.Type == "message_delta" {
-		// output_tokens 总是从 message_delta 获取
-		usage.OutputTokens = msgDelta.Usage.OutputTokens
-
-		// 如果 message_start 中没有值，则从 message_delta 获取（兼容GLM等API）
-		if usage.InputTokens == 0 {
+		// message_delta 仅覆盖存在且非0的字段
+		// 避免覆盖 message_start 中已有的值（如 input_tokens）
+		// Claude API 的 message_delta 通常只包含 output_tokens
+		if msgDelta.Usage.InputTokens > 0 {
 			usage.InputTokens = msgDelta.Usage.InputTokens
 		}
-		if usage.CacheCreationInputTokens == 0 {
+		if msgDelta.Usage.OutputTokens > 0 {
+			usage.OutputTokens = msgDelta.Usage.OutputTokens
+		}
+		if msgDelta.Usage.CacheCreationInputTokens > 0 {
 			usage.CacheCreationInputTokens = msgDelta.Usage.CacheCreationInputTokens
 		}
-		if usage.CacheReadInputTokens == 0 {
+		if msgDelta.Usage.CacheReadInputTokens > 0 {
 			usage.CacheReadInputTokens = msgDelta.Usage.CacheReadInputTokens
 		}
 	}
