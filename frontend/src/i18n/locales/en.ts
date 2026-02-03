@@ -69,7 +69,9 @@ export default {
       port: 'Port',
       password: 'Password (optional)',
       database: 'Database',
-      passwordPlaceholder: 'Password'
+      passwordPlaceholder: 'Password',
+      enableTls: 'Enable TLS',
+      enableTlsHint: 'Use TLS when connecting to Redis (public CA certs)'
     },
     admin: {
       title: 'Admin Account',
@@ -185,6 +187,7 @@ export default {
   // Navigation
   nav: {
     dashboard: 'Dashboard',
+    announcements: 'Announcements',
     apiKeys: 'API Keys',
     usage: 'Usage',
     redeem: 'Redeem',
@@ -262,6 +265,13 @@ export default {
     promoCodeAlreadyUsed: 'You have already used this promo code',
     promoCodeValidating: 'Promo code is being validated, please wait',
     promoCodeInvalidCannotRegister: 'Invalid promo code. Please check and try again or clear the promo code field',
+    invitationCodeLabel: 'Invitation Code',
+    invitationCodePlaceholder: 'Enter invitation code',
+    invitationCodeRequired: 'Invitation code is required',
+    invitationCodeValid: 'Invitation code is valid',
+    invitationCodeInvalid: 'Invalid or used invitation code',
+    invitationCodeValidating: 'Validating invitation code...',
+    invitationCodeInvalidCannotRegister: 'Invalid invitation code. Please check and try again',
     linuxdo: {
       signIn: 'Continue with Linux.do',
       orContinue: 'or continue with email',
@@ -494,6 +504,7 @@ export default {
     account: 'Account',
     group: 'Group',
     model: 'Model',
+    reasoningEffort: 'Reasoning Effort',
     type: 'Type',
     tokens: 'Tokens',
     cost: 'Cost',
@@ -1003,6 +1014,14 @@ export default {
         fallbackHint: 'Non-Claude Code requests will use this group. Leave empty to reject directly.',
         noFallback: 'No Fallback (Reject)'
       },
+      copyAccounts: {
+        title: 'Copy Accounts from Groups',
+        tooltip: 'Select one or more groups of the same platform. After creation, all accounts from these groups will be automatically bound to the new group (deduplicated).',
+        tooltipEdit: 'Select one or more groups of the same platform. After saving, current group accounts will be replaced with accounts from these groups (deduplicated).',
+        selectPlaceholder: 'Select groups to copy accounts from...',
+        hint: 'Multiple groups can be selected, accounts will be deduplicated',
+        hintEdit: '⚠️ Warning: This will replace all existing account bindings'
+      },
       modelRouting: {
         title: 'Model Routing',
         tooltip: 'Configure specific model requests to be routed to designated accounts. Supports wildcard matching, e.g., claude-opus-* matches all opus models.',
@@ -1174,6 +1193,7 @@ export default {
         overloaded: 'Overloaded',
         tempUnschedulable: 'Temp Unschedulable',
         rateLimitedUntil: 'Rate limited until {time}',
+        scopeRateLimitedUntil: '{scope} rate limited until {time}',
         overloadedUntil: 'Overloaded until {time}',
         viewTempUnschedDetails: 'View temp unschedulable details'
       },
@@ -1414,6 +1434,8 @@ export default {
       accountUpdated: 'Account updated successfully',
       failedToCreate: 'Failed to create account',
       failedToUpdate: 'Failed to update account',
+      mixedChannelWarningTitle: 'Mixed Channel Warning',
+      mixedChannelWarning: 'Warning: Group "{groupName}" contains both {currentPlatform} and {otherPlatform} accounts. Mixing different channels may cause thinking block signature validation issues, which will fallback to non-thinking mode. Are you sure you want to continue?',
       pleaseEnterAccountName: 'Please enter account name',
       pleaseEnterApiKey: 'Please enter API Key',
       apiKeyIsRequired: 'API Key is required',
@@ -1890,6 +1912,8 @@ export default {
       balance: 'Balance',
       concurrency: 'Concurrency',
       subscription: 'Subscription',
+      invitation: 'Invitation',
+      invitationHint: 'Invitation codes are used to restrict user registration. They are automatically marked as used after use.',
       unused: 'Unused',
       used: 'Used',
       columns: {
@@ -1936,6 +1960,7 @@ export default {
         balance: 'Balance',
         concurrency: 'Concurrency',
         subscription: 'Subscription',
+        invitation: 'Invitation',
         // Admin adjustment types (created when admin modifies user balance/concurrency)
         admin_balance: 'Balance (Admin)',
         admin_concurrency: 'Concurrency (Admin)'
@@ -1951,6 +1976,73 @@ export default {
         expired: 'Expired',
         disabled: 'Disabled'
       }
+    },
+
+    // Announcements
+    announcements: {
+      title: 'Announcements',
+      description: 'Create announcements and target by conditions',
+      createAnnouncement: 'Create Announcement',
+      editAnnouncement: 'Edit Announcement',
+      deleteAnnouncement: 'Delete Announcement',
+      searchAnnouncements: 'Search announcements...',
+      status: 'Status',
+      allStatus: 'All Status',
+      columns: {
+        title: 'Title',
+        status: 'Status',
+        targeting: 'Targeting',
+        timeRange: 'Schedule',
+        createdAt: 'Created At',
+        actions: 'Actions'
+      },
+      statusLabels: {
+        draft: 'Draft',
+        active: 'Active',
+        archived: 'Archived'
+      },
+      form: {
+        title: 'Title',
+        content: 'Content (Markdown supported)',
+        status: 'Status',
+        startsAt: 'Starts At',
+        endsAt: 'Ends At',
+        startsAtHint: 'Leave empty to start immediately',
+        endsAtHint: 'Leave empty to never expire',
+        targetingMode: 'Targeting',
+        targetingAll: 'All users',
+        targetingCustom: 'Custom rules',
+        addOrGroup: 'Add OR group',
+        addAndCondition: 'Add AND condition',
+        conditionType: 'Condition type',
+        conditionSubscription: 'Subscription',
+        conditionBalance: 'Balance',
+        operator: 'Operator',
+        balanceValue: 'Balance threshold',
+        selectPackages: 'Select packages'
+      },
+      operators: {
+        gt: '>',
+        gte: '≥',
+        lt: '<',
+        lte: '≤',
+        eq: '='
+      },
+      targetingSummaryAll: 'All users',
+      targetingSummaryCustom: 'Custom ({groups} groups)',
+      timeImmediate: 'Immediate',
+      timeNever: 'Never',
+      readStatus: 'Read Status',
+      eligible: 'Eligible',
+      readAt: 'Read at',
+      unread: 'Unread',
+      searchUsers: 'Search users...',
+      failedToLoad: 'Failed to load announcements',
+      failedToCreate: 'Failed to create announcement',
+      failedToUpdate: 'Failed to update announcement',
+      failedToDelete: 'Failed to delete announcement',
+      failedToLoadReadStatus: 'Failed to load read status',
+      deleteConfirm: 'Are you sure you want to delete this announcement? This action cannot be undone.'
     },
 
     // Promo Codes
@@ -2724,6 +2816,8 @@ export default {
         ignoreContextCanceledHint: 'When enabled, client disconnect (context canceled) errors will not be written to the error log.',
         ignoreNoAvailableAccounts: 'Ignore no available accounts errors',
         ignoreNoAvailableAccountsHint: 'When enabled, "No available accounts" errors will not be written to the error log (not recommended; usually a config issue).',
+        ignoreInvalidApiKeyErrors: 'Ignore invalid API key errors',
+        ignoreInvalidApiKeyErrorsHint: 'When enabled, invalid or missing API key errors (INVALID_API_KEY, API_KEY_REQUIRED) will not be written to the error log.',
         autoRefresh: 'Auto Refresh',
         enableAutoRefresh: 'Enable auto refresh',
         enableAutoRefreshHint: 'Automatically refresh dashboard data at a fixed interval.',
@@ -2751,6 +2845,7 @@ export default {
         empty: 'No data',
         queued: 'Queue {count}',
         rateLimited: 'Rate-limited {count}',
+        scopeRateLimitedTooltip: '{scope} rate-limited ({count} accounts)',
         errorAccounts: 'Errors {count}',
         loadFailed: 'Failed to load concurrency data'
       },
@@ -2818,6 +2913,8 @@ export default {
         emailVerificationHint: 'Require email verification for new registrations',
         promoCode: 'Promo Code',
         promoCodeHint: 'Allow users to use promo codes during registration',
+        invitationCode: 'Invitation Code Registration',
+        invitationCodeHint: 'When enabled, users must enter a valid invitation code to register',
         passwordReset: 'Password Reset',
         passwordResetHint: 'Allow users to reset their password via email',
         totp: 'Two-Factor Authentication (2FA)',
@@ -3063,6 +3160,30 @@ export default {
     notConfiguredTitle: 'Purchase URL not configured',
     notConfiguredDesc:
       'The administrator enabled the entry but has not configured a purchase URL. Please contact admin.'
+  },
+
+  // Announcements Page
+  announcements: {
+    title: 'Announcements',
+    description: 'View system announcements',
+    unreadOnly: 'Show unread only',
+    markRead: 'Mark as read',
+    markAllRead: 'Mark all as read',
+    viewAll: 'View all announcements',
+    markedAsRead: 'Marked as read',
+    allMarkedAsRead: 'All announcements marked as read',
+    newCount: '{count} new announcement | {count} new announcements',
+    readAt: 'Read at',
+    read: 'Read',
+    unread: 'Unread',
+    startsAt: 'Starts at',
+    endsAt: 'Ends at',
+    empty: 'No announcements',
+    emptyUnread: 'No unread announcements',
+    total: 'announcements',
+    emptyDescription: 'There are no system announcements at this time',
+    readStatus: 'You have read this announcement',
+    markReadHint: 'Click "Mark as read" to mark this announcement'
   },
 
   // User Subscriptions Page
