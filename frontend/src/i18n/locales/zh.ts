@@ -66,7 +66,9 @@ export default {
       port: '端口',
       password: '密码（可选）',
       database: '数据库',
-      passwordPlaceholder: '密码'
+      passwordPlaceholder: '密码',
+      enableTls: '启用 TLS',
+      enableTlsHint: '连接 Redis 时使用 TLS（公共 CA 证书）'
     },
     admin: {
       title: '管理员账户',
@@ -182,6 +184,7 @@ export default {
   // Navigation
   nav: {
     dashboard: '仪表盘',
+    announcements: '公告',
     apiKeys: 'API 密钥',
     usage: '使用记录',
     redeem: '兑换',
@@ -259,6 +262,13 @@ export default {
     promoCodeAlreadyUsed: '您已使用过此优惠码',
     promoCodeValidating: '优惠码正在验证中，请稍候',
     promoCodeInvalidCannotRegister: '优惠码无效，请检查后重试或清空优惠码',
+    invitationCodeLabel: '邀请码',
+    invitationCodePlaceholder: '请输入邀请码',
+    invitationCodeRequired: '请输入邀请码',
+    invitationCodeValid: '邀请码有效',
+    invitationCodeInvalid: '邀请码无效或已被使用',
+    invitationCodeValidating: '正在验证邀请码...',
+    invitationCodeInvalidCannotRegister: '邀请码无效，请检查后重试',
     linuxdo: {
       signIn: '使用 Linux.do 登录',
       orContinue: '或使用邮箱密码继续',
@@ -490,6 +500,7 @@ export default {
     account: '账号',
     group: '分组',
     model: '模型',
+    reasoningEffort: '推理强度',
     type: '类型',
     tokens: 'Token',
     cost: '费用',
@@ -1078,6 +1089,14 @@ export default {
         fallbackHint: '非 Claude Code 请求将使用此分组，留空则直接拒绝',
         noFallback: '不降级（直接拒绝）'
       },
+      copyAccounts: {
+        title: '从分组复制账号',
+        tooltip: '选择一个或多个相同平台的分组，创建后会自动将这些分组的所有账号绑定到新分组（去重）。',
+        tooltipEdit: '选择一个或多个相同平台的分组，保存后当前分组的账号会被替换为这些分组的账号（去重）。',
+        selectPlaceholder: '选择分组以复制其账号...',
+        hint: '可选多个分组，账号会自动去重',
+        hintEdit: '⚠️ 注意：这会替换当前分组的所有账号绑定'
+      },
       modelRouting: {
         title: '模型路由配置',
         tooltip: '配置特定模型请求优先路由到指定账号。支持通配符匹配，如 claude-opus-* 匹配所有 opus 模型。',
@@ -1296,6 +1315,7 @@ export default {
         overloaded: '过载中',
         tempUnschedulable: '临时不可调度',
         rateLimitedUntil: '限流中，重置时间：{time}',
+        scopeRateLimitedUntil: '{scope} 限流中，重置时间：{time}',
         overloadedUntil: '负载过重，重置时间：{time}',
         viewTempUnschedDetails: '查看临时不可调度详情'
       },
@@ -1546,6 +1566,8 @@ export default {
       accountUpdated: '账号更新成功',
       failedToCreate: '创建账号失败',
       failedToUpdate: '更新账号失败',
+      mixedChannelWarningTitle: '混合渠道警告',
+      mixedChannelWarning: '警告：分组 "{groupName}" 中同时包含 {currentPlatform} 和 {otherPlatform} 账号。混合使用不同渠道可能导致 thinking block 签名验证问题，会自动回退到非 thinking 模式。确定要继续吗？',
       pleaseEnterAccountName: '请输入账号名称',
       pleaseEnterApiKey: '请输入 API Key',
       apiKeyIsRequired: 'API Key 是必需的',
@@ -2013,6 +2035,7 @@ export default {
         balance: '余额',
         concurrency: '并发数',
         subscription: '订阅',
+        invitation: '邀请码',
         // 管理员在用户管理页面调整余额/并发时产生的记录
         admin_balance: '余额（管理员）',
         admin_concurrency: '并发数（管理员）'
@@ -2021,6 +2044,8 @@ export default {
       balance: '余额',
       concurrency: '并发数',
       subscription: '订阅',
+      invitation: '邀请码',
+      invitationHint: '邀请码用于限制用户注册，使用后自动标记为已使用。',
       allTypes: '全部类型',
       allStatus: '全部状态',
       unused: '未使用',
@@ -2098,6 +2123,73 @@ export default {
       failedToGenerate: '生成兑换码失败',
       failedToUpdate: '更新兑换码失败',
       failedToDelete: '删除兑换码失败'
+    },
+
+    // Announcements
+    announcements: {
+      title: '公告管理',
+      description: '创建公告并按条件投放',
+      createAnnouncement: '创建公告',
+      editAnnouncement: '编辑公告',
+      deleteAnnouncement: '删除公告',
+      searchAnnouncements: '搜索公告...',
+      status: '状态',
+      allStatus: '全部状态',
+      columns: {
+        title: '标题',
+        status: '状态',
+        targeting: '展示条件',
+        timeRange: '有效期',
+        createdAt: '创建时间',
+        actions: '操作'
+      },
+      statusLabels: {
+        draft: '草稿',
+        active: '展示中',
+        archived: '已归档'
+      },
+      form: {
+        title: '标题',
+        content: '内容（支持 Markdown）',
+        status: '状态',
+        startsAt: '开始时间',
+        endsAt: '结束时间',
+        startsAtHint: '留空表示立即生效',
+        endsAtHint: '留空表示永久生效',
+        targetingMode: '展示条件',
+        targetingAll: '所有用户',
+        targetingCustom: '按条件',
+        addOrGroup: '添加 OR 条件组',
+        addAndCondition: '添加 AND 条件',
+        conditionType: '条件类型',
+        conditionSubscription: '订阅套餐',
+        conditionBalance: '余额',
+        operator: '运算符',
+        balanceValue: '余额阈值',
+        selectPackages: '选择套餐'
+      },
+      operators: {
+        gt: '>',
+        gte: '≥',
+        lt: '<',
+        lte: '≤',
+        eq: '='
+      },
+      targetingSummaryAll: '全部用户',
+      targetingSummaryCustom: '自定义（{groups} 组）',
+      timeImmediate: '立即',
+      timeNever: '永久',
+      readStatus: '已读情况',
+      eligible: '符合条件',
+      readAt: '已读时间',
+      unread: '未读',
+      searchUsers: '搜索用户...',
+      failedToLoad: '加载公告失败',
+      failedToCreate: '创建公告失败',
+      failedToUpdate: '更新公告失败',
+      failedToDelete: '删除公告失败',
+      failedToLoadReadStatus: '加载已读情况失败',
+      deleteConfirm: '确定要删除该公告吗？此操作无法撤销。'
     },
 
     // Promo Codes
@@ -2876,7 +2968,9 @@ export default {
         ignoreContextCanceled: '忽略客户端断连错误',
         ignoreContextCanceledHint: '启用后，客户端主动断开连接（context canceled）的错误将不会写入错误日志。',
         ignoreNoAvailableAccounts: '忽略无可用账号错误',
-        ignoreNoAvailableAccountsHint: '启用后，“No available accounts” 错误将不会写入错误日志（不推荐，这通常是配置问题）。',
+        ignoreNoAvailableAccountsHint: '启用后，"No available accounts" 错误将不会写入错误日志（不推荐，这通常是配置问题）。',
+        ignoreInvalidApiKeyErrors: '忽略无效 API Key 错误',
+        ignoreInvalidApiKeyErrorsHint: '启用后，无效或缺失 API Key 的错误（INVALID_API_KEY、API_KEY_REQUIRED）将不会写入错误日志。',
         autoRefresh: '自动刷新',
         enableAutoRefresh: '启用自动刷新',
         enableAutoRefreshHint: '自动刷新仪表板数据，启用后会定期拉取最新数据。',
@@ -2904,6 +2998,7 @@ export default {
         empty: '暂无数据',
         queued: '队列 {count}',
         rateLimited: '限流 {count}',
+        scopeRateLimitedTooltip: '{scope} 限流中 ({count} 个账号)',
         errorAccounts: '异常 {count}',
         loadFailed: '加载并发数据失败'
       },
@@ -2971,6 +3066,8 @@ export default {
         emailVerificationHint: '新用户注册时需要验证邮箱',
         promoCode: '优惠码',
         promoCodeHint: '允许用户在注册时使用优惠码',
+        invitationCode: '邀请码注册',
+        invitationCodeHint: '开启后，用户注册时需要填写有效的邀请码',
         passwordReset: '忘记密码',
         passwordResetHint: '允许用户通过邮箱重置密码',
         totp: '双因素认证 (2FA)',
@@ -3212,6 +3309,30 @@ export default {
     notEnabledDesc: '管理员暂未开启购买订阅入口，请联系管理员。',
     notConfiguredTitle: '购买链接未配置',
     notConfiguredDesc: '管理员已开启入口，但尚未配置购买订阅链接，请联系管理员。'
+  },
+
+  // Announcements Page
+  announcements: {
+    title: '公告',
+    description: '查看系统公告',
+    unreadOnly: '仅显示未读',
+    markRead: '标记已读',
+    markAllRead: '全部已读',
+    viewAll: '查看全部公告',
+    markedAsRead: '已标记为已读',
+    allMarkedAsRead: '所有公告已标记为已读',
+    newCount: '有 {count} 条新公告',
+    readAt: '已读时间',
+    read: '已读',
+    unread: '未读',
+    startsAt: '开始时间',
+    endsAt: '结束时间',
+    empty: '暂无公告',
+    emptyUnread: '暂无未读公告',
+    total: '条公告',
+    emptyDescription: '暂时没有任何系统公告',
+    readStatus: '您已阅读此公告',
+    markReadHint: '点击"已读"标记此公告'
   },
 
   // User Subscriptions Page
