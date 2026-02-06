@@ -20,7 +20,6 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
-	"unicode"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/claude"
@@ -68,15 +67,6 @@ func shortSessionHash(sessionHash string) string {
 		return sessionHash
 	}
 	return sessionHash[:8]
-}
-
-func normalizeClaudeModelForAnthropic(requestedModel string) string {
-	for _, prefix := range anthropicPrefixMappings {
-		if strings.HasPrefix(requestedModel, prefix) {
-			return prefix
-		}
-	}
-	return requestedModel
 }
 
 func redactAuthHeaderValue(v string) string {
@@ -261,12 +251,6 @@ var (
 		"You are a file search specialist for Claude Code",                     // Explore Agent 版
 		"You are a helpful AI assistant tasked with summarizing conversations", // Compact 版
 	}
-
-	anthropicPrefixMappings = []string{
-		"claude-opus-4-5",
-		"claude-haiku-4-5",
-		"claude-sonnet-4-5",
-	}
 )
 
 // ErrClaudeCodeOnly 表示分组仅允许 Claude Code 客户端访问
@@ -386,7 +370,8 @@ type ForwardResult struct {
 
 // UpstreamFailoverError indicates an upstream error that should trigger account failover.
 type UpstreamFailoverError struct {
-	StatusCode int
+	StatusCode   int
+	ResponseBody []byte // 上游响应体，用于错误透传规则匹配
 }
 
 func (e *UpstreamFailoverError) Error() string {
@@ -400,6 +385,7 @@ type GatewayService struct {
 	usageLogRepo        UsageLogRepository
 	userRepo            UserRepository
 	userSubRepo         UserSubscriptionRepository
+	userGroupRateRepo   UserGroupRateRepository
 	cache               GatewayCache
 	cfg                 *config.Config
 	schedulerSnapshot   *SchedulerSnapshotService
@@ -421,6 +407,7 @@ func NewGatewayService(
 	usageLogRepo UsageLogRepository,
 	userRepo UserRepository,
 	userSubRepo UserSubscriptionRepository,
+	userGroupRateRepo UserGroupRateRepository,
 	cache GatewayCache,
 	cfg *config.Config,
 	schedulerSnapshot *SchedulerSnapshotService,
@@ -440,6 +427,7 @@ func NewGatewayService(
 		usageLogRepo:        usageLogRepo,
 		userRepo:            userRepo,
 		userSubRepo:         userSubRepo,
+		userGroupRateRepo:   userGroupRateRepo,
 		cache:               cache,
 		cfg:                 cfg,
 		schedulerSnapshot:   schedulerSnapshot,
@@ -635,35 +623,6 @@ func stripToolPrefix(value string) string {
 	return toolPrefixRe.ReplaceAllString(value, "")
 }
 
-func toPascalCase(value string) string {
-	if value == "" {
-		return value
-	}
-	normalized := toolNameBoundaryRe.ReplaceAllString(value, " ")
-	tokens := make([]string, 0)
-	for _, token := range strings.Fields(normalized) {
-		expanded := toolNameCamelRe.ReplaceAllString(token, "$1 $2")
-		parts := strings.Fields(expanded)
-		if len(parts) > 0 {
-			tokens = append(tokens, parts...)
-		}
-	}
-	if len(tokens) == 0 {
-		return value
-	}
-	var builder strings.Builder
-	for _, token := range tokens {
-		lower := strings.ToLower(token)
-		if lower == "" {
-			continue
-		}
-		runes := []rune(lower)
-		runes[0] = unicode.ToUpper(runes[0])
-		_, _ = builder.WriteString(string(runes))
-	}
-	return builder.String()
-}
-
 func toSnakeCase(value string) string {
 	if value == "" {
 		return value
@@ -679,15 +638,14 @@ func normalizeToolNameForClaude(name string, cache map[string]string) string {
 		return name
 	}
 	stripped := stripToolPrefix(name)
+	// 只对已知的工具名进行映射，未知工具名保持原样
+	// 避免破坏 Anthropic 特殊工具（如 text_editor_20250728）
 	mapped, ok := claudeToolNameOverrides[strings.ToLower(stripped)]
 	if !ok {
-		mapped = toPascalCase(stripped)
-	}
-	if mapped != "" && cache != nil && mapped != stripped {
-		cache[mapped] = stripped
-	}
-	if mapped == "" {
 		return stripped
+	}
+	if cache != nil && mapped != stripped {
+		cache[mapped] = stripped
 	}
 	return mapped
 }
@@ -697,15 +655,18 @@ func normalizeToolNameForOpenCode(name string, cache map[string]string) string {
 		return name
 	}
 	stripped := stripToolPrefix(name)
+	// 优先从请求时建立的映射中查找
 	if cache != nil {
 		if mapped, ok := cache[stripped]; ok {
 			return mapped
 		}
 	}
+	// 已知工具名的硬编码映射
 	if mapped, ok := openCodeToolOverrides[stripped]; ok {
 		return mapped
 	}
-	return toSnakeCase(stripped)
+	// 未知工具名保持原样，避免破坏 Anthropic 特殊工具
+	return stripped
 }
 
 func normalizeParamNameForOpenCode(name string, cache map[string]string) string {
@@ -2576,8 +2537,9 @@ func (s *GatewayService) isModelSupportedByAccount(account *Account, requestedMo
 		// Antigravity 平台使用专门的模型支持检查
 		return IsAntigravityModelSupported(requestedModel)
 	}
-	if account.Platform == PlatformAnthropic {
-		requestedModel = normalizeClaudeModelForAnthropic(requestedModel)
+	// OAuth/SetupToken 账号使用 Anthropic 标准映射（短ID → 长ID）
+	if account.Platform == PlatformAnthropic && account.Type != AccountTypeAPIKey {
+		requestedModel = claude.NormalizeModelID(requestedModel)
 	}
 	// Gemini API Key 账户直接透传，由上游判断模型是否支持
 	if account.Platform == PlatformGemini && account.Type == AccountTypeAPIKey {
@@ -3028,7 +2990,9 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 	// 强制执行 cache_control 块数量限制（最多 4 个）
 	body = enforceCacheControlLimit(body)
 
-	// 应用模型映射（APIKey 明确映射优先，其次使用 Anthropic 前缀映射）
+	// 应用模型映射：
+	// - APIKey 账号：使用账号级别的显式映射（如果配置），否则透传原始模型名
+	// - OAuth/SetupToken 账号：使用 Anthropic 标准映射（短ID → 长ID）
 	mappedModel := reqModel
 	mappingSource := ""
 	if account.Type == AccountTypeAPIKey {
@@ -3037,8 +3001,8 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 			mappingSource = "account"
 		}
 	}
-	if mappingSource == "" && account.Platform == PlatformAnthropic {
-		normalized := normalizeClaudeModelForAnthropic(reqModel)
+	if mappingSource == "" && account.Platform == PlatformAnthropic && account.Type != AccountTypeAPIKey {
+		normalized := claude.NormalizeModelID(reqModel)
 		if normalized != reqModel {
 			mappedModel = normalized
 			mappingSource = "prefix"
@@ -3321,7 +3285,7 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 					return ""
 				}(),
 			})
-			return nil, &UpstreamFailoverError{StatusCode: resp.StatusCode}
+			return nil, &UpstreamFailoverError{StatusCode: resp.StatusCode, ResponseBody: respBody}
 		}
 		return s.handleRetryExhaustedError(ctx, resp, c, account)
 	}
@@ -3351,10 +3315,8 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 				return ""
 			}(),
 		})
-		return nil, &UpstreamFailoverError{StatusCode: resp.StatusCode}
+		return nil, &UpstreamFailoverError{StatusCode: resp.StatusCode, ResponseBody: respBody}
 	}
-
-	// 处理错误响应（不可重试的错误）
 	if resp.StatusCode >= 400 {
 		// 可选：对部分 400 触发 failover（默认关闭以保持语义）
 		if resp.StatusCode == 400 && s.cfg != nil && s.cfg.Gateway.FailoverOn400 {
@@ -3398,7 +3360,7 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 					log.Printf("Account %d: 400 error, attempting failover", account.ID)
 				}
 				s.handleFailoverSideEffects(ctx, resp, account)
-				return nil, &UpstreamFailoverError{StatusCode: resp.StatusCode}
+				return nil, &UpstreamFailoverError{StatusCode: resp.StatusCode, ResponseBody: respBody}
 			}
 		}
 		return s.handleErrorResponse(ctx, resp, c, account)
@@ -3795,6 +3757,12 @@ func (s *GatewayService) shouldFailoverOn400(respBody []byte) bool {
 	return false
 }
 
+// ExtractUpstreamErrorMessage 从上游响应体中提取错误消息
+// 支持 Claude 风格的错误格式：{"type":"error","error":{"type":"...","message":"..."}}
+func ExtractUpstreamErrorMessage(body []byte) string {
+	return extractUpstreamErrorMessage(body)
+}
+
 func extractUpstreamErrorMessage(body []byte) string {
 	// Claude 风格：{"type":"error","error":{"type":"...","message":"..."}}
 	if m := gjson.GetBytes(body, "error.message").String(); strings.TrimSpace(m) != "" {
@@ -3862,7 +3830,7 @@ func (s *GatewayService) handleErrorResponse(ctx context.Context, resp *http.Res
 		shouldDisable = s.rateLimitService.HandleUpstreamError(ctx, account, resp.StatusCode, resp.Header, body)
 	}
 	if shouldDisable {
-		return nil, &UpstreamFailoverError{StatusCode: resp.StatusCode}
+		return nil, &UpstreamFailoverError{StatusCode: resp.StatusCode, ResponseBody: body}
 	}
 
 	// 记录上游错误响应体摘要便于排障（可选：由配置控制；不回显到客户端）
@@ -4649,10 +4617,17 @@ func (s *GatewayService) RecordUsage(ctx context.Context, input *RecordUsageInpu
 	account := input.Account
 	subscription := input.Subscription
 
-	// 获取费率倍数
+	// 获取费率倍数（优先级：用户专属 > 分组默认 > 系统默认）
 	multiplier := s.cfg.Default.RateMultiplier
 	if apiKey.GroupID != nil && apiKey.Group != nil {
 		multiplier = apiKey.Group.RateMultiplier
+
+		// 检查用户专属倍率
+		if s.userGroupRateRepo != nil {
+			if userRate, err := s.userGroupRateRepo.GetByUserAndGroup(ctx, user.ID, *apiKey.GroupID); err == nil && userRate != nil {
+				multiplier = *userRate
+			}
+		}
 	}
 
 	var cost *CostBreakdown
@@ -4813,10 +4788,17 @@ func (s *GatewayService) RecordUsageWithLongContext(ctx context.Context, input *
 	account := input.Account
 	subscription := input.Subscription
 
-	// 获取费率倍数
+	// 获取费率倍数（优先级：用户专属 > 分组默认 > 系统默认）
 	multiplier := s.cfg.Default.RateMultiplier
 	if apiKey.GroupID != nil && apiKey.Group != nil {
 		multiplier = apiKey.Group.RateMultiplier
+
+		// 检查用户专属倍率
+		if s.userGroupRateRepo != nil {
+			if userRate, err := s.userGroupRateRepo.GetByUserAndGroup(ctx, user.ID, *apiKey.GroupID); err == nil && userRate != nil {
+				multiplier = *userRate
+			}
+		}
 	}
 
 	var cost *CostBreakdown
@@ -4979,7 +4961,9 @@ func (s *GatewayService) ForwardCountTokens(ctx context.Context, c *gin.Context,
 		return nil
 	}
 
-	// 应用模型映射（APIKey 明确映射优先，其次使用 Anthropic 前缀映射）
+	// 应用模型映射：
+	// - APIKey 账号：使用账号级别的显式映射（如果配置），否则透传原始模型名
+	// - OAuth/SetupToken 账号：使用 Anthropic 标准映射（短ID → 长ID）
 	if reqModel != "" {
 		mappedModel := reqModel
 		mappingSource := ""
@@ -4989,8 +4973,8 @@ func (s *GatewayService) ForwardCountTokens(ctx context.Context, c *gin.Context,
 				mappingSource = "account"
 			}
 		}
-		if mappingSource == "" && account.Platform == PlatformAnthropic {
-			normalized := normalizeClaudeModelForAnthropic(reqModel)
+		if mappingSource == "" && account.Platform == PlatformAnthropic && account.Type != AccountTypeAPIKey {
+			normalized := claude.NormalizeModelID(reqModel)
 			if normalized != reqModel {
 				mappedModel = normalized
 				mappingSource = "prefix"
