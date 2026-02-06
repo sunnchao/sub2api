@@ -6,8 +6,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
-	"github.com/Wei-Shaw/sub2api/internal/service"
+	"github.com/Wei-Shaw/sub2api/internal/domain"
 	"gorm.io/gorm"
 )
 
@@ -65,13 +64,8 @@ type Account struct {
 	SessionWindowEnd    *time.Time `json:"session_window_end"`
 	SessionWindowStatus string     `gorm:"size:20" json:"session_window_status"` // allowed/allowed_warning/rejected
 
-	// 关联
-	Proxy         *dto.Proxy         `gorm:"foreignKey:ProxyID" json:"proxy,omitempty"`
-	AccountGroups []dto.AccountGroup `gorm:"foreignKey:AccountID" json:"account_groups,omitempty"`
-
 	// 虚拟字段 (不存储到数据库)
-	GroupIDs []int64      `gorm:"-" json:"group_ids,omitempty"`
-	Groups   []*dto.Group `gorm:"-" json:"groups,omitempty"`
+	GroupIDs []int64 `gorm:"-" json:"group_ids,omitempty"`
 }
 
 func (Account) TableName() string {
@@ -116,12 +110,12 @@ func (a *Account) IsOverloaded() bool {
 
 // IsOAuth 检查是否为OAuth类型账号（包括oauth和setup-token）
 func (a *Account) IsOAuth() bool {
-	return a.Type == service.AccountTypeOAuth || a.Type == service.AccountTypeSetupToken
+	return a.Type == domain.AccountTypeOAuth || a.Type == domain.AccountTypeSetupToken
 }
 
 // CanGetUsage 检查账号是否可以获取usage信息（只有oauth类型可以，setup-token没有profile权限）
 func (a *Account) CanGetUsage() bool {
-	return a.Type == service.AccountTypeOAuth
+	return a.Type == domain.AccountTypeOAuth
 }
 
 // GetCredential 获取凭证字段
@@ -188,7 +182,7 @@ func (a *Account) GetMappedModel(requestedModel string) string {
 
 // GetBaseURL 获取API基础URL（用于apikey类型账号）
 func (a *Account) GetBaseURL() string {
-	if a.Type != service.AccountTypeApiKey {
+	if a.Type != domain.AccountTypeAPIKey {
 		return ""
 	}
 	baseURL := a.GetCredential("base_url")
@@ -213,7 +207,7 @@ func (a *Account) GetExtraString(key string) string {
 
 // IsCustomErrorCodesEnabled 检查是否启用自定义错误码功能（仅适用于 apikey 类型）
 func (a *Account) IsCustomErrorCodesEnabled() bool {
-	if a.Type != service.AccountTypeApiKey || a.Credentials == nil {
+	if a.Type != domain.AccountTypeAPIKey || a.Credentials == nil {
 		return false
 	}
 	if v, ok := a.Credentials["custom_error_codes_enabled"]; ok {
@@ -285,22 +279,22 @@ func (a *Account) IsInterceptWarmupEnabled() bool {
 
 // IsOpenAI 检查是否为 OpenAI 平台账号
 func (a *Account) IsOpenAI() bool {
-	return a.Platform == service.PlatformOpenAI
+	return a.Platform == domain.PlatformOpenAI
 }
 
 // IsAnthropic 检查是否为 Anthropic 平台账号
 func (a *Account) IsAnthropic() bool {
-	return a.Platform == service.PlatformAnthropic
+	return a.Platform == domain.PlatformAnthropic
 }
 
 // IsOpenAIOAuth 检查是否为 OpenAI OAuth 类型账号
 func (a *Account) IsOpenAIOAuth() bool {
-	return a.IsOpenAI() && a.Type == service.AccountTypeOAuth
+	return a.IsOpenAI() && a.Type == domain.AccountTypeOAuth
 }
 
 // IsOpenAIApiKey 检查是否为 OpenAI API Key 类型账号（Response 账号）
 func (a *Account) IsOpenAIApiKey() bool {
-	return a.IsOpenAI() && a.Type == service.AccountTypeApiKey
+	return a.IsOpenAI() && a.Type == domain.AccountTypeAPIKey
 }
 
 // GetOpenAIBaseURL 获取 OpenAI API 基础 URL
@@ -310,7 +304,7 @@ func (a *Account) GetOpenAIBaseURL() string {
 	if !a.IsOpenAI() {
 		return ""
 	}
-	if a.Type == service.AccountTypeApiKey {
+	if a.Type == domain.AccountTypeAPIKey {
 		baseURL := a.GetCredential("base_url")
 		if baseURL != "" {
 			return baseURL
@@ -420,17 +414,17 @@ func (a *Account) IsOpenAITokenExpired() bool {
 
 // IsGemini 检查是否为 Gemini 平台账号
 func (a *Account) IsGemini() bool {
-	return a.Platform == service.PlatformGemini
+	return a.Platform == domain.PlatformGemini
 }
 
 // IsGeminiOAuth 检查是否为 Gemini OAuth 类型账号
 func (a *Account) IsGeminiOAuth() bool {
-	return a.IsGemini() && a.Type == service.AccountTypeOAuth
+	return a.IsGemini() && a.Type == domain.AccountTypeOAuth
 }
 
 // IsGeminiApiKey 检查是否为 Gemini API Key 类型账号
 func (a *Account) IsGeminiApiKey() bool {
-	return a.IsGemini() && a.Type == service.AccountTypeApiKey
+	return a.IsGemini() && a.Type == domain.AccountTypeAPIKey
 }
 
 // GetGeminiApiKey 获取 Gemini API Key
