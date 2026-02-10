@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/domain"
 	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/claude"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/geminicli"
@@ -423,10 +424,17 @@ type TestAccountRequest struct {
 }
 
 type SyncFromCRSRequest struct {
-	BaseURL     string `json:"base_url" binding:"required"`
-	Username    string `json:"username" binding:"required"`
-	Password    string `json:"password" binding:"required"`
-	SyncProxies *bool  `json:"sync_proxies"`
+	BaseURL            string   `json:"base_url" binding:"required"`
+	Username           string   `json:"username" binding:"required"`
+	Password           string   `json:"password" binding:"required"`
+	SyncProxies        *bool    `json:"sync_proxies"`
+	SelectedAccountIDs []string `json:"selected_account_ids"`
+}
+
+type PreviewFromCRSRequest struct {
+	BaseURL  string `json:"base_url" binding:"required"`
+	Username string `json:"username" binding:"required"`
+	Password string `json:"password" binding:"required"`
 }
 
 // Test handles testing account connectivity with SSE streaming
@@ -465,14 +473,37 @@ func (h *AccountHandler) SyncFromCRS(c *gin.Context) {
 	}
 
 	result, err := h.crsSyncService.SyncFromCRS(c.Request.Context(), service.SyncFromCRSInput{
-		BaseURL:     req.BaseURL,
-		Username:    req.Username,
-		Password:    req.Password,
-		SyncProxies: syncProxies,
+		BaseURL:            req.BaseURL,
+		Username:           req.Username,
+		Password:           req.Password,
+		SyncProxies:        syncProxies,
+		SelectedAccountIDs: req.SelectedAccountIDs,
 	})
 	if err != nil {
 		// Provide detailed error message for CRS sync failures
 		response.InternalError(c, "CRS sync failed: "+err.Error())
+		return
+	}
+
+	response.Success(c, result)
+}
+
+// PreviewFromCRS handles previewing accounts from CRS before sync
+// POST /api/v1/admin/accounts/sync/crs/preview
+func (h *AccountHandler) PreviewFromCRS(c *gin.Context) {
+	var req PreviewFromCRSRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+
+	result, err := h.crsSyncService.PreviewFromCRS(c.Request.Context(), service.SyncFromCRSInput{
+		BaseURL:  req.BaseURL,
+		Username: req.Username,
+		Password: req.Password,
+	})
+	if err != nil {
+		response.InternalError(c, "CRS preview failed: "+err.Error())
 		return
 	}
 
@@ -696,11 +727,61 @@ func (h *AccountHandler) BatchCreate(c *gin.Context) {
 		return
 	}
 
-	// Return mock data for now
+	ctx := c.Request.Context()
+	success := 0
+	failed := 0
+	results := make([]gin.H, 0, len(req.Accounts))
+
+	for _, item := range req.Accounts {
+		if item.RateMultiplier != nil && *item.RateMultiplier < 0 {
+			failed++
+			results = append(results, gin.H{
+				"name":    item.Name,
+				"success": false,
+				"error":   "rate_multiplier must be >= 0",
+			})
+			continue
+		}
+
+		skipCheck := item.ConfirmMixedChannelRisk != nil && *item.ConfirmMixedChannelRisk
+
+		account, err := h.adminService.CreateAccount(ctx, &service.CreateAccountInput{
+			Name:                  item.Name,
+			Notes:                 item.Notes,
+			Platform:              item.Platform,
+			Type:                  item.Type,
+			Credentials:           item.Credentials,
+			Extra:                 item.Extra,
+			ProxyID:               item.ProxyID,
+			Concurrency:           item.Concurrency,
+			Priority:              item.Priority,
+			RateMultiplier:        item.RateMultiplier,
+			GroupIDs:              item.GroupIDs,
+			ExpiresAt:             item.ExpiresAt,
+			AutoPauseOnExpired:    item.AutoPauseOnExpired,
+			SkipMixedChannelCheck: skipCheck,
+		})
+		if err != nil {
+			failed++
+			results = append(results, gin.H{
+				"name":    item.Name,
+				"success": false,
+				"error":   err.Error(),
+			})
+			continue
+		}
+		success++
+		results = append(results, gin.H{
+			"name":    item.Name,
+			"id":      account.ID,
+			"success": true,
+		})
+	}
+
 	response.Success(c, gin.H{
-		"success": len(req.Accounts),
-		"failed":  0,
-		"results": []gin.H{},
+		"success": success,
+		"failed":  failed,
+		"results": results,
 	})
 }
 
@@ -1439,4 +1520,10 @@ func (h *AccountHandler) BatchRefreshTier(c *gin.Context) {
 	}
 
 	response.Success(c, results)
+}
+
+// GetAntigravityDefaultModelMapping 获取 Antigravity 平台的默认模型映射
+// GET /api/v1/admin/accounts/antigravity/default-model-mapping
+func (h *AccountHandler) GetAntigravityDefaultModelMapping(c *gin.Context) {
+	response.Success(c, domain.DefaultAntigravityModelMapping)
 }
