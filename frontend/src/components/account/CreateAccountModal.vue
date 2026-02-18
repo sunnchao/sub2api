@@ -1527,6 +1527,46 @@
             </button>
           </div>
         </div>
+
+        <!-- Cache TTL Override -->
+        <div class="rounded-lg border border-gray-200 p-4 dark:border-dark-600">
+          <div class="flex items-center justify-between">
+            <div>
+              <label class="input-label mb-0">{{ t('admin.accounts.quotaControl.cacheTTLOverride.label') }}</label>
+              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                {{ t('admin.accounts.quotaControl.cacheTTLOverride.hint') }}
+              </p>
+            </div>
+            <button
+              type="button"
+              @click="cacheTTLOverrideEnabled = !cacheTTLOverrideEnabled"
+              :class="[
+                'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
+                cacheTTLOverrideEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
+              ]"
+            >
+              <span
+                :class="[
+                  'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
+                  cacheTTLOverrideEnabled ? 'translate-x-5' : 'translate-x-0'
+                ]"
+              />
+            </button>
+          </div>
+          <div v-if="cacheTTLOverrideEnabled" class="mt-3">
+            <label class="input-label text-xs">{{ t('admin.accounts.quotaControl.cacheTTLOverride.target') }}</label>
+            <select
+              v-model="cacheTTLOverrideTarget"
+              class="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500 dark:border-dark-500 dark:bg-dark-700 dark:text-white"
+            >
+              <option value="5m">5m</option>
+              <option value="1h">1h</option>
+            </select>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {{ t('admin.accounts.quotaControl.cacheTTLOverride.targetHint') }}
+            </p>
+          </div>
+        </div>
       </div>
 
       <div>
@@ -1647,12 +1687,12 @@
         :show-proxy-warning="form.platform !== 'openai' && !!form.proxy_id"
         :allow-multiple="form.platform === 'anthropic'"
         :show-cookie-option="form.platform === 'anthropic'"
-        :show-refresh-token-option="form.platform === 'openai'"
+        :show-refresh-token-option="form.platform === 'openai' || form.platform === 'antigravity'"
         :platform="form.platform"
         :show-project-id="geminiOAuthType === 'code_assist'"
         @generate-url="handleGenerateUrl"
         @cookie-auth="handleCookieAuth"
-        @validate-refresh-token="handleOpenAIValidateRT"
+        @validate-refresh-token="handleValidateRefreshToken"
       />
 
     </div>
@@ -2146,6 +2186,8 @@ const maxSessions = ref<number | null>(null)
 const sessionIdleTimeout = ref<number | null>(null)
 const tlsFingerprintEnabled = ref(false)
 const sessionIdMaskingEnabled = ref(false)
+const cacheTTLOverrideEnabled = ref(false)
+const cacheTTLOverrideTarget = ref<string>('5m')
 
 // Gemini tier selection (used as fallback when auto-detection is unavailable/fails)
 const geminiTierGoogleOne = ref<'google_one_free' | 'google_ai_pro' | 'google_ai_ultra'>('google_one_free')
@@ -2597,6 +2639,8 @@ const resetForm = () => {
   sessionIdleTimeout.value = null
   tlsFingerprintEnabled.value = false
   sessionIdMaskingEnabled.value = false
+  cacheTTLOverrideEnabled.value = false
+  cacheTTLOverrideTarget.value = '5m'
   antigravityAccountType.value = 'oauth'
   upstreamBaseUrl.value = ''
   upstreamApiKey.value = ''
@@ -2802,6 +2846,14 @@ const handleGenerateUrl = async () => {
   }
 }
 
+const handleValidateRefreshToken = (rt: string) => {
+  if (form.platform === 'openai') {
+    handleOpenAIValidateRT(rt)
+  } else if (form.platform === 'antigravity') {
+    handleAntigravityValidateRT(rt)
+  }
+}
+
 const formatDateTimeLocal = formatDateTimeLocalInput
 const parseDateTimeLocal = parseDateTimeLocalInput
 
@@ -2950,6 +3002,95 @@ const handleOpenAIValidateRT = async (refreshTokenInput: string) => {
   }
 }
 
+// Antigravity 手动 RT 批量验证和创建
+const handleAntigravityValidateRT = async (refreshTokenInput: string) => {
+  if (!refreshTokenInput.trim()) return
+
+  // Parse multiple refresh tokens (one per line)
+  const refreshTokens = refreshTokenInput
+    .split('\n')
+    .map((rt) => rt.trim())
+    .filter((rt) => rt)
+
+  if (refreshTokens.length === 0) {
+    antigravityOAuth.error.value = t('admin.accounts.oauth.antigravity.pleaseEnterRefreshToken')
+    return
+  }
+
+  antigravityOAuth.loading.value = true
+  antigravityOAuth.error.value = ''
+
+  let successCount = 0
+  let failedCount = 0
+  const errors: string[] = []
+
+  try {
+    for (let i = 0; i < refreshTokens.length; i++) {
+      try {
+        const tokenInfo = await antigravityOAuth.validateRefreshToken(
+          refreshTokens[i],
+          form.proxy_id
+        )
+        if (!tokenInfo) {
+          failedCount++
+          errors.push(`#${i + 1}: ${antigravityOAuth.error.value || 'Validation failed'}`)
+          antigravityOAuth.error.value = ''
+          continue
+        }
+
+        const credentials = antigravityOAuth.buildCredentials(tokenInfo)
+        
+        // Generate account name with index for batch
+        const accountName = refreshTokens.length > 1 ? `${form.name} #${i + 1}` : form.name
+
+        // Note: Antigravity doesn't have buildExtraInfo, so we pass empty extra or rely on credentials
+        await adminAPI.accounts.create({
+          name: accountName,
+          notes: form.notes,
+          platform: 'antigravity',
+          type: 'oauth',
+          credentials,
+          extra: {},
+          proxy_id: form.proxy_id,
+          concurrency: form.concurrency,
+          priority: form.priority,
+          rate_multiplier: form.rate_multiplier,
+          group_ids: form.group_ids,
+          expires_at: form.expires_at,
+          auto_pause_on_expired: autoPauseOnExpired.value
+        })
+        successCount++
+      } catch (error: any) {
+        failedCount++
+        const errMsg = error.response?.data?.detail || error.message || 'Unknown error'
+        errors.push(`#${i + 1}: ${errMsg}`)
+      }
+    }
+
+    // Show results
+    if (successCount > 0 && failedCount === 0) {
+      appStore.showSuccess(
+        refreshTokens.length > 1
+          ? t('admin.accounts.oauth.batchSuccess', { count: successCount })
+          : t('admin.accounts.accountCreated')
+      )
+      emit('created')
+      handleClose()
+    } else if (successCount > 0 && failedCount > 0) {
+      appStore.showWarning(
+        t('admin.accounts.oauth.batchPartialSuccess', { success: successCount, failed: failedCount })
+      )
+      antigravityOAuth.error.value = errors.join('\n')
+      emit('created')
+    } else {
+      antigravityOAuth.error.value = errors.join('\n')
+      appStore.showError(t('admin.accounts.oauth.batchFailed'))
+    }
+  } finally {
+    antigravityOAuth.loading.value = false
+  }
+}
+
 // Gemini OAuth 授权码兑换
 const handleGeminiExchange = async (authCode: string) => {
   if (!authCode.trim() || !geminiOAuth.sessionId.value) return
@@ -3077,6 +3218,12 @@ const handleAnthropicExchange = async (authCode: string) => {
       extra.session_id_masking_enabled = true
     }
 
+    // Add cache TTL override settings
+    if (cacheTTLOverrideEnabled.value) {
+      extra.cache_ttl_override_enabled = true
+      extra.cache_ttl_override_target = cacheTTLOverrideTarget.value
+    }
+
     const credentials = {
       ...tokenInfo,
       ...(interceptWarmupRequests.value ? { intercept_warmup_requests: true } : {})
@@ -3168,6 +3315,12 @@ const handleCookieAuth = async (sessionKey: string) => {
         // Add session ID masking settings
         if (sessionIdMaskingEnabled.value) {
           extra.session_id_masking_enabled = true
+        }
+
+        // Add cache TTL override settings
+        if (cacheTTLOverrideEnabled.value) {
+          extra.cache_ttl_override_enabled = true
+          extra.cache_ttl_override_target = cacheTTLOverrideTarget.value
         }
 
         const accountName = keys.length > 1 ? `${form.name} #${i + 1}` : form.name

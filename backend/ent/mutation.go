@@ -5776,6 +5776,7 @@ type ErrorPassthroughRuleMutation struct {
 	addresponse_code  *int
 	passthrough_body  *bool
 	custom_message    *string
+	skip_monitoring   *bool
 	description       *string
 	clearedFields     map[string]struct{}
 	done              bool
@@ -6503,6 +6504,42 @@ func (m *ErrorPassthroughRuleMutation) ResetCustomMessage() {
 	delete(m.clearedFields, errorpassthroughrule.FieldCustomMessage)
 }
 
+// SetSkipMonitoring sets the "skip_monitoring" field.
+func (m *ErrorPassthroughRuleMutation) SetSkipMonitoring(b bool) {
+	m.skip_monitoring = &b
+}
+
+// SkipMonitoring returns the value of the "skip_monitoring" field in the mutation.
+func (m *ErrorPassthroughRuleMutation) SkipMonitoring() (r bool, exists bool) {
+	v := m.skip_monitoring
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSkipMonitoring returns the old "skip_monitoring" field's value of the ErrorPassthroughRule entity.
+// If the ErrorPassthroughRule object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ErrorPassthroughRuleMutation) OldSkipMonitoring(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSkipMonitoring is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSkipMonitoring requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSkipMonitoring: %w", err)
+	}
+	return oldValue.SkipMonitoring, nil
+}
+
+// ResetSkipMonitoring resets all changes to the "skip_monitoring" field.
+func (m *ErrorPassthroughRuleMutation) ResetSkipMonitoring() {
+	m.skip_monitoring = nil
+}
+
 // SetDescription sets the "description" field.
 func (m *ErrorPassthroughRuleMutation) SetDescription(s string) {
 	m.description = &s
@@ -6586,7 +6623,7 @@ func (m *ErrorPassthroughRuleMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *ErrorPassthroughRuleMutation) Fields() []string {
-	fields := make([]string, 0, 14)
+	fields := make([]string, 0, 15)
 	if m.created_at != nil {
 		fields = append(fields, errorpassthroughrule.FieldCreatedAt)
 	}
@@ -6626,6 +6663,9 @@ func (m *ErrorPassthroughRuleMutation) Fields() []string {
 	if m.custom_message != nil {
 		fields = append(fields, errorpassthroughrule.FieldCustomMessage)
 	}
+	if m.skip_monitoring != nil {
+		fields = append(fields, errorpassthroughrule.FieldSkipMonitoring)
+	}
 	if m.description != nil {
 		fields = append(fields, errorpassthroughrule.FieldDescription)
 	}
@@ -6663,6 +6703,8 @@ func (m *ErrorPassthroughRuleMutation) Field(name string) (ent.Value, bool) {
 		return m.PassthroughBody()
 	case errorpassthroughrule.FieldCustomMessage:
 		return m.CustomMessage()
+	case errorpassthroughrule.FieldSkipMonitoring:
+		return m.SkipMonitoring()
 	case errorpassthroughrule.FieldDescription:
 		return m.Description()
 	}
@@ -6700,6 +6742,8 @@ func (m *ErrorPassthroughRuleMutation) OldField(ctx context.Context, name string
 		return m.OldPassthroughBody(ctx)
 	case errorpassthroughrule.FieldCustomMessage:
 		return m.OldCustomMessage(ctx)
+	case errorpassthroughrule.FieldSkipMonitoring:
+		return m.OldSkipMonitoring(ctx)
 	case errorpassthroughrule.FieldDescription:
 		return m.OldDescription(ctx)
 	}
@@ -6801,6 +6845,13 @@ func (m *ErrorPassthroughRuleMutation) SetField(name string, value ent.Value) er
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetCustomMessage(v)
+		return nil
+	case errorpassthroughrule.FieldSkipMonitoring:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSkipMonitoring(v)
 		return nil
 	case errorpassthroughrule.FieldDescription:
 		v, ok := value.(string)
@@ -6962,6 +7013,9 @@ func (m *ErrorPassthroughRuleMutation) ResetField(name string) error {
 		return nil
 	case errorpassthroughrule.FieldCustomMessage:
 		m.ResetCustomMessage()
+		return nil
+	case errorpassthroughrule.FieldSkipMonitoring:
+		m.ResetSkipMonitoring()
 		return nil
 	case errorpassthroughrule.FieldDescription:
 		m.ResetDescription()
@@ -15007,6 +15061,7 @@ type UsageLogMutation struct {
 	image_count                 *int
 	addimage_count              *int
 	image_size                  *string
+	cache_ttl_overridden        *bool
 	created_at                  *time.Time
 	clearedFields               map[string]struct{}
 	user                        *int64
@@ -16633,6 +16688,42 @@ func (m *UsageLogMutation) ResetImageSize() {
 	delete(m.clearedFields, usagelog.FieldImageSize)
 }
 
+// SetCacheTTLOverridden sets the "cache_ttl_overridden" field.
+func (m *UsageLogMutation) SetCacheTTLOverridden(b bool) {
+	m.cache_ttl_overridden = &b
+}
+
+// CacheTTLOverridden returns the value of the "cache_ttl_overridden" field in the mutation.
+func (m *UsageLogMutation) CacheTTLOverridden() (r bool, exists bool) {
+	v := m.cache_ttl_overridden
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCacheTTLOverridden returns the old "cache_ttl_overridden" field's value of the UsageLog entity.
+// If the UsageLog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UsageLogMutation) OldCacheTTLOverridden(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCacheTTLOverridden is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCacheTTLOverridden requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCacheTTLOverridden: %w", err)
+	}
+	return oldValue.CacheTTLOverridden, nil
+}
+
+// ResetCacheTTLOverridden resets all changes to the "cache_ttl_overridden" field.
+func (m *UsageLogMutation) ResetCacheTTLOverridden() {
+	m.cache_ttl_overridden = nil
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (m *UsageLogMutation) SetCreatedAt(t time.Time) {
 	m.created_at = &t
@@ -16838,7 +16929,7 @@ func (m *UsageLogMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *UsageLogMutation) Fields() []string {
-	fields := make([]string, 0, 30)
+	fields := make([]string, 0, 31)
 	if m.user != nil {
 		fields = append(fields, usagelog.FieldUserID)
 	}
@@ -16926,6 +17017,9 @@ func (m *UsageLogMutation) Fields() []string {
 	if m.image_size != nil {
 		fields = append(fields, usagelog.FieldImageSize)
 	}
+	if m.cache_ttl_overridden != nil {
+		fields = append(fields, usagelog.FieldCacheTTLOverridden)
+	}
 	if m.created_at != nil {
 		fields = append(fields, usagelog.FieldCreatedAt)
 	}
@@ -16995,6 +17089,8 @@ func (m *UsageLogMutation) Field(name string) (ent.Value, bool) {
 		return m.ImageCount()
 	case usagelog.FieldImageSize:
 		return m.ImageSize()
+	case usagelog.FieldCacheTTLOverridden:
+		return m.CacheTTLOverridden()
 	case usagelog.FieldCreatedAt:
 		return m.CreatedAt()
 	}
@@ -17064,6 +17160,8 @@ func (m *UsageLogMutation) OldField(ctx context.Context, name string) (ent.Value
 		return m.OldImageCount(ctx)
 	case usagelog.FieldImageSize:
 		return m.OldImageSize(ctx)
+	case usagelog.FieldCacheTTLOverridden:
+		return m.OldCacheTTLOverridden(ctx)
 	case usagelog.FieldCreatedAt:
 		return m.OldCreatedAt(ctx)
 	}
@@ -17277,6 +17375,13 @@ func (m *UsageLogMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetImageSize(v)
+		return nil
+	case usagelog.FieldCacheTTLOverridden:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCacheTTLOverridden(v)
 		return nil
 	case usagelog.FieldCreatedAt:
 		v, ok := value.(time.Time)
@@ -17690,6 +17795,9 @@ func (m *UsageLogMutation) ResetField(name string) error {
 		return nil
 	case usagelog.FieldImageSize:
 		m.ResetImageSize()
+		return nil
+	case usagelog.FieldCacheTTLOverridden:
+		m.ResetCacheTTLOverridden()
 		return nil
 	case usagelog.FieldCreatedAt:
 		m.ResetCreatedAt()
