@@ -10,19 +10,27 @@ import (
 )
 
 type stubAdminService struct {
-	users           []service.User
-	apiKeys         []service.APIKey
-	groups          []service.Group
-	accounts        []service.Account
-	proxies         []service.Proxy
-	proxyCounts     []service.ProxyWithAccountCount
-	redeems         []service.RedeemCode
-	createdAccounts []*service.CreateAccountInput
-	createdProxies  []*service.CreateProxyInput
-	updatedProxyIDs []int64
-	updatedProxies  []*service.UpdateProxyInput
-	testedProxyIDs  []int64
-	mu              sync.Mutex
+	users            []service.User
+	apiKeys          []service.APIKey
+	groups           []service.Group
+	accounts         []service.Account
+	proxies          []service.Proxy
+	proxyCounts      []service.ProxyWithAccountCount
+	redeems          []service.RedeemCode
+	createdAccounts  []*service.CreateAccountInput
+	createdProxies   []*service.CreateProxyInput
+	updatedProxyIDs  []int64
+	updatedProxies   []*service.UpdateProxyInput
+	testedProxyIDs   []int64
+	createAccountErr error
+	updateAccountErr error
+	checkMixedErr    error
+	lastMixedCheck   struct {
+		accountID int64
+		platform  string
+		groupIDs  []int64
+	}
+	mu sync.Mutex
 }
 
 func newStubAdminService() *stubAdminService {
@@ -188,11 +196,17 @@ func (s *stubAdminService) CreateAccount(ctx context.Context, input *service.Cre
 	s.mu.Lock()
 	s.createdAccounts = append(s.createdAccounts, input)
 	s.mu.Unlock()
+	if s.createAccountErr != nil {
+		return nil, s.createAccountErr
+	}
 	account := service.Account{ID: 300, Name: input.Name, Status: service.StatusActive}
 	return &account, nil
 }
 
 func (s *stubAdminService) UpdateAccount(ctx context.Context, id int64, input *service.UpdateAccountInput) (*service.Account, error) {
+	if s.updateAccountErr != nil {
+		return nil, s.updateAccountErr
+	}
 	account := service.Account{ID: id, Name: input.Name, Status: service.StatusActive}
 	return &account, nil
 }
@@ -222,6 +236,13 @@ func (s *stubAdminService) SetAccountSchedulable(ctx context.Context, id int64, 
 
 func (s *stubAdminService) BulkUpdateAccounts(ctx context.Context, input *service.BulkUpdateAccountsInput) (*service.BulkUpdateAccountsResult, error) {
 	return &service.BulkUpdateAccountsResult{Success: 1, Failed: 0, SuccessIDs: []int64{1}}, nil
+}
+
+func (s *stubAdminService) CheckMixedChannelRisk(ctx context.Context, currentAccountID int64, currentAccountPlatform string, groupIDs []int64) error {
+	s.lastMixedCheck.accountID = currentAccountID
+	s.lastMixedCheck.platform = currentAccountPlatform
+	s.lastMixedCheck.groupIDs = append([]int64(nil), groupIDs...)
+	return s.checkMixedErr
 }
 
 func (s *stubAdminService) ListProxies(ctx context.Context, page, pageSize int, protocol, status, search string) ([]service.Proxy, int64, error) {
@@ -325,6 +346,27 @@ func (s *stubAdminService) TestProxy(ctx context.Context, id int64) (*service.Pr
 	s.testedProxyIDs = append(s.testedProxyIDs, id)
 	s.mu.Unlock()
 	return &service.ProxyTestResult{Success: true, Message: "ok"}, nil
+}
+
+func (s *stubAdminService) CheckProxyQuality(ctx context.Context, id int64) (*service.ProxyQualityCheckResult, error) {
+	return &service.ProxyQualityCheckResult{
+		ProxyID:        id,
+		Score:          95,
+		Grade:          "A",
+		Summary:        "通过 5 项，告警 0 项，失败 0 项，挑战 0 项",
+		PassedCount:    5,
+		WarnCount:      0,
+		FailedCount:    0,
+		ChallengeCount: 0,
+		CheckedAt:      time.Now().Unix(),
+		Items: []service.ProxyQualityCheckItem{
+			{Target: "base_connectivity", Status: "pass", Message: "ok"},
+			{Target: "openai", Status: "pass", HTTPStatus: 401},
+			{Target: "anthropic", Status: "pass", HTTPStatus: 401},
+			{Target: "gemini", Status: "pass", HTTPStatus: 200},
+			{Target: "sora", Status: "pass", HTTPStatus: 401},
+		},
+	}, nil
 }
 
 func (s *stubAdminService) ListRedeemCodes(ctx context.Context, page, pageSize int, codeType, status, search string) ([]service.RedeemCode, int64, error) {

@@ -654,6 +654,7 @@ import Select from '@/components/common/Select.vue'
 import ProxySelector from '@/components/common/ProxySelector.vue'
 import GroupSelector from '@/components/common/GroupSelector.vue'
 import Icon from '@/components/icons/Icon.vue'
+import { buildModelMappingObject as buildModelMappingPayload } from '@/composables/useModelWhitelist'
 
 interface Props {
   show: boolean
@@ -705,7 +706,7 @@ const rateMultiplier = ref(1)
 const status = ref<'active' | 'inactive'>('active')
 const groupIds = ref<number[]>([])
 
-// All models list (combined Anthropic + OpenAI)
+// All models list (combined Anthropic + OpenAI + Gemini)
 const allModels = [
   { value: 'claude-opus-4-6', label: 'Claude Opus 4.6' },
   { value: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6' },
@@ -723,10 +724,15 @@ const allModels = [
   { value: 'gpt-5.1-codex', label: 'GPT-5.1 Codex' },
   { value: 'gpt-5.1-2025-11-13', label: 'GPT-5.1' },
   { value: 'gpt-5.1-codex-mini', label: 'GPT-5.1 Codex Mini' },
-  { value: 'gpt-5-2025-08-07', label: 'GPT-5' }
+  { value: 'gpt-5-2025-08-07', label: 'GPT-5' },
+  { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
+  { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
+  { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
+  { value: 'gemini-3-flash-preview', label: 'Gemini 3 Flash Preview' },
+  { value: 'gemini-3-pro-preview', label: 'Gemini 3 Pro Preview' }
 ]
 
-// Preset mappings (combined Anthropic + OpenAI)
+// Preset mappings (combined Anthropic + OpenAI + Gemini)
 const presetMappings = [
   {
     label: 'Sonnet 4',
@@ -763,6 +769,31 @@ const presetMappings = [
       'bg-purple-100 text-purple-700 hover:bg-purple-200 dark:bg-purple-900/30 dark:text-purple-400'
   },
   {
+    label: 'Sonnet4→4.6',
+    from: 'claude-sonnet-4-20250514',
+    to: 'claude-sonnet-4-6',
+    color: 'bg-sky-100 text-sky-700 hover:bg-sky-200 dark:bg-sky-900/30 dark:text-sky-400'
+  },
+  {
+    label: 'Sonnet4.5→4.6',
+    from: 'claude-sonnet-4-5-20250929',
+    to: 'claude-sonnet-4-6',
+    color: 'bg-cyan-100 text-cyan-700 hover:bg-cyan-200 dark:bg-cyan-900/30 dark:text-cyan-400'
+  },
+  {
+    label: 'Sonnet3.5→4.6',
+    from: 'claude-3-5-sonnet-20241022',
+    to: 'claude-sonnet-4-6',
+    color: 'bg-teal-100 text-teal-700 hover:bg-teal-200 dark:bg-teal-900/30 dark:text-teal-400'
+  },
+  {
+    label: 'Opus4.5→4.6',
+    from: 'claude-opus-4-5-20251101',
+    to: 'claude-opus-4-6-thinking',
+    color:
+      'bg-violet-100 text-violet-700 hover:bg-violet-200 dark:bg-violet-900/30 dark:text-violet-400'
+  },
+  {
     label: 'Opus->Sonnet',
     from: 'claude-opus-4-5-20251101',
     to: 'claude-sonnet-4-5-20250929',
@@ -785,6 +816,36 @@ const presetMappings = [
     from: 'gpt-5.1-codex-max',
     to: 'gpt-5.1-codex',
     color: 'bg-pink-100 text-pink-700 hover:bg-pink-200 dark:bg-pink-900/30 dark:text-pink-400'
+  },
+  {
+    label: '3-Pro-Preview→3.1-Pro-High',
+    from: 'gemini-3-pro-preview',
+    to: 'gemini-3.1-pro-high',
+    color: 'bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-400'
+  },
+  {
+    label: '3-Pro-High→3.1-Pro-High',
+    from: 'gemini-3-pro-high',
+    to: 'gemini-3.1-pro-high',
+    color: 'bg-orange-100 text-orange-700 hover:bg-orange-200 dark:bg-orange-900/30 dark:text-orange-400'
+  },
+  {
+    label: '3-Pro-Low→3.1-Pro-Low',
+    from: 'gemini-3-pro-low',
+    to: 'gemini-3.1-pro-low',
+    color: 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400'
+  },
+  {
+    label: '3-Flash透传',
+    from: 'gemini-3-flash',
+    to: 'gemini-3-flash',
+    color: 'bg-lime-100 text-lime-700 hover:bg-lime-200 dark:bg-lime-900/30 dark:text-lime-400'
+  },
+  {
+    label: '2.5-Flash-Lite透传',
+    from: 'gemini-2.5-flash-lite',
+    to: 'gemini-2.5-flash-lite',
+    color: 'bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-900/30 dark:text-green-400'
   }
 ]
 
@@ -874,23 +935,11 @@ const removeErrorCode = (code: number) => {
 }
 
 const buildModelMappingObject = (): Record<string, string> | null => {
-  const mapping: Record<string, string> = {}
-
-  if (modelRestrictionMode.value === 'whitelist') {
-    for (const model of allowedModels.value) {
-      mapping[model] = model
-    }
-  } else {
-    for (const m of modelMappings.value) {
-      const from = m.from.trim()
-      const to = m.to.trim()
-      if (from && to) {
-        mapping[from] = to
-      }
-    }
-  }
-
-  return Object.keys(mapping).length > 0 ? mapping : null
+  return buildModelMappingPayload(
+    modelRestrictionMode.value,
+    allowedModels.value,
+    modelMappings.value
+  )
 }
 
 const buildUpdatePayload = (): Record<string, unknown> | null => {
