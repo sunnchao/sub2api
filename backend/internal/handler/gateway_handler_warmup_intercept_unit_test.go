@@ -119,6 +119,13 @@ func (f *fakeConcurrencyCache) GetAccountsLoadBatch(context.Context, []service.A
 func (f *fakeConcurrencyCache) GetUsersLoadBatch(context.Context, []service.UserWithConcurrency) (map[int64]*service.UserLoadInfo, error) {
 	return map[int64]*service.UserLoadInfo{}, nil
 }
+func (f *fakeConcurrencyCache) GetAccountConcurrencyBatch(_ context.Context, accountIDs []int64) (map[int64]int, error) {
+	result := make(map[int64]int, len(accountIDs))
+	for _, id := range accountIDs {
+		result[id] = 0
+	}
+	return result, nil
+}
 func (f *fakeConcurrencyCache) CleanupExpiredAccountSlots(context.Context, int64) error { return nil }
 
 func newTestGatewayHandler(t *testing.T, group *service.Group, accounts []*service.Account) (*GatewayHandler, func()) {
@@ -146,12 +153,13 @@ func newTestGatewayHandler(t *testing.T, group *service.Group, accounts []*servi
 		nil, // deferredService
 		nil, // claudeTokenProvider
 		nil, // sessionLimitCache
+		nil, // rpmCache
 		nil, // digestStore
 	)
 
 	// RunModeSimple：跳过计费检查，避免引入 repo/cache 依赖。
 	cfg := &config.Config{RunMode: config.RunModeSimple}
-	billingCacheSvc := service.NewBillingCacheService(nil, nil, nil, cfg)
+	billingCacheSvc := service.NewBillingCacheService(nil, nil, nil, nil, cfg)
 
 	concurrencySvc := service.NewConcurrencyService(&fakeConcurrencyCache{})
 	concurrencyHelper := NewConcurrencyHelper(concurrencySvc, SSEPingFormatClaude, 0)

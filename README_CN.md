@@ -62,8 +62,6 @@ Sub2API 是一个 AI API 网关平台，用于分发和管理 AI 产品订阅（
 - 当请求包含 `function_call_output` 时，需要携带 `previous_response_id`，或在 `input` 中包含带 `call_id` 的 `tool_call`/`function_call`，或带非空 `id` 且与 `function_call_output.call_id` 匹配的 `item_reference`。
 - 若依赖上游历史记录，网关会强制 `store=true` 并需要复用 `previous_response_id`，以避免出现 “No tool call found for function call output” 错误。
 
----
-
 ## 部署方式
 
 ### 方式一：脚本安装（推荐）
@@ -245,6 +243,18 @@ docker-compose -f docker-compose.local.yml logs -f sub2api
 | **docker-compose.yml** | 命名卷 | ⚠️ 需要 docker 命令 | 简单设置 |
 
 **推荐：** 使用 `docker-compose.local.yml`（脚本部署）以便更轻松地管理数据。
+
+#### 启用“数据管理”功能（datamanagementd）
+
+如需启用管理后台“数据管理”，需要额外部署宿主机数据管理进程 `datamanagementd`。
+
+关键点：
+
+- 主进程固定探测：`/tmp/sub2api-datamanagement.sock`
+- 只有该 Socket 可连通时，数据管理功能才会开启
+- Docker 场景需将宿主机 Socket 挂载到容器同路径
+
+详细部署步骤见：`deploy/DATAMANAGEMENTD_CN.md`
 
 #### 访问
 

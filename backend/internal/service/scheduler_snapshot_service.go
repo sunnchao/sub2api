@@ -305,13 +305,78 @@ func (s *SchedulerSnapshotService) handleBulkAccountEvent(ctx context.Context, p
 	if payload == nil {
 		return nil
 	}
-	ids := parseInt64Slice(payload["account_ids"])
-	for _, id := range ids {
-		if err := s.handleAccountEvent(ctx, &id, payload); err != nil {
-			return err
+	if s.accountRepo == nil {
+		return nil
+	}
+
+	rawIDs := parseInt64Slice(payload["account_ids"])
+	if len(rawIDs) == 0 {
+		return nil
+	}
+
+	ids := make([]int64, 0, len(rawIDs))
+	seen := make(map[int64]struct{}, len(rawIDs))
+	for _, id := range rawIDs {
+		if id <= 0 {
+			continue
+		}
+		if _, exists := seen[id]; exists {
+			continue
+		}
+		seen[id] = struct{}{}
+		ids = append(ids, id)
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+
+	preloadGroupIDs := parseInt64Slice(payload["group_ids"])
+	accounts, err := s.accountRepo.GetByIDs(ctx, ids)
+	if err != nil {
+		return err
+	}
+
+	found := make(map[int64]struct{}, len(accounts))
+	rebuildGroupSet := make(map[int64]struct{}, len(preloadGroupIDs))
+	for _, gid := range preloadGroupIDs {
+		if gid > 0 {
+			rebuildGroupSet[gid] = struct{}{}
 		}
 	}
-	return nil
+
+	for _, account := range accounts {
+		if account == nil || account.ID <= 0 {
+			continue
+		}
+		found[account.ID] = struct{}{}
+		if s.cache != nil {
+			if err := s.cache.SetAccount(ctx, account); err != nil {
+				return err
+			}
+		}
+		for _, gid := range account.GroupIDs {
+			if gid > 0 {
+				rebuildGroupSet[gid] = struct{}{}
+			}
+		}
+	}
+
+	if s.cache != nil {
+		for _, id := range ids {
+			if _, ok := found[id]; ok {
+				continue
+			}
+			if err := s.cache.DeleteAccount(ctx, id); err != nil {
+				return err
+			}
+		}
+	}
+
+	rebuildGroupIDs := make([]int64, 0, len(rebuildGroupSet))
+	for gid := range rebuildGroupSet {
+		rebuildGroupIDs = append(rebuildGroupIDs, gid)
+	}
+	return s.rebuildByGroupIDs(ctx, rebuildGroupIDs, "account_bulk_change")
 }
 
 func (s *SchedulerSnapshotService) handleAccountEvent(ctx context.Context, accountID *int64, payload map[string]any) error {
@@ -540,8 +605,10 @@ func (s *SchedulerSnapshotService) loadAccountsFromDB(ctx context.Context, bucke
 		var err error
 		if groupID > 0 {
 			accounts, err = s.accountRepo.ListSchedulableByGroupIDAndPlatforms(ctx, groupID, platforms)
-		} else {
+		} else if s.isRunModeSimple() {
 			accounts, err = s.accountRepo.ListSchedulableByPlatforms(ctx, platforms)
+		} else {
+			accounts, err = s.accountRepo.ListSchedulableUngroupedByPlatforms(ctx, platforms)
 		}
 		if err != nil {
 			return nil, err
@@ -559,7 +626,10 @@ func (s *SchedulerSnapshotService) loadAccountsFromDB(ctx context.Context, bucke
 	if groupID > 0 {
 		return s.accountRepo.ListSchedulableByGroupIDAndPlatform(ctx, groupID, bucket.Platform)
 	}
-	return s.accountRepo.ListSchedulableByPlatform(ctx, bucket.Platform)
+	if s.isRunModeSimple() {
+		return s.accountRepo.ListSchedulableByPlatform(ctx, bucket.Platform)
+	}
+	return s.accountRepo.ListSchedulableUngroupedByPlatform(ctx, bucket.Platform)
 }
 
 func (s *SchedulerSnapshotService) bucketFor(groupID *int64, platform string, mode string) SchedulerBucket {

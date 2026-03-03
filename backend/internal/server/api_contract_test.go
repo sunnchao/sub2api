@@ -86,6 +86,15 @@ func TestAPIContracts(t *testing.T) {
 					"last_used_at": null,
 					"quota": 0,
 					"quota_used": 0,
+					"rate_limit_5h": 0,
+					"rate_limit_1d": 0,
+					"rate_limit_7d": 0,
+					"usage_5h": 0,
+					"usage_1d": 0,
+					"usage_7d": 0,
+					"window_5h_start": null,
+					"window_1d_start": null,
+					"window_7d_start": null,
 					"expires_at": null,
 					"created_at": "2025-01-02T03:04:05Z",
 					"updated_at": "2025-01-02T03:04:05Z"
@@ -126,6 +135,15 @@ func TestAPIContracts(t *testing.T) {
 							"last_used_at": null,
 							"quota": 0,
 							"quota_used": 0,
+							"rate_limit_5h": 0,
+							"rate_limit_1d": 0,
+							"rate_limit_7d": 0,
+							"usage_5h": 0,
+							"usage_1d": 0,
+							"usage_7d": 0,
+							"window_5h_start": null,
+							"window_1d_start": null,
+							"window_7d_start": null,
 							"expires_at": null,
 							"created_at": "2025-01-02T03:04:05Z",
 							"updated_at": "2025-01-02T03:04:05Z"
@@ -186,11 +204,12 @@ func TestAPIContracts(t *testing.T) {
 						"image_price_1k": null,
 						"image_price_2k": null,
 						"image_price_4k": null,
-						"sora_image_price_360": null,
-						"sora_image_price_540": null,
-						"sora_video_price_per_request": null,
-						"sora_video_price_per_request_hd": null,
-						"claude_code_only": false,
+							"sora_image_price_360": null,
+							"sora_image_price_540": null,
+							"sora_storage_quota_bytes": 0,
+							"sora_video_price_per_request": null,
+							"sora_video_price_per_request_hd": null,
+							"claude_code_only": false,
 						"fallback_group_id": null,
 						"fallback_group_id_on_invalid_request": null,
 						"created_at": "2025-01-02T03:04:05Z",
@@ -384,10 +403,12 @@ func TestAPIContracts(t *testing.T) {
 							"user_id": 1,
 							"api_key_id": 100,
 							"account_id": 200,
-							"request_id": "req_123",
-							"model": "claude-3",
-							"group_id": null,
-							"subscription_id": null,
+								"request_id": "req_123",
+								"model": "claude-3",
+								"request_type": "stream",
+								"openai_ws_mode": false,
+								"group_id": null,
+								"subscription_id": null,
 							"input_tokens": 10,
 							"output_tokens": 20,
 							"cache_creation_tokens": 1,
@@ -496,18 +517,22 @@ func TestAPIContracts(t *testing.T) {
 					"doc_url": "https://docs.example.com",
 					"default_concurrency": 5,
 					"default_balance": 1.25,
+					"default_subscriptions": [],
 					"enable_model_fallback": false,
 					"fallback_model_anthropic": "claude-3-5-sonnet-20241022",
 					"fallback_model_antigravity": "gemini-2.5-pro",
 					"fallback_model_gemini": "gemini-2.5-pro",
-					"fallback_model_openai": "gpt-4o",
-					"enable_identity_patch": true,
-					"identity_patch_prompt": "",
-					"invitation_code_enabled": false,
-					"home_content": "",
+						"fallback_model_openai": "gpt-4o",
+						"enable_identity_patch": true,
+						"identity_patch_prompt": "",
+						"sora_client_enabled": false,
+						"invitation_code_enabled": false,
+						"home_content": "",
 					"hide_ccs_import_button": false,
 					"purchase_subscription_enabled": false,
-					"purchase_subscription_url": ""
+					"purchase_subscription_url": "",
+					"min_claude_code_version": "",
+					"custom_menu_items": []
 				}
 			}`,
 		},
@@ -615,12 +640,12 @@ func newContractDeps(t *testing.T) *contractDeps {
 	settingRepo := newStubSettingRepo()
 	settingService := service.NewSettingService(settingRepo, cfg)
 
-	adminService := service.NewAdminService(userRepo, groupRepo, &accountRepo, nil, proxyRepo, apiKeyRepo, redeemRepo, nil, nil, nil, nil, nil)
+	adminService := service.NewAdminService(userRepo, groupRepo, &accountRepo, nil, proxyRepo, apiKeyRepo, redeemRepo, nil, nil, nil, nil, nil, nil, nil, nil)
 	authHandler := handler.NewAuthHandler(cfg, nil, userService, settingService, nil, redeemService, nil)
 	apiKeyHandler := handler.NewAPIKeyHandler(apiKeyService)
 	usageHandler := handler.NewUsageHandler(usageService, apiKeyService)
-	adminSettingHandler := adminhandler.NewSettingHandler(settingService, nil, nil, nil)
-	adminAccountHandler := adminhandler.NewAccountHandler(adminService, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	adminSettingHandler := adminhandler.NewSettingHandler(settingService, nil, nil, nil, nil)
+	adminAccountHandler := adminhandler.NewAccountHandler(adminService, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 
 	jwtAuth := func(c *gin.Context) {
 		c.Set(string(middleware.ContextKeyUser), middleware.AuthSubject{
@@ -773,6 +798,10 @@ func (r *stubUserRepo) ExistsByEmail(ctx context.Context, email string) (bool, e
 
 func (r *stubUserRepo) RemoveGroupFromAllowedGroups(ctx context.Context, groupID int64) (int64, error) {
 	return 0, errors.New("not implemented")
+}
+
+func (r *stubUserRepo) AddGroupToAllowedGroups(ctx context.Context, userID int64, groupID int64) error {
+	return errors.New("not implemented")
 }
 
 func (r *stubUserRepo) UpdateTotpSecret(ctx context.Context, userID int64, encryptedSecret *string) error {
@@ -1013,6 +1042,14 @@ func (s *stubAccountRepo) ListSchedulableByPlatforms(ctx context.Context, platfo
 }
 
 func (s *stubAccountRepo) ListSchedulableByGroupIDAndPlatforms(ctx context.Context, groupID int64, platforms []string) ([]service.Account, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (s *stubAccountRepo) ListSchedulableUngroupedByPlatform(ctx context.Context, platform string) ([]service.Account, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (s *stubAccountRepo) ListSchedulableUngroupedByPlatforms(ctx context.Context, platforms []string) ([]service.Account, error) {
 	return nil, errors.New("not implemented")
 }
 
@@ -1487,6 +1524,16 @@ func (r *stubApiKeyRepo) UpdateLastUsed(ctx context.Context, id int64, usedAt ti
 	return nil
 }
 
+func (r *stubApiKeyRepo) IncrementRateLimitUsage(ctx context.Context, id int64, cost float64) error {
+	return nil
+}
+func (r *stubApiKeyRepo) ResetRateLimitWindows(ctx context.Context, id int64) error {
+	return nil
+}
+func (r *stubApiKeyRepo) GetRateLimitData(ctx context.Context, id int64) (*service.APIKeyRateLimitData, error) {
+	return nil, nil
+}
+
 type stubUsageLogRepo struct {
 	userLogs map[int64][]service.UsageLog
 }
@@ -1555,11 +1602,15 @@ func (r *stubUsageLogRepo) GetDashboardStats(ctx context.Context) (*usagestats.D
 	return nil, errors.New("not implemented")
 }
 
-func (r *stubUsageLogRepo) GetUsageTrendWithFilters(ctx context.Context, startTime, endTime time.Time, granularity string, userID, apiKeyID, accountID, groupID int64, model string, stream *bool, billingType *int8) ([]usagestats.TrendDataPoint, error) {
+func (r *stubUsageLogRepo) GetUsageTrendWithFilters(ctx context.Context, startTime, endTime time.Time, granularity string, userID, apiKeyID, accountID, groupID int64, model string, requestType *int16, stream *bool, billingType *int8) ([]usagestats.TrendDataPoint, error) {
 	return nil, errors.New("not implemented")
 }
 
-func (r *stubUsageLogRepo) GetModelStatsWithFilters(ctx context.Context, startTime, endTime time.Time, userID, apiKeyID, accountID, groupID int64, stream *bool, billingType *int8) ([]usagestats.ModelStat, error) {
+func (r *stubUsageLogRepo) GetModelStatsWithFilters(ctx context.Context, startTime, endTime time.Time, userID, apiKeyID, accountID, groupID int64, requestType *int16, stream *bool, billingType *int8) ([]usagestats.ModelStat, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (r *stubUsageLogRepo) GetGroupStatsWithFilters(ctx context.Context, startTime, endTime time.Time, userID, apiKeyID, accountID, groupID int64, requestType *int16, stream *bool, billingType *int8) ([]usagestats.GroupStat, error) {
 	return nil, errors.New("not implemented")
 }
 

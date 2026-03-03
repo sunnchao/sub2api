@@ -612,14 +612,14 @@ func TestBuildAuthorizationURL_参数验证(t *testing.T) {
 
 	expectedParams := map[string]string{
 		"client_id":              ClientID,
-		"redirect_uri":          RedirectURI,
-		"response_type":         "code",
-		"scope":                 Scopes,
-		"state":                 state,
-		"code_challenge":        codeChallenge,
-		"code_challenge_method": "S256",
-		"access_type":           "offline",
-		"prompt":                "consent",
+		"redirect_uri":           RedirectURI,
+		"response_type":          "code",
+		"scope":                  Scopes,
+		"state":                  state,
+		"code_challenge":         codeChallenge,
+		"code_challenge_method":  "S256",
+		"access_type":            "offline",
+		"prompt":                 "consent",
 		"include_granted_scopes": "true",
 	}
 

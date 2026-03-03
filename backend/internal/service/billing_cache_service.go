@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -10,6 +11,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
+	"golang.org/x/sync/singleflight"
 )
 
 // 错误定义
@@ -38,6 +40,7 @@ const (
 	cacheWriteSetSubscription
 	cacheWriteUpdateSubscriptionUsage
 	cacheWriteDeductBalance
+	cacheWriteUpdateRateLimitUsage
 )
 
 // 异步缓存写入工作池配置
@@ -58,6 +61,7 @@ const (
 	cacheWriteBufferSize      = 1000            // 任务队列缓冲大小
 	cacheWriteTimeout         = 2 * time.Second // 单个写入操作超时
 	cacheWriteDropLogInterval = 5 * time.Second // 丢弃日志节流间隔
+	balanceLoadTimeout        = 3 * time.Second
 )
 
 // cacheWriteTask 缓存写入任务
@@ -65,23 +69,33 @@ type cacheWriteTask struct {
 	kind             cacheWriteKind
 	userID           int64
 	groupID          int64
+	apiKeyID         int64
 	balance          float64
 	amount           float64
 	subscriptionData *subscriptionCacheData
 }
 
+// apiKeyRateLimitLoader defines the interface for loading rate limit data from DB.
+type apiKeyRateLimitLoader interface {
+	GetRateLimitData(ctx context.Context, keyID int64) (*APIKeyRateLimitData, error)
+}
+
 // BillingCacheService 计费缓存服务
 // 负责余额和订阅数据的缓存管理，提供高性能的计费资格检查
 type BillingCacheService struct {
-	cache          BillingCache
-	userRepo       UserRepository
-	subRepo        UserSubscriptionRepository
-	cfg            *config.Config
-	circuitBreaker *billingCircuitBreaker
+	cache                 BillingCache
+	userRepo              UserRepository
+	subRepo               UserSubscriptionRepository
+	apiKeyRateLimitLoader apiKeyRateLimitLoader
+	cfg                   *config.Config
+	circuitBreaker        *billingCircuitBreaker
 
 	cacheWriteChan     chan cacheWriteTask
 	cacheWriteWg       sync.WaitGroup
 	cacheWriteStopOnce sync.Once
+	cacheWriteMu       sync.RWMutex
+	stopped            atomic.Bool
+	balanceLoadSF      singleflight.Group
 	// 丢弃日志节流计数器（减少高负载下日志噪音）
 	cacheWriteDropFullCount     uint64
 	cacheWriteDropFullLastLog   int64
@@ -90,12 +104,13 @@ type BillingCacheService struct {
 }
 
 // NewBillingCacheService 创建计费缓存服务
-func NewBillingCacheService(cache BillingCache, userRepo UserRepository, subRepo UserSubscriptionRepository, cfg *config.Config) *BillingCacheService {
+func NewBillingCacheService(cache BillingCache, userRepo UserRepository, subRepo UserSubscriptionRepository, apiKeyRepo APIKeyRepository, cfg *config.Config) *BillingCacheService {
 	svc := &BillingCacheService{
-		cache:    cache,
-		userRepo: userRepo,
-		subRepo:  subRepo,
-		cfg:      cfg,
+		cache:                 cache,
+		userRepo:              userRepo,
+		subRepo:               subRepo,
+		apiKeyRateLimitLoader: apiKeyRepo,
+		cfg:                   cfg,
 	}
 	svc.circuitBreaker = newBillingCircuitBreaker(cfg.Billing.CircuitBreaker)
 	svc.startCacheWriteWorkers()
@@ -105,35 +120,52 @@ func NewBillingCacheService(cache BillingCache, userRepo UserRepository, subRepo
 // Stop 关闭缓存写入工作池
 func (s *BillingCacheService) Stop() {
 	s.cacheWriteStopOnce.Do(func() {
-		if s.cacheWriteChan == nil {
+		s.stopped.Store(true)
+
+		s.cacheWriteMu.Lock()
+		ch := s.cacheWriteChan
+		if ch != nil {
+			close(ch)
+		}
+		s.cacheWriteMu.Unlock()
+
+		if ch == nil {
 			return
 		}
-		close(s.cacheWriteChan)
 		s.cacheWriteWg.Wait()
-		s.cacheWriteChan = nil
+
+		s.cacheWriteMu.Lock()
+		if s.cacheWriteChan == ch {
+			s.cacheWriteChan = nil
+		}
+		s.cacheWriteMu.Unlock()
 	})
 }
 
 func (s *BillingCacheService) startCacheWriteWorkers() {
-	s.cacheWriteChan = make(chan cacheWriteTask, cacheWriteBufferSize)
+	ch := make(chan cacheWriteTask, cacheWriteBufferSize)
+	s.cacheWriteChan = ch
 	for i := 0; i < cacheWriteWorkerCount; i++ {
 		s.cacheWriteWg.Add(1)
-		go s.cacheWriteWorker()
+		go s.cacheWriteWorker(ch)
 	}
 }
 
 // enqueueCacheWrite 尝试将任务入队，队列满时返回 false（并记录告警）。
 func (s *BillingCacheService) enqueueCacheWrite(task cacheWriteTask) (enqueued bool) {
-	if s.cacheWriteChan == nil {
+	if s.stopped.Load() {
+		s.logCacheWriteDrop(task, "closed")
 		return false
 	}
-	defer func() {
-		if recovered := recover(); recovered != nil {
-			// 队列已关闭时可能触发 panic，记录后静默失败。
-			s.logCacheWriteDrop(task, "closed")
-			enqueued = false
-		}
-	}()
+
+	s.cacheWriteMu.RLock()
+	defer s.cacheWriteMu.RUnlock()
+
+	if s.cacheWriteChan == nil {
+		s.logCacheWriteDrop(task, "closed")
+		return false
+	}
+
 	select {
 	case s.cacheWriteChan <- task:
 		return true
@@ -144,9 +176,9 @@ func (s *BillingCacheService) enqueueCacheWrite(task cacheWriteTask) (enqueued b
 	}
 }
 
-func (s *BillingCacheService) cacheWriteWorker() {
+func (s *BillingCacheService) cacheWriteWorker(ch <-chan cacheWriteTask) {
 	defer s.cacheWriteWg.Done()
-	for task := range s.cacheWriteChan {
+	for task := range ch {
 		ctx, cancel := context.WithTimeout(context.Background(), cacheWriteTimeout)
 		switch task.kind {
 		case cacheWriteSetBalance:
@@ -165,6 +197,12 @@ func (s *BillingCacheService) cacheWriteWorker() {
 					logger.LegacyPrintf("service.billing_cache", "Warning: deduct balance cache failed for user %d: %v", task.userID, err)
 				}
 			}
+		case cacheWriteUpdateRateLimitUsage:
+			if s.cache != nil {
+				if err := s.cache.UpdateAPIKeyRateLimitUsage(ctx, task.apiKeyID, task.amount); err != nil {
+					logger.LegacyPrintf("service.billing_cache", "Warning: update rate limit usage cache failed for api key %d: %v", task.apiKeyID, err)
+				}
+			}
 		}
 		cancel()
 	}
@@ -181,6 +219,8 @@ func cacheWriteKindName(kind cacheWriteKind) string {
 		return "update_subscription_usage"
 	case cacheWriteDeductBalance:
 		return "deduct_balance"
+	case cacheWriteUpdateRateLimitUsage:
+		return "update_rate_limit_usage"
 	default:
 		return "unknown"
 	}
@@ -243,19 +283,31 @@ func (s *BillingCacheService) GetUserBalance(ctx context.Context, userID int64) 
 		return balance, nil
 	}
 
-	// 缓存未命中，从数据库读取
-	balance, err = s.getUserBalanceFromDB(ctx, userID)
+	// 缓存未命中：singleflight 合并同一 userID 的并发回源请求。
+	value, err, _ := s.balanceLoadSF.Do(strconv.FormatInt(userID, 10), func() (any, error) {
+		loadCtx, cancel := context.WithTimeout(context.Background(), balanceLoadTimeout)
+		defer cancel()
+
+		balance, err := s.getUserBalanceFromDB(loadCtx, userID)
+		if err != nil {
+			return nil, err
+		}
+
+		// 异步建立缓存
+		_ = s.enqueueCacheWrite(cacheWriteTask{
+			kind:    cacheWriteSetBalance,
+			userID:  userID,
+			balance: balance,
+		})
+		return balance, nil
+	})
 	if err != nil {
 		return 0, err
 	}
-
-	// 异步建立缓存
-	_ = s.enqueueCacheWrite(cacheWriteTask{
-		kind:    cacheWriteSetBalance,
-		userID:  userID,
-		balance: balance,
-	})
-
+	balance, ok := value.(float64)
+	if !ok {
+		return 0, fmt.Errorf("unexpected balance type: %T", value)
+	}
 	return balance, nil
 }
 
@@ -442,6 +494,137 @@ func (s *BillingCacheService) InvalidateSubscription(ctx context.Context, userID
 }
 
 // ============================================
+// API Key 限速缓存方法
+// ============================================
+
+// checkAPIKeyRateLimits checks rate limit windows for an API key.
+// It loads usage from Redis cache (falling back to DB on cache miss),
+// resets expired windows in-memory and triggers async DB reset,
+// and returns an error if any window limit is exceeded.
+func (s *BillingCacheService) checkAPIKeyRateLimits(ctx context.Context, apiKey *APIKey) error {
+	if s.cache == nil {
+		// No cache: fall back to reading from DB directly
+		if s.apiKeyRateLimitLoader == nil {
+			return nil
+		}
+		data, err := s.apiKeyRateLimitLoader.GetRateLimitData(ctx, apiKey.ID)
+		if err != nil {
+			return nil // Don't block requests on DB errors
+		}
+		return s.evaluateRateLimits(ctx, apiKey, data.Usage5h, data.Usage1d, data.Usage7d,
+			data.Window5hStart, data.Window1dStart, data.Window7dStart)
+	}
+
+	cacheData, err := s.cache.GetAPIKeyRateLimit(ctx, apiKey.ID)
+	if err != nil {
+		// Cache miss: load from DB and populate cache
+		if s.apiKeyRateLimitLoader == nil {
+			return nil
+		}
+		dbData, dbErr := s.apiKeyRateLimitLoader.GetRateLimitData(ctx, apiKey.ID)
+		if dbErr != nil {
+			return nil // Don't block requests on DB errors
+		}
+		// Build cache entry from DB data
+		cacheEntry := &APIKeyRateLimitCacheData{
+			Usage5h: dbData.Usage5h,
+			Usage1d: dbData.Usage1d,
+			Usage7d: dbData.Usage7d,
+		}
+		if dbData.Window5hStart != nil {
+			cacheEntry.Window5h = dbData.Window5hStart.Unix()
+		}
+		if dbData.Window1dStart != nil {
+			cacheEntry.Window1d = dbData.Window1dStart.Unix()
+		}
+		if dbData.Window7dStart != nil {
+			cacheEntry.Window7d = dbData.Window7dStart.Unix()
+		}
+		_ = s.cache.SetAPIKeyRateLimit(ctx, apiKey.ID, cacheEntry)
+		cacheData = cacheEntry
+	}
+
+	var w5h, w1d, w7d *time.Time
+	if cacheData.Window5h > 0 {
+		t := time.Unix(cacheData.Window5h, 0)
+		w5h = &t
+	}
+	if cacheData.Window1d > 0 {
+		t := time.Unix(cacheData.Window1d, 0)
+		w1d = &t
+	}
+	if cacheData.Window7d > 0 {
+		t := time.Unix(cacheData.Window7d, 0)
+		w7d = &t
+	}
+	return s.evaluateRateLimits(ctx, apiKey, cacheData.Usage5h, cacheData.Usage1d, cacheData.Usage7d, w5h, w1d, w7d)
+}
+
+// evaluateRateLimits checks usage against limits, triggering async resets for expired windows.
+func (s *BillingCacheService) evaluateRateLimits(ctx context.Context, apiKey *APIKey, usage5h, usage1d, usage7d float64, w5h, w1d, w7d *time.Time) error {
+	needsReset := false
+
+	// Reset expired windows in-memory for check purposes
+	if w5h != nil && time.Since(*w5h) >= 5*time.Hour {
+		usage5h = 0
+		needsReset = true
+	}
+	if w1d != nil && time.Since(*w1d) >= 24*time.Hour {
+		usage1d = 0
+		needsReset = true
+	}
+	if w7d != nil && time.Since(*w7d) >= 7*24*time.Hour {
+		usage7d = 0
+		needsReset = true
+	}
+
+	// Trigger async DB reset if any window expired
+	if needsReset {
+		keyID := apiKey.ID
+		go func() {
+			resetCtx, cancel := context.WithTimeout(context.Background(), cacheWriteTimeout)
+			defer cancel()
+			if s.apiKeyRateLimitLoader != nil {
+				// Use the repo directly - reset then reload cache
+				if loader, ok := s.apiKeyRateLimitLoader.(interface {
+					ResetRateLimitWindows(ctx context.Context, id int64) error
+				}); ok {
+					_ = loader.ResetRateLimitWindows(resetCtx, keyID)
+				}
+			}
+			// Invalidate cache so next request loads fresh data
+			if s.cache != nil {
+				_ = s.cache.InvalidateAPIKeyRateLimit(resetCtx, keyID)
+			}
+		}()
+	}
+
+	// Check limits
+	if apiKey.RateLimit5h > 0 && usage5h >= apiKey.RateLimit5h {
+		return ErrAPIKeyRateLimit5hExceeded
+	}
+	if apiKey.RateLimit1d > 0 && usage1d >= apiKey.RateLimit1d {
+		return ErrAPIKeyRateLimit1dExceeded
+	}
+	if apiKey.RateLimit7d > 0 && usage7d >= apiKey.RateLimit7d {
+		return ErrAPIKeyRateLimit7dExceeded
+	}
+	return nil
+}
+
+// QueueUpdateAPIKeyRateLimitUsage asynchronously updates rate limit usage in the cache.
+func (s *BillingCacheService) QueueUpdateAPIKeyRateLimitUsage(apiKeyID int64, cost float64) {
+	if s.cache == nil {
+		return
+	}
+	s.enqueueCacheWrite(cacheWriteTask{
+		kind:     cacheWriteUpdateRateLimitUsage,
+		apiKeyID: apiKeyID,
+		amount:   cost,
+	})
+}
+
+// ============================================
 // 统一检查方法
 // ============================================
 
@@ -461,10 +644,23 @@ func (s *BillingCacheService) CheckBillingEligibility(ctx context.Context, user 
 	isSubscriptionMode := group != nil && group.IsSubscriptionType() && subscription != nil
 
 	if isSubscriptionMode {
-		return s.checkSubscriptionEligibility(ctx, user.ID, group, subscription)
+		if err := s.checkSubscriptionEligibility(ctx, user.ID, group, subscription); err != nil {
+			return err
+		}
+	} else {
+		if err := s.checkBalanceEligibility(ctx, user.ID); err != nil {
+			return err
+		}
 	}
 
-	return s.checkBalanceEligibility(ctx, user.ID)
+	// Check API Key rate limits (applies to both billing modes)
+	if apiKey != nil && apiKey.HasRateLimits() {
+		if err := s.checkAPIKeyRateLimits(ctx, apiKey); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // checkBalanceEligibility 检查余额模式资格
