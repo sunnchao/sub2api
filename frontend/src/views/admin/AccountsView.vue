@@ -359,7 +359,7 @@ const exportingData = ref(false)
 const showColumnDropdown = ref(false)
 const columnDropdownRef = ref<HTMLElement | null>(null)
 const hiddenColumns = reactive<Set<string>>(new Set())
-const DEFAULT_HIDDEN_COLUMNS = ['proxy', 'notes', 'priority', 'rate_multiplier']
+const DEFAULT_HIDDEN_COLUMNS = ['today_stats', 'proxy', 'notes', 'priority', 'rate_multiplier']
 const HIDDEN_COLUMNS_KEY = 'account-hidden-columns'
 
 // Sorting settings
@@ -553,11 +553,20 @@ const resetAutoRefreshCache = () => {
   autoRefreshETag.value = null
 }
 
+const isFirstLoad = ref(true)
+
 const load = async () => {
   hasPendingListSync.value = false
   resetAutoRefreshCache()
   pendingTodayStatsRefresh.value = false
+  if (isFirstLoad.value) {
+    ;(params as any).lite = '1'
+  }
   await baseLoad()
+  if (isFirstLoad.value) {
+    isFirstLoad.value = false
+    delete (params as any).lite
+  }
   await refreshTodayStatsBatch()
 }
 
@@ -689,6 +698,7 @@ const refreshAccountsIncrementally = async () => {
         type?: string
         status?: string
         search?: string
+
       },
       { etag: autoRefreshETag.value }
     )

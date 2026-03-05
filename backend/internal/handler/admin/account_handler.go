@@ -217,6 +217,7 @@ func (h *AccountHandler) List(c *gin.Context) {
 	if len(search) > 100 {
 		search = search[:100]
 	}
+	lite := parseBoolQueryWithDefault(c.Query("lite"), false)
 
 	var groupID int64
 	if groupIDStr := c.Query("group"); groupIDStr != "" {
@@ -235,10 +236,16 @@ func (h *AccountHandler) List(c *gin.Context) {
 		accountIDs[i] = acc.ID
 	}
 
-	concurrencyCounts, err := h.concurrencyService.GetAccountConcurrencyBatch(c.Request.Context(), accountIDs)
-	if err != nil {
-		// Log error but don't fail the request, just use 0 for all
-		concurrencyCounts = make(map[int64]int)
+	concurrencyCounts := make(map[int64]int)
+	var windowCosts map[int64]float64
+	var activeSessions map[int64]int
+	var rpmCounts map[int64]int
+
+	// 始终获取并发数（Redis ZCARD，极低开销）
+	if h.concurrencyService != nil {
+		if cc, ccErr := h.concurrencyService.GetAccountConcurrencyBatch(c.Request.Context(), accountIDs); ccErr == nil && cc != nil {
+			concurrencyCounts = cc
+		}
 	}
 
 	// 识别需要查询窗口费用、会话数和 RPM 的账号（Anthropic OAuth/SetupToken 且启用了相应功能）
@@ -262,12 +269,7 @@ func (h *AccountHandler) List(c *gin.Context) {
 		}
 	}
 
-	// 并行获取窗口费用、活跃会话数和 RPM 计数
-	var windowCosts map[int64]float64
-	var activeSessions map[int64]int
-	var rpmCounts map[int64]int
-
-	// 获取 RPM 计数（批量查询）
+	// 始终获取 RPM 计数（Redis GET，极低开销）
 	if len(rpmAccountIDs) > 0 && h.rpmCache != nil {
 		rpmCounts, _ = h.rpmCache.GetRPMBatch(c.Request.Context(), rpmAccountIDs)
 		if rpmCounts == nil {
@@ -275,7 +277,7 @@ func (h *AccountHandler) List(c *gin.Context) {
 		}
 	}
 
-	// 获取活跃会话数（批量查询，传入各账号的 idleTimeout 配置）
+	// 始终获取活跃会话数（Redis ZCARD，低开销）
 	if len(sessionLimitAccountIDs) > 0 && h.sessionLimitCache != nil {
 		activeSessions, _ = h.sessionLimitCache.GetActiveSessionCountBatch(c.Request.Context(), sessionLimitAccountIDs, sessionIdleTimeouts)
 		if activeSessions == nil {
@@ -283,8 +285,8 @@ func (h *AccountHandler) List(c *gin.Context) {
 		}
 	}
 
-	// 获取窗口费用（并行查询）
-	if len(windowCostAccountIDs) > 0 {
+	// 仅非 lite 模式获取窗口费用（PostgreSQL 聚合查询，高开销）
+	if !lite && len(windowCostAccountIDs) > 0 {
 		windowCosts = make(map[int64]float64)
 		var mu sync.Mutex
 		g, gctx := errgroup.WithContext(c.Request.Context())
@@ -344,7 +346,7 @@ func (h *AccountHandler) List(c *gin.Context) {
 		result[i] = item
 	}
 
-	etag := buildAccountsListETag(result, total, page, pageSize, platform, accountType, status, search)
+	etag := buildAccountsListETag(result, total, page, pageSize, platform, accountType, status, search, lite)
 	if etag != "" {
 		c.Header("ETag", etag)
 		c.Header("Vary", "If-None-Match")
@@ -362,6 +364,7 @@ func buildAccountsListETag(
 	total int64,
 	page, pageSize int,
 	platform, accountType, status, search string,
+	lite bool,
 ) string {
 	payload := struct {
 		Total       int64                    `json:"total"`
@@ -371,6 +374,7 @@ func buildAccountsListETag(
 		AccountType string                   `json:"type"`
 		Status      string                   `json:"status"`
 		Search      string                   `json:"search"`
+		Lite        bool                     `json:"lite"`
 		Items       []AccountWithConcurrency `json:"items"`
 	}{
 		Total:       total,
@@ -380,6 +384,7 @@ func buildAccountsListETag(
 		AccountType: accountType,
 		Status:      status,
 		Search:      search,
+		Lite:        lite,
 		Items:       items,
 	}
 	raw, err := json.Marshal(payload)
@@ -1398,18 +1403,41 @@ func (h *AccountHandler) GetBatchTodayStats(c *gin.Context) {
 		return
 	}
 
-	if len(req.AccountIDs) == 0 {
+	accountIDs := normalizeInt64IDList(req.AccountIDs)
+	if len(accountIDs) == 0 {
 		response.Success(c, gin.H{"stats": map[string]any{}})
 		return
 	}
 
-	stats, err := h.accountUsageService.GetTodayStatsBatch(c.Request.Context(), req.AccountIDs)
+	cacheKey := buildAccountTodayStatsBatchCacheKey(accountIDs)
+	if cached, ok := accountTodayStatsBatchCache.Get(cacheKey); ok {
+		if cached.ETag != "" {
+			c.Header("ETag", cached.ETag)
+			c.Header("Vary", "If-None-Match")
+			if ifNoneMatchMatched(c.GetHeader("If-None-Match"), cached.ETag) {
+				c.Status(http.StatusNotModified)
+				return
+			}
+		}
+		c.Header("X-Snapshot-Cache", "hit")
+		response.Success(c, cached.Payload)
+		return
+	}
+
+	stats, err := h.accountUsageService.GetTodayStatsBatch(c.Request.Context(), accountIDs)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}
 
-	response.Success(c, gin.H{"stats": stats})
+	payload := gin.H{"stats": stats}
+	cached := accountTodayStatsBatchCache.Set(cacheKey, payload)
+	if cached.ETag != "" {
+		c.Header("ETag", cached.ETag)
+		c.Header("Vary", "If-None-Match")
+	}
+	c.Header("X-Snapshot-Cache", "miss")
+	response.Success(c, payload)
 }
 
 // SetSchedulableRequest represents the request body for setting schedulable status

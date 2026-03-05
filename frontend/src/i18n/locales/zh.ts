@@ -110,6 +110,65 @@ export default {
     }
   },
 
+  // Key Usage Query Page
+  keyUsage: {
+    title: 'API Key 用量查询',
+    subtitle: '输入您的 API Key 以查看实时消费金额与使用状态',
+    placeholder: 'sk-ant-mirror-xxxxxxxxxxxx',
+    query: '查询',
+    querying: '查询中...',
+    privacyNote: '您的 Key 仅在浏览器本地处理，不会被存储',
+    dateRange: '统计范围:',
+    dateRangeToday: '今日',
+    dateRange7d: '7 天',
+    dateRange30d: '30 天',
+    dateRangeCustom: '自定义',
+    apply: '应用',
+    used: '已使用',
+    detailInfo: '详细信息',
+    tokenStats: 'Token 统计',
+    modelStats: '模型用量统计',
+    // Table headers
+    model: '模型',
+    requests: '请求数',
+    inputTokens: '输入 Tokens',
+    outputTokens: '输出 Tokens',
+    totalTokens: '总 Tokens',
+    cost: '费用',
+    // Status
+    quotaMode: 'Key 限额模式',
+    walletBalance: '钱包余额',
+    // Ring card titles
+    totalQuota: '总额度',
+    limit5h: '5 小时限额',
+    limitDaily: '日限额',
+    limit7d: '7 天限额',
+    limitWeekly: '周限额',
+    limitMonthly: '月限额',
+    // Detail rows
+    remainingQuota: '剩余额度',
+    expiresAt: '过期时间',
+    todayExpires: '(今日到期)',
+    daysLeft: '({days} 天)',
+    usedQuota: '已用额度',
+    subscriptionType: '订阅类型',
+    subscriptionExpires: '订阅到期',
+    // Usage stat cells
+    todayRequests: '今日请求',
+    todayTokens: '今日 Tokens',
+    todayCost: '今日费用',
+    rpmTpm: 'RPM / TPM',
+    totalRequests: '累计请求',
+    totalTokensLabel: '累计 Tokens',
+    totalCost: '累计费用',
+    avgDuration: '平均耗时',
+    // Messages
+    enterApiKey: '请输入 API Key',
+    querySuccess: '查询成功',
+    queryFailed: '查询失败',
+    queryFailedRetry: '查询失败，请稍后重试',
+  },
+
   // Setup Wizard
   setup: {
     title: 'Sub2API 安装向导',
@@ -312,6 +371,8 @@ export default {
     passwordMinLength: '密码至少需要 6 个字符',
     loginFailed: '登录失败，请检查您的凭据后重试。',
     registrationFailed: '注册失败，请重试。',
+    emailSuffixNotAllowed: '该邮箱域名不在允许注册范围内。',
+    emailSuffixNotAllowedWithAllowed: '该邮箱域名不被允许。可用域名：{suffixes}',
     loginSuccess: '登录成功！欢迎回来。',
     accountCreatedSuccess: '账户创建成功！欢迎使用 {siteName}。',
     reloginRequired: '会话已过期，请重新登录。',
@@ -326,6 +387,16 @@ export default {
     sendingCode: '发送中...',
     clickToResend: '点击重新发送验证码',
     resendCode: '重新发送验证码',
+    sendCodeDesc: '我们将发送验证码到',
+    codeSentSuccess: '验证码已发送！请查收您的邮箱。',
+    verifying: '验证中...',
+    verifyAndCreate: '验证并创建账户',
+    resendCountdown: '{countdown}秒后可重新发送',
+    backToRegistration: '返回注册',
+    sendCodeFailed: '发送验证码失败，请重试。',
+    verifyFailed: '验证失败，请重试。',
+    codeRequired: '请输入验证码',
+    invalidCode: '请输入有效的6位验证码',
     promoCodeLabel: '优惠码',
     promoCodePlaceholder: '输入优惠码（可选）',
     promoCodeValid: '有效！注册后将获得 ${amount} 赠送余额',
@@ -445,6 +516,9 @@ export default {
   keys: {
     title: 'API 密钥',
     description: '管理您的 API 密钥和访问令牌',
+    searchPlaceholder: '搜索名称或Key...',
+    allGroups: '全部分组',
+    allStatus: '全部状态',
     createKey: '创建密钥',
     editKey: '编辑密钥',
     deleteKey: '删除密钥',
@@ -3690,6 +3764,15 @@ export default {
     settings: {
       title: '系统设置',
       description: '管理注册、邮箱验证、默认值和 SMTP 设置',
+      tabs: {
+        general: '通用设置',
+        security: '安全与认证',
+        users: '用户默认值',
+        gateway: '网关服务',
+        email: '邮件设置',
+      },
+      emailTabDisabledTitle: '邮箱验证未启用',
+      emailTabDisabledHint: '请在「安全与认证」选项卡中启用邮箱验证后，再配置 SMTP 设置。',
       registration: {
         title: '注册设置',
         description: '控制用户注册和验证',
@@ -3697,6 +3780,11 @@ export default {
         enableRegistrationHint: '允许新用户注册',
         emailVerification: '邮箱验证',
         emailVerificationHint: '新用户注册时需要验证邮箱',
+        emailSuffixWhitelist: '邮箱域名白名单',
+        emailSuffixWhitelistHint:
+          "仅允许使用指定域名的邮箱注册账号（例如 {'@'}qq.com, {'@'}gmail.com）",
+        emailSuffixWhitelistPlaceholder: 'example.com',
+        emailSuffixWhitelistInputHint: '留空则不限制',
         promoCode: '优惠码',
         promoCodeHint: '允许用户在注册时使用优惠码',
         invitationCode: '邀请码注册',
@@ -3760,6 +3848,12 @@ export default {
         minVersion: '最低版本号',
         minVersionPlaceholder: '例如 2.1.63',
         minVersionHint: '拒绝低于此版本的 Claude Code 客户端请求（semver 格式）。留空则不检查版本。'
+      },
+      scheduling: {
+        title: '网关调度设置',
+        description: '控制 API Key 的调度行为',
+        allowUngroupedKey: '允许未分组 Key 调度',
+        allowUngroupedKeyHint: '关闭后，未分配到任何分组的 API Key 将无法发起请求（返回 403）。建议保持关闭以确保所有 Key 都归属明确的分组。'
       },
       site: {
         title: '站点设置',

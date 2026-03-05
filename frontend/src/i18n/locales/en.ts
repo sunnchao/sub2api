@@ -110,6 +110,65 @@ export default {
     }
   },
 
+  // Key Usage Query Page
+  keyUsage: {
+    title: 'API Key Usage',
+    subtitle: 'Enter your API Key to view real-time spending and usage status',
+    placeholder: 'sk-ant-mirror-xxxxxxxxxxxx',
+    query: 'Query',
+    querying: 'Querying...',
+    privacyNote: 'Your Key is processed locally in the browser and will not be stored',
+    dateRange: 'Date Range:',
+    dateRangeToday: 'Today',
+    dateRange7d: '7 Days',
+    dateRange30d: '30 Days',
+    dateRangeCustom: 'Custom',
+    apply: 'Apply',
+    used: 'Used',
+    detailInfo: 'Detail Information',
+    tokenStats: 'Token Statistics',
+    modelStats: 'Model Usage Statistics',
+    // Table headers
+    model: 'Model',
+    requests: 'Requests',
+    inputTokens: 'Input Tokens',
+    outputTokens: 'Output Tokens',
+    totalTokens: 'Total Tokens',
+    cost: 'Cost',
+    // Status
+    quotaMode: 'Key Quota Mode',
+    walletBalance: 'Wallet Balance',
+    // Ring card titles
+    totalQuota: 'Total Quota',
+    limit5h: '5-Hour Limit',
+    limitDaily: 'Daily Limit',
+    limit7d: '7-Day Limit',
+    limitWeekly: 'Weekly Limit',
+    limitMonthly: 'Monthly Limit',
+    // Detail rows
+    remainingQuota: 'Remaining Quota',
+    expiresAt: 'Expires At',
+    todayExpires: '(expires today)',
+    daysLeft: '({days} days)',
+    usedQuota: 'Used Quota',
+    subscriptionType: 'Subscription Type',
+    subscriptionExpires: 'Subscription Expires',
+    // Usage stat cells
+    todayRequests: 'Today Requests',
+    todayTokens: 'Today Tokens',
+    todayCost: 'Today Cost',
+    rpmTpm: 'RPM / TPM',
+    totalRequests: 'Total Requests',
+    totalTokensLabel: 'Total Tokens',
+    totalCost: 'Total Cost',
+    avgDuration: 'Avg Duration',
+    // Messages
+    enterApiKey: 'Please enter an API Key',
+    querySuccess: 'Query successful',
+    queryFailed: 'Query failed',
+    queryFailedRetry: 'Query failed, please try again later',
+  },
+
   // Setup Wizard
   setup: {
     title: 'Sub2API Setup',
@@ -312,6 +371,9 @@ export default {
     passwordMinLength: 'Password must be at least 6 characters',
     loginFailed: 'Login failed. Please check your credentials and try again.',
     registrationFailed: 'Registration failed. Please try again.',
+    emailSuffixNotAllowed: 'This email domain is not allowed for registration.',
+    emailSuffixNotAllowedWithAllowed:
+      'This email domain is not allowed. Allowed domains: {suffixes}',
     loginSuccess: 'Login successful! Welcome back.',
     accountCreatedSuccess: 'Account created successfully! Welcome to {siteName}.',
     reloginRequired: 'Session expired. Please log in again.',
@@ -326,6 +388,16 @@ export default {
     sendingCode: 'Sending...',
     clickToResend: 'Click to resend code',
     resendCode: 'Resend verification code',
+    sendCodeDesc: "We'll send a verification code to",
+    codeSentSuccess: 'Verification code sent! Please check your inbox.',
+    verifying: 'Verifying...',
+    verifyAndCreate: 'Verify & Create Account',
+    resendCountdown: 'Resend code in {countdown}s',
+    backToRegistration: 'Back to registration',
+    sendCodeFailed: 'Failed to send verification code. Please try again.',
+    verifyFailed: 'Verification failed. Please try again.',
+    codeRequired: 'Verification code is required',
+    invalidCode: 'Please enter a valid 6-digit code',
     promoCodeLabel: 'Promo Code',
     promoCodePlaceholder: 'Enter promo code (optional)',
     promoCodeValid: 'Valid! You will receive ${amount} bonus balance',
@@ -444,6 +516,9 @@ export default {
   keys: {
     title: 'API Keys',
     description: 'Manage your API keys and access tokens',
+    searchPlaceholder: 'Search name or key...',
+    allGroups: 'All Groups',
+    allStatus: 'All Status',
     createKey: 'Create API Key',
     editKey: 'Edit API Key',
     deleteKey: 'Delete API Key',
@@ -3520,6 +3595,15 @@ export default {
     settings: {
       title: 'System Settings',
       description: 'Manage registration, email verification, default values, and SMTP settings',
+      tabs: {
+        general: 'General',
+        security: 'Security',
+        users: 'Users',
+        gateway: 'Gateway',
+        email: 'Email',
+      },
+      emailTabDisabledTitle: 'Email Verification Not Enabled',
+      emailTabDisabledHint: 'Enable email verification in the Security tab to configure SMTP settings.',
       registration: {
         title: 'Registration Settings',
         description: 'Control user registration and verification',
@@ -3527,6 +3611,11 @@ export default {
         enableRegistrationHint: 'Allow new users to register',
         emailVerification: 'Email Verification',
         emailVerificationHint: 'Require email verification for new registrations',
+        emailSuffixWhitelist: 'Email Domain Whitelist',
+        emailSuffixWhitelistHint:
+          "Only email addresses from the specified domains can register (for example, {'@'}qq.com, {'@'}gmail.com)",
+        emailSuffixWhitelistPlaceholder: 'example.com',
+        emailSuffixWhitelistInputHint: 'Leave empty for no restriction',
         promoCode: 'Promo Code',
         promoCodeHint: 'Allow users to use promo codes during registration',
         invitationCode: 'Invitation Code Registration',
@@ -3592,6 +3681,12 @@ export default {
         minVersionPlaceholder: 'e.g. 2.1.63',
         minVersionHint:
           'Reject Claude Code clients below this version (semver format). Leave empty to disable version check.'
+      },
+      scheduling: {
+        title: 'Gateway Scheduling Settings',
+        description: 'Control API Key scheduling behavior',
+        allowUngroupedKey: 'Allow Ungrouped Key Scheduling',
+        allowUngroupedKeyHint: 'When disabled, API Keys not assigned to any group cannot make requests (403 Forbidden). Keep disabled to ensure all Keys belong to a specific group.'
       },
       site: {
         title: 'Site Settings',
