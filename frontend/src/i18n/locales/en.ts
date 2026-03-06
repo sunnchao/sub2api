@@ -133,6 +133,8 @@ export default {
     requests: 'Requests',
     inputTokens: 'Input Tokens',
     outputTokens: 'Output Tokens',
+    cacheCreationTokens: 'Cache Creation',
+    cacheReadTokens: 'Cache Read',
     totalTokens: 'Total Tokens',
     cost: 'Cost',
     // Status
@@ -155,11 +157,19 @@ export default {
     subscriptionExpires: 'Subscription Expires',
     // Usage stat cells
     todayRequests: 'Today Requests',
+    todayInputTokens: 'Today Input',
+    todayOutputTokens: 'Today Output',
     todayTokens: 'Today Tokens',
+    todayCacheCreation: 'Today Cache Creation',
+    todayCacheRead: 'Today Cache Read',
     todayCost: 'Today Cost',
     rpmTpm: 'RPM / TPM',
     totalRequests: 'Total Requests',
+    totalInputTokens: 'Total Input',
+    totalOutputTokens: 'Total Output',
     totalTokensLabel: 'Total Tokens',
+    totalCacheCreation: 'Total Cache Creation',
+    totalCacheRead: 'Total Cache Read',
     totalCost: 'Total Cost',
     avgDuration: 'Avg Duration',
     // Messages
@@ -1848,10 +1858,13 @@ export default {
         wsMode: 'WS mode',
         wsModeDesc: 'Only applies to the current OpenAI account type.',
         wsModeOff: 'Off (off)',
+        wsModeCtxPool: 'Context Pool (ctx_pool)',
+        wsModePassthrough: 'Passthrough (passthrough)',
         wsModeShared: 'Shared (shared)',
         wsModeDedicated: 'Dedicated (dedicated)',
         wsModeConcurrencyHint:
           'When WS mode is enabled, account concurrency becomes the WS connection pool limit for this account.',
+        wsModePassthroughHint: 'Passthrough mode does not use the WS connection pool.',
         oauthResponsesWebsocketsV2: 'OAuth WebSocket Mode',
         oauthResponsesWebsocketsV2Desc:
           'Only applies to OpenAI OAuth. This account can use OpenAI WebSocket Mode only when enabled.',
@@ -2410,6 +2423,34 @@ export default {
       },
       ineligibleWarning:
         'This account is not eligible for Antigravity, but API forwarding still works. Use at your own risk.'
+    },
+
+    // Scheduled Tests
+    scheduledTests: {
+      title: 'Scheduled Tests',
+      addPlan: 'Add Plan',
+      editPlan: 'Edit Plan',
+      deletePlan: 'Delete Plan',
+      model: 'Model',
+      cronExpression: 'Cron Expression',
+      enabled: 'Enabled',
+      lastRun: 'Last Run',
+      nextRun: 'Next Run',
+      maxResults: 'Max Results',
+      noPlans: 'No scheduled test plans',
+      confirmDelete: 'Are you sure you want to delete this plan?',
+      createSuccess: 'Plan created successfully',
+      updateSuccess: 'Plan updated successfully',
+      deleteSuccess: 'Plan deleted successfully',
+      results: 'Test Results',
+      noResults: 'No test results yet',
+      responseText: 'Response',
+      errorMessage: 'Error',
+      success: 'Success',
+      failed: 'Failed',
+      running: 'Running',
+      schedule: 'Schedule',
+      cronHelp: 'Standard 5-field cron expression (e.g., */30 * * * *)'
     },
 
     // Proxies

@@ -133,6 +133,8 @@ export default {
     requests: '请求数',
     inputTokens: '输入 Tokens',
     outputTokens: '输出 Tokens',
+    cacheCreationTokens: '缓存创建',
+    cacheReadTokens: '缓存读取',
     totalTokens: '总 Tokens',
     cost: '费用',
     // Status
@@ -155,11 +157,19 @@ export default {
     subscriptionExpires: '订阅到期',
     // Usage stat cells
     todayRequests: '今日请求',
+    todayInputTokens: '今日输入',
+    todayOutputTokens: '今日输出',
     todayTokens: '今日 Tokens',
+    todayCacheCreation: '今日缓存创建',
+    todayCacheRead: '今日缓存读取',
     todayCost: '今日费用',
     rpmTpm: 'RPM / TPM',
     totalRequests: '累计请求',
+    totalInputTokens: '累计输入',
+    totalOutputTokens: '累计输出',
     totalTokensLabel: '累计 Tokens',
+    totalCacheCreation: '累计缓存创建',
+    totalCacheRead: '累计缓存读取',
     totalCost: '累计费用',
     avgDuration: '平均耗时',
     // Messages
@@ -1996,9 +2006,12 @@ export default {
         wsMode: 'WS mode',
         wsModeDesc: '仅对当前 OpenAI 账号类型生效。',
         wsModeOff: '关闭（off）',
+        wsModeCtxPool: '上下文池（ctx_pool）',
+        wsModePassthrough: '透传（passthrough）',
         wsModeShared: '共享（shared）',
         wsModeDedicated: '独享（dedicated）',
         wsModeConcurrencyHint: '启用 WS mode 后，该账号并发数将作为该账号 WS 连接池上限。',
+        wsModePassthroughHint: 'passthrough 模式不使用 WS 连接池。',
         oauthResponsesWebsocketsV2: 'OAuth WebSocket Mode',
         oauthResponsesWebsocketsV2Desc:
           '仅对 OpenAI OAuth 生效。开启后该账号才允许使用 OpenAI WebSocket Mode 协议。',
@@ -2517,6 +2530,34 @@ export default {
         usageTrend: '30天费用与请求趋势',
         noData: '该账号暂无使用数据'
       }
+    },
+
+    // Scheduled Tests
+    scheduledTests: {
+      title: '定时测试',
+      addPlan: '添加计划',
+      editPlan: '编辑计划',
+      deletePlan: '删除计划',
+      model: '模型',
+      cronExpression: 'Cron 表达式',
+      enabled: '启用',
+      lastRun: '上次运行',
+      nextRun: '下次运行',
+      maxResults: '最大结果数',
+      noPlans: '暂无定时测试计划',
+      confirmDelete: '确定要删除此计划吗？',
+      createSuccess: '计划创建成功',
+      updateSuccess: '计划更新成功',
+      deleteSuccess: '计划删除成功',
+      results: '测试结果',
+      noResults: '暂无测试结果',
+      responseText: '响应',
+      errorMessage: '错误',
+      success: '成功',
+      failed: '失败',
+      running: '运行中',
+      schedule: '定时测试',
+      cronHelp: '标准 5 字段 cron 表达式（例如 */30 * * * *）'
     },
 
     // Proxies Management
