@@ -210,6 +210,7 @@ func TestAPIContracts(t *testing.T) {
 							"sora_video_price_per_request": null,
 							"sora_video_price_per_request_hd": null,
 							"claude_code_only": false,
+						"allow_messages_dispatch": false,
 						"fallback_group_id": null,
 						"fallback_group_id_on_invalid_request": null,
 						"created_at": "2025-01-02T03:04:05Z",
@@ -1093,6 +1094,14 @@ func (s *stubAccountRepo) UpdateSessionWindow(ctx context.Context, id int64, sta
 }
 
 func (s *stubAccountRepo) UpdateExtra(ctx context.Context, id int64, updates map[string]any) error {
+	return errors.New("not implemented")
+}
+
+func (s *stubAccountRepo) IncrementQuotaUsed(ctx context.Context, id int64, amount float64) error {
+	return errors.New("not implemented")
+}
+
+func (s *stubAccountRepo) ResetQuotaUsed(ctx context.Context, id int64) error {
 	return errors.New("not implemented")
 }
 

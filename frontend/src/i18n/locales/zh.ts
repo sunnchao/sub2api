@@ -1532,6 +1532,14 @@ export default {
         fallbackHint: '非 Claude Code 请求将使用此分组，留空则直接拒绝',
         noFallback: '不降级（直接拒绝）'
       },
+      openaiMessages: {
+        title: 'OpenAI Messages 调度配置',
+        allowDispatch: '允许 /v1/messages 调度',
+        allowDispatchHint: '启用后，此 OpenAI 分组的 API Key 可以通过 /v1/messages 端点调度请求',
+        defaultModel: '默认映射模型',
+        defaultModelPlaceholder: '例如: gpt-4.1',
+        defaultModelHint: '当账号未配置模型映射时，所有请求模型将映射到此模型'
+      },
       invalidRequestFallback: {
         title: '无效请求兜底分组',
         hint: '仅当上游明确返回 prompt too long 时才会触发，留空表示不兜底',
@@ -1786,8 +1794,20 @@ export default {
           stickyExemptWarning: 'RPM 限制 (粘性豁免) - 接近阈值',
           stickyExemptOver: 'RPM 限制 (粘性豁免) - 超限，仅粘性会话'
         },
+        quota: {
+          exceeded: '配额已用完，账号暂停调度',
+          normal: '配额正常'
+        },
       },
       clearRateLimit: '清除速率限制',
+      resetQuota: '重置配额',
+      quotaLimit: '配额限制',
+      quotaLimitPlaceholder: '0 表示不限制',
+      quotaLimitHint: '设置最大使用额度（美元），达到后账号暂停调度。修改限额不会重置已用额度。',
+      quotaLimitToggle: '启用配额限制',
+      quotaLimitToggleHint: '开启后，当账号用量达到设定额度时自动暂停调度',
+      quotaLimitAmount: '限额金额',
+      quotaLimitAmountHint: '账号最大可用额度（美元），达到后自动暂停。修改限额不会重置已用额度。',
       testConnection: '测试连接',
       reAuthorize: '重新授权',
       refreshToken: '刷新令牌',
@@ -2135,10 +2155,12 @@ export default {
       proxy: '代理',
       noProxy: '无代理',
       concurrency: '并发数',
+      loadFactor: '负载因子',
+      loadFactorHint: '提高负载因子可以提高对账号的调度频率',
       priority: '优先级',
       priorityHint: '优先级越小的账号优先使用',
       billingRateMultiplier: '账号计费倍率',
-      billingRateMultiplierHint: '>=0，0 表示该账号计费为 0；仅影响账号计费口径',
+      billingRateMultiplierHint: '0 表示不计费，仅影响账号计费',
       expiresAt: '过期时间',
       expiresAtHint: '留空表示不过期',
       higherPriorityFirst: '数值越小优先级越高',
@@ -2154,6 +2176,7 @@ export default {
       accountUpdated: '账号更新成功',
       failedToCreate: '创建账号失败',
       failedToUpdate: '更新账号失败',
+      pleaseSelectStatus: '请选择有效的账号状态',
       mixedChannelWarningTitle: '混合渠道警告',
       mixedChannelWarning: '警告：分组 "{groupName}" 中同时包含 {currentPlatform} 和 {otherPlatform} 账号。混合使用不同渠道可能导致 thinking block 签名验证问题，会自动回退到非 thinking 模式。确定要继续吗？',
       pleaseEnterAccountName: '请输入账号名称',
@@ -2627,6 +2650,12 @@ export default {
       allProtocols: '全部协议',
       allStatus: '全部状态',
       searchProxies: '搜索代理...',
+      protocols: {
+        http: 'HTTP',
+        https: 'HTTPS',
+        socks5: 'SOCKS5',
+        socks5h: 'SOCKS5H (远程 DNS)',
+      },
       name: '名称',
       protocol: '协议',
       host: '主机',
@@ -2853,6 +2882,7 @@ export default {
       columns: {
         title: '标题',
         status: '状态',
+        notifyMode: '通知方式',
         targeting: '展示条件',
         timeRange: '有效期',
         createdAt: '创建时间',
@@ -2863,10 +2893,16 @@ export default {
         active: '展示中',
         archived: '已归档'
       },
+      notifyModeLabels: {
+        silent: '静默',
+        popup: '弹窗'
+      },
       form: {
         title: '标题',
         content: '内容（支持 Markdown）',
         status: '状态',
+        notifyMode: '通知方式',
+        notifyModeHint: '弹窗模式会自动弹出通知给用户',
         startsAt: '开始时间',
         endsAt: '结束时间',
         startsAtHint: '留空表示立即生效',
@@ -4115,6 +4151,18 @@ export default {
         thresholdWindowMinutesHint: '超时计数的时间窗口（1-60分钟）',
         saved: '流超时设置保存成功',
         saveFailed: '保存流超时设置失败'
+      },
+      rectifier: {
+        title: '请求整流器',
+        description: '当上游返回特定错误时，自动修正请求参数并重试，提高请求成功率',
+        enabled: '启用请求整流器',
+        enabledHint: '总开关，关闭后所有整流功能均不生效',
+        thinkingSignature: 'Thinking 签名整流',
+        thinkingSignatureHint: '当上游返回 thinking block 签名校验错误时，自动去除签名并重试',
+        thinkingBudget: 'Thinking Budget 整流',
+        thinkingBudgetHint: '当上游返回 budget_tokens 约束错误（≥1024）时，自动将 budget 设为 32000 并重试',
+        saved: '整流器设置保存成功',
+        saveFailed: '保存整流器设置失败'
       },
       saveSettings: '保存设置',
       saving: '保存中...',
