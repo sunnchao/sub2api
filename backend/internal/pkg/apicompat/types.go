@@ -12,17 +12,23 @@ import "encoding/json"
 
 // AnthropicRequest is the request body for POST /v1/messages.
 type AnthropicRequest struct {
-	Model       string             `json:"model"`
-	MaxTokens   int                `json:"max_tokens"`
-	System      json.RawMessage    `json:"system,omitempty"` // string or []AnthropicContentBlock
-	Messages    []AnthropicMessage `json:"messages"`
-	Tools       []AnthropicTool    `json:"tools,omitempty"`
-	Stream      bool               `json:"stream,omitempty"`
-	Temperature *float64           `json:"temperature,omitempty"`
-	TopP        *float64           `json:"top_p,omitempty"`
-	StopSeqs    []string           `json:"stop_sequences,omitempty"`
-	Thinking    *AnthropicThinking `json:"thinking,omitempty"`
-	ToolChoice  json.RawMessage    `json:"tool_choice,omitempty"`
+	Model        string                 `json:"model"`
+	MaxTokens    int                    `json:"max_tokens"`
+	System       json.RawMessage        `json:"system,omitempty"` // string or []AnthropicContentBlock
+	Messages     []AnthropicMessage     `json:"messages"`
+	Tools        []AnthropicTool        `json:"tools,omitempty"`
+	Stream       bool                   `json:"stream,omitempty"`
+	Temperature  *float64               `json:"temperature,omitempty"`
+	TopP         *float64               `json:"top_p,omitempty"`
+	StopSeqs     []string               `json:"stop_sequences,omitempty"`
+	Thinking     *AnthropicThinking     `json:"thinking,omitempty"`
+	ToolChoice   json.RawMessage        `json:"tool_choice,omitempty"`
+	OutputConfig *AnthropicOutputConfig `json:"output_config,omitempty"`
+}
+
+// AnthropicOutputConfig controls output generation parameters.
+type AnthropicOutputConfig struct {
+	Effort string `json:"effort,omitempty"` // "low" | "medium" | "high"
 }
 
 // AnthropicThinking configures extended thinking in the Anthropic API.
@@ -47,6 +53,9 @@ type AnthropicContentBlock struct {
 	// type=thinking
 	Thinking string `json:"thinking,omitempty"`
 
+	// type=image
+	Source *AnthropicImageSource `json:"source,omitempty"`
+
 	// type=tool_use
 	ID    string          `json:"id,omitempty"`
 	Name  string          `json:"name,omitempty"`
@@ -56,6 +65,13 @@ type AnthropicContentBlock struct {
 	ToolUseID string          `json:"tool_use_id,omitempty"`
 	Content   json.RawMessage `json:"content,omitempty"` // string or []AnthropicContentBlock
 	IsError   bool            `json:"is_error,omitempty"`
+}
+
+// AnthropicImageSource describes the source data for an image content block.
+type AnthropicImageSource struct {
+	Type      string `json:"type"` // "base64"
+	MediaType string `json:"media_type"`
+	Data      string `json:"data"`
 }
 
 // AnthropicTool describes a tool available to the model.
@@ -146,6 +162,7 @@ type ResponsesRequest struct {
 	Store           *bool               `json:"store,omitempty"`
 	Reasoning       *ResponsesReasoning `json:"reasoning,omitempty"`
 	ToolChoice      json.RawMessage     `json:"tool_choice,omitempty"`
+	ServiceTier     string              `json:"service_tier,omitempty"`
 }
 
 // ResponsesReasoning configures reasoning effort in the Responses API.
@@ -176,8 +193,9 @@ type ResponsesInputItem struct {
 
 // ResponsesContentPart is a typed content part in a Responses message.
 type ResponsesContentPart struct {
-	Type string `json:"type"` // "input_text" | "output_text" | "input_image"
-	Text string `json:"text,omitempty"`
+	Type     string `json:"type"` // "input_text" | "output_text" | "input_image"
+	Text     string `json:"text,omitempty"`
+	ImageURL string `json:"image_url,omitempty"` // data URI for input_image
 }
 
 // ResponsesTool describes a tool in the Responses API.

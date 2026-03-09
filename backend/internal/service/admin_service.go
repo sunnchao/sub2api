@@ -1349,6 +1349,10 @@ func (s *adminServiceImpl) ListAccounts(ctx context.Context, page, pageSize int,
 	if err != nil {
 		return nil, 0, err
 	}
+	now := time.Now()
+	for i := range accounts {
+		syncOpenAICodexRateLimitFromExtra(ctx, s.accountRepo, &accounts[i], now)
+	}
 	return accounts, result.Total, nil
 }
 
@@ -1484,9 +1488,11 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 		account.Credentials = input.Credentials
 	}
 	if len(input.Extra) > 0 {
-		// 保留 quota_used，防止编辑账号时意外重置配额用量
-		if oldQuotaUsed, ok := account.Extra["quota_used"]; ok {
-			input.Extra["quota_used"] = oldQuotaUsed
+		// 保留配额用量字段，防止编辑账号时意外重置
+		for _, key := range []string{"quota_used", "quota_daily_used", "quota_daily_start", "quota_weekly_used", "quota_weekly_start"} {
+			if v, ok := account.Extra[key]; ok {
+				input.Extra[key] = v
+			}
 		}
 		account.Extra = input.Extra
 	}
@@ -1717,16 +1723,10 @@ func (s *adminServiceImpl) RefreshAccountCredentials(ctx context.Context, id int
 }
 
 func (s *adminServiceImpl) ClearAccountError(ctx context.Context, id int64) (*Account, error) {
-	account, err := s.accountRepo.GetByID(ctx, id)
-	if err != nil {
+	if err := s.accountRepo.ClearError(ctx, id); err != nil {
 		return nil, err
 	}
-	account.Status = StatusActive
-	account.ErrorMessage = ""
-	if err := s.accountRepo.Update(ctx, account); err != nil {
-		return nil, err
-	}
-	return account, nil
+	return s.accountRepo.GetByID(ctx, id)
 }
 
 func (s *adminServiceImpl) SetAccountError(ctx context.Context, id int64, errorMsg string) error {
