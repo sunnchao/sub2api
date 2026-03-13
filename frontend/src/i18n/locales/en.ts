@@ -434,7 +434,12 @@ export default {
       callbackProcessing: 'Completing login, please wait...',
       callbackHint: 'If you are not redirected automatically, go back to the login page and try again.',
       callbackMissingToken: 'Missing login token, please try again.',
-      backToLogin: 'Back to Login'
+      backToLogin: 'Back to Login',
+      invitationRequired: 'This Linux.do account is not yet registered. The site requires an invitation code — please enter one to complete registration.',
+      invalidPendingToken: 'The registration token has expired. Please sign in with Linux.do again.',
+      completeRegistration: 'Complete Registration',
+      completing: 'Completing registration…',
+      completeRegistrationFailed: 'Registration failed. Please check your invitation code and try again.'
     },
     oauth: {
       code: 'Code',
@@ -947,6 +952,8 @@ export default {
       hour: 'Hour',
       modelDistribution: 'Model Distribution',
       groupDistribution: 'Group Usage Distribution',
+      metricTokens: 'By Tokens',
+      metricActualCost: 'By Actual Cost',
       tokenUsageTrend: 'Token Usage Trend',
       userUsageTrend: 'User Usage Trend (Top 12)',
       model: 'Model',
@@ -1567,6 +1574,11 @@ export default {
       adjust: 'Adjust',
       adjusting: 'Adjusting...',
       revoke: 'Revoke',
+      resetQuota: 'Reset Quota',
+      resetQuotaTitle: 'Reset Usage Quota',
+      resetQuotaConfirm: "Reset the daily and weekly usage quota for '{user}'? Usage will be zeroed and windows restarted from today.",
+      quotaResetSuccess: 'Quota reset successfully',
+      failedToResetQuota: 'Failed to reset quota',
       noSubscriptionsYet: 'No subscriptions yet',
       assignFirstSubscription: 'Assign a subscription to get started.',
       subscriptionAssigned: 'Subscription assigned successfully',
@@ -1733,6 +1745,9 @@ export default {
         expiresAt: 'Expires At',
         actions: 'Actions'
       },
+      privacyTrainingOff: 'Training data sharing disabled',
+      privacyCfBlocked: 'Blocked by Cloudflare, training may still be on',
+      privacyFailed: 'Failed to disable training',
       // Capacity status tooltips
       capacity: {
         windowCost: {
@@ -1838,7 +1853,12 @@ export default {
         edit: 'Bulk Edit',
         delete: 'Bulk Delete',
         enableScheduling: 'Enable Scheduling',
-        disableScheduling: 'Disable Scheduling'
+        disableScheduling: 'Disable Scheduling',
+        resetStatus: 'Reset Status',
+        refreshToken: 'Refresh Token',
+        resetStatusSuccess: 'Successfully reset {count} account(s) status',
+        refreshTokenSuccess: 'Successfully refreshed {count} account(s) token',
+        partialSuccess: 'Partially completed: {success} succeeded, {failed} failed'
       },
       bulkEdit: {
         title: 'Bulk Edit Accounts',
@@ -2403,6 +2423,7 @@ export default {
       connectedToApi: 'Connected to API',
       usingModel: 'Using model: {model}',
       sendingTestMessage: 'Sending test message: "hi"',
+      sendingGeminiImageRequest: 'Sending Gemini image generation test request...',
       response: 'Response:',
       startTest: 'Start Test',
       testing: 'Testing...',
@@ -2414,6 +2435,13 @@ export default {
       selectTestModel: 'Select Test Model',
       testModel: 'Test model',
       testPrompt: 'Prompt: "hi"',
+      geminiImagePromptLabel: 'Image prompt',
+      geminiImagePromptPlaceholder: 'Example: Generate an orange cat astronaut sticker in pixel-art style on a solid background.',
+      geminiImagePromptDefault: 'Generate a cute orange cat astronaut sticker on a clean pastel background.',
+      geminiImageTestHint: 'When a Gemini image model is selected, this test sends a real image-generation request and previews the returned image below.',
+      geminiImageTestMode: 'Mode: Gemini image generation test',
+      geminiImagePreview: 'Generated images:',
+      geminiImageReceived: 'Received test image #{count}',
       soraUpstreamBaseUrlHint: 'Upstream Sora service URL (another Sub2API instance or compatible API)',
       soraTestHint: 'Sora test runs connectivity and capability checks (/backend/me, subscription, Sora2 invite and remaining quota).',
       soraTestTarget: 'Target: Sora account capability',
@@ -4034,6 +4062,23 @@ export default {
         thinkingBudgetHint: 'Automatically set budget to 32000 and retry when upstream returns budget_tokens constraint error (≥1024)',
         saved: 'Rectifier settings saved',
         saveFailed: 'Failed to save rectifier settings'
+      },
+      betaPolicy: {
+        title: 'Beta Policy',
+        description: 'How to handle Beta features when configuring the forwarding of Anthropic API requests. Applicable only to the /v1/messages endpoint.',
+        action: 'Action',
+        actionPass: 'Pass (transparent)',
+        actionFilter: 'Filter (remove)',
+        actionBlock: 'Block (reject)',
+        scope: 'Scope',
+        scopeAll: 'All accounts',
+        scopeOAuth: 'OAuth only',
+        scopeAPIKey: 'API Key only',
+        errorMessage: 'Error message',
+        errorMessagePlaceholder: 'Custom error message when blocked',
+        errorMessageHint: 'Leave empty for default message',
+        saved: 'Beta policy settings saved',
+        saveFailed: 'Failed to save beta policy settings'
       },
       saveSettings: 'Save Settings',
       saving: 'Saving...',

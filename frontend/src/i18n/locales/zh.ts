@@ -433,7 +433,12 @@ export default {
       callbackProcessing: '正在验证登录信息，请稍候...',
       callbackHint: '如果页面未自动跳转，请返回登录页重试。',
       callbackMissingToken: '登录信息缺失，请返回重试。',
-      backToLogin: '返回登录'
+      backToLogin: '返回登录',
+      invitationRequired: '该 Linux.do 账号尚未注册，站点已开启邀请码注册，请输入邀请码以完成注册。',
+      invalidPendingToken: '注册凭证已失效，请重新使用 Linux.do 登录。',
+      completeRegistration: '完成注册',
+      completing: '正在完成注册...',
+      completeRegistrationFailed: '注册失败，请检查邀请码后重试。'
     },
     oauth: {
       code: '授权码',
@@ -960,6 +965,8 @@ export default {
       hour: '按小时',
       modelDistribution: '模型分布',
       groupDistribution: '分组使用分布',
+      metricTokens: '按 Token',
+      metricActualCost: '按实际消费',
       tokenUsageTrend: 'Token 使用趋势',
       noDataAvailable: '暂无数据',
       model: '模型',
@@ -1655,6 +1662,11 @@ export default {
       adjust: '调整',
       adjusting: '调整中...',
       revoke: '撤销',
+      resetQuota: '重置配额',
+      resetQuotaTitle: '重置用量配额',
+      resetQuotaConfirm: "确定要重置 '{user}' 的每日和每周用量配额吗？用量将归零并从今天开始重新计算。",
+      quotaResetSuccess: '配额重置成功',
+      failedToResetQuota: '重置配额失败',
       noSubscriptionsYet: '暂无订阅',
       assignFirstSubscription: '分配一个订阅以开始使用。',
       subscriptionAssigned: '订阅分配成功',
@@ -1782,6 +1794,9 @@ export default {
         expiresAt: '过期时间',
         actions: '操作'
       },
+      privacyTrainingOff: '已关闭训练数据共享',
+      privacyCfBlocked: '被 Cloudflare 拦截，训练可能仍开启',
+      privacyFailed: '关闭训练数据共享失败',
       // 容量状态提示
       capacity: {
         windowCost: {
@@ -1985,7 +2000,12 @@ export default {
         edit: '批量编辑账号',
         delete: '批量删除',
         enableScheduling: '批量启用调度',
-        disableScheduling: '批量停止调度'
+        disableScheduling: '批量停止调度',
+        resetStatus: '批量重置状态',
+        refreshToken: '批量刷新令牌',
+        resetStatusSuccess: '已成功重置 {count} 个账号状态',
+        refreshTokenSuccess: '已成功刷新 {count} 个账号令牌',
+        partialSuccess: '操作部分完成：{success} 成功，{failed} 失败'
       },
       bulkEdit: {
         title: '批量编辑账号',
@@ -2532,6 +2552,7 @@ export default {
       connectedToApi: '已连接到 API',
       usingModel: '使用模型：{model}',
       sendingTestMessage: '发送测试消息："hi"',
+      sendingGeminiImageRequest: '发送 Gemini 生图测试请求...',
       response: '响应：',
       startTest: '开始测试',
       retry: '重试',
@@ -2542,6 +2563,13 @@ export default {
       selectTestModel: '选择测试模型',
       testModel: '测试模型',
       testPrompt: '提示词："hi"',
+      geminiImagePromptLabel: '生图提示词',
+      geminiImagePromptPlaceholder: '例如：生成一只戴宇航员头盔的橘猫，像素插画风格，纯色背景。',
+      geminiImagePromptDefault: 'Generate a cute orange cat astronaut sticker on a clean pastel background.',
+      geminiImageTestHint: '选择 Gemini 图片模型后，这里会直接发起生图测试，并在下方展示返回图片。',
+      geminiImageTestMode: '模式：Gemini 生图测试',
+      geminiImagePreview: '生成结果：',
+      geminiImageReceived: '已收到第 {count} 张测试图片',
       soraUpstreamBaseUrlHint: '上游 Sora 服务地址（另一个 Sub2API 实例或兼容 API）',
       soraTestHint: 'Sora 测试将执行连通性与能力检测（/backend/me、订阅信息、Sora2 邀请码与剩余额度）。',
       soraTestTarget: '检测目标：Sora 账号能力',
@@ -4207,6 +4235,23 @@ export default {
         thinkingBudgetHint: '当上游返回 budget_tokens 约束错误（≥1024）时，自动将 budget 设为 32000 并重试',
         saved: '整流器设置保存成功',
         saveFailed: '保存整流器设置失败'
+      },
+      betaPolicy: {
+        title: 'Beta 策略',
+        description: '配置转发 Anthropic API 请求时如何处理 Beta 特性。仅适用于 /v1/messages 接口。',
+        action: '处理方式',
+        actionPass: '透传（不处理）',
+        actionFilter: '过滤（移除）',
+        actionBlock: '拦截（拒绝请求）',
+        scope: '生效范围',
+        scopeAll: '全部账号',
+        scopeOAuth: '仅 OAuth 账号',
+        scopeAPIKey: '仅 API Key 账号',
+        errorMessage: '错误消息',
+        errorMessagePlaceholder: '拦截时返回的自定义错误消息',
+        errorMessageHint: '留空则使用默认错误消息',
+        saved: 'Beta 策略设置保存成功',
+        saveFailed: '保存 Beta 策略设置失败'
       },
       saveSettings: '保存设置',
       saving: '保存中...',

@@ -2,6 +2,7 @@ package service
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -140,12 +141,13 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 
 	// 8. Handle error response with failover
 	if resp.StatusCode >= 400 {
-		if s.shouldFailoverUpstreamError(resp.StatusCode) {
-			respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 2<<20))
-			_ = resp.Body.Close()
+		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 2<<20))
+		_ = resp.Body.Close()
+		resp.Body = io.NopCloser(bytes.NewReader(respBody))
 
-			upstreamMsg := strings.TrimSpace(extractUpstreamErrorMessage(respBody))
-			upstreamMsg = sanitizeUpstreamErrorMessage(upstreamMsg)
+		upstreamMsg := strings.TrimSpace(extractUpstreamErrorMessage(respBody))
+		upstreamMsg = sanitizeUpstreamErrorMessage(upstreamMsg)
+		if s.shouldFailoverOpenAIUpstreamResponse(resp.StatusCode, upstreamMsg, respBody) {
 			upstreamDetail := ""
 			if s.cfg != nil && s.cfg.Gateway.LogUpstreamErrorBody {
 				maxBytes := s.cfg.Gateway.LogUpstreamErrorBodyMaxBytes
@@ -167,7 +169,11 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 			if s.rateLimitService != nil {
 				s.rateLimitService.HandleUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody)
 			}
-			return nil, &UpstreamFailoverError{StatusCode: resp.StatusCode, ResponseBody: respBody}
+			return nil, &UpstreamFailoverError{
+				StatusCode:             resp.StatusCode,
+				ResponseBody:           respBody,
+				RetryableOnSameAccount: account.IsPoolMode() && (isPoolModeRetryableStatus(resp.StatusCode) || isOpenAITransientProcessingError(resp.StatusCode, upstreamMsg, respBody)),
+			}
 		}
 		// Non-failover error: return Anthropic-formatted error to client
 		return s.handleAnthropicErrorResponse(resp, c, account)
@@ -213,54 +219,7 @@ func (s *OpenAIGatewayService) handleAnthropicErrorResponse(
 	c *gin.Context,
 	account *Account,
 ) (*OpenAIForwardResult, error) {
-	body, _ := io.ReadAll(io.LimitReader(resp.Body, 2<<20))
-
-	upstreamMsg := strings.TrimSpace(extractUpstreamErrorMessage(body))
-	if upstreamMsg == "" {
-		upstreamMsg = fmt.Sprintf("Upstream error: %d", resp.StatusCode)
-	}
-	upstreamMsg = sanitizeUpstreamErrorMessage(upstreamMsg)
-
-	// Record upstream error details for ops logging
-	upstreamDetail := ""
-	if s.cfg != nil && s.cfg.Gateway.LogUpstreamErrorBody {
-		maxBytes := s.cfg.Gateway.LogUpstreamErrorBodyMaxBytes
-		if maxBytes <= 0 {
-			maxBytes = 2048
-		}
-		upstreamDetail = truncateString(string(body), maxBytes)
-	}
-	setOpsUpstreamError(c, resp.StatusCode, upstreamMsg, upstreamDetail)
-
-	// Apply error passthrough rules (matches handleErrorResponse pattern in openai_gateway_service.go)
-	if status, errType, errMsg, matched := applyErrorPassthroughRule(
-		c, account.Platform, resp.StatusCode, body,
-		http.StatusBadGateway, "api_error", "Upstream request failed",
-	); matched {
-		writeAnthropicError(c, status, errType, errMsg)
-		if upstreamMsg == "" {
-			upstreamMsg = errMsg
-		}
-		if upstreamMsg == "" {
-			return nil, fmt.Errorf("upstream error: %d (passthrough rule matched)", resp.StatusCode)
-		}
-		return nil, fmt.Errorf("upstream error: %d (passthrough rule matched) message=%s", resp.StatusCode, upstreamMsg)
-	}
-
-	errType := "api_error"
-	switch {
-	case resp.StatusCode == 400:
-		errType = "invalid_request_error"
-	case resp.StatusCode == 404:
-		errType = "not_found_error"
-	case resp.StatusCode == 429:
-		errType = "rate_limit_error"
-	case resp.StatusCode >= 500:
-		errType = "api_error"
-	}
-
-	writeAnthropicError(c, resp.StatusCode, errType, upstreamMsg)
-	return nil, fmt.Errorf("upstream error: %d %s", resp.StatusCode, upstreamMsg)
+	return s.handleCompatErrorResponse(resp, c, account, writeAnthropicError)
 }
 
 // handleAnthropicBufferedStreamingResponse reads all Responses SSE events from
@@ -279,7 +238,11 @@ func (s *OpenAIGatewayService) handleAnthropicBufferedStreamingResponse(
 	requestID := resp.Header.Get("x-request-id")
 
 	scanner := bufio.NewScanner(resp.Body)
-	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+	maxLineSize := defaultMaxLineSize
+	if s.cfg != nil && s.cfg.Gateway.MaxLineSize > 0 {
+		maxLineSize = s.cfg.Gateway.MaxLineSize
+	}
+	scanner.Buffer(make([]byte, 0, 64*1024), maxLineSize)
 
 	var finalResponse *apicompat.ResponsesResponse
 	var usage OpenAIUsage
@@ -378,7 +341,11 @@ func (s *OpenAIGatewayService) handleAnthropicStreamingResponse(
 	firstChunk := true
 
 	scanner := bufio.NewScanner(resp.Body)
-	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+	maxLineSize := defaultMaxLineSize
+	if s.cfg != nil && s.cfg.Gateway.MaxLineSize > 0 {
+		maxLineSize = s.cfg.Gateway.MaxLineSize
+	}
+	scanner.Buffer(make([]byte, 0, 64*1024), maxLineSize)
 
 	// resultWithUsage builds the final result snapshot.
 	resultWithUsage := func() *OpenAIForwardResult {

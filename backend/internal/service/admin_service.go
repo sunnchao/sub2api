@@ -57,6 +57,8 @@ type AdminService interface {
 	RefreshAccountCredentials(ctx context.Context, id int64) (*Account, error)
 	ClearAccountError(ctx context.Context, id int64) (*Account, error)
 	SetAccountError(ctx context.Context, id int64, errorMsg string) error
+	// EnsureOpenAIPrivacy 检查 OpenAI OAuth 账号 privacy_mode，未设置则尝试关闭训练数据共享并持久化。
+	EnsureOpenAIPrivacy(ctx context.Context, account *Account) string
 	SetAccountSchedulable(ctx context.Context, id int64, schedulable bool) (*Account, error)
 	BulkUpdateAccounts(ctx context.Context, input *BulkUpdateAccountsInput) (*BulkUpdateAccountsResult, error)
 	CheckMixedChannelRisk(ctx context.Context, currentAccountID int64, currentAccountPlatform string, groupIDs []int64) error
@@ -432,6 +434,8 @@ type adminServiceImpl struct {
 	entClient            *dbent.Client // 用于开启数据库事务
 	settingService       *SettingService
 	defaultSubAssigner   DefaultSubscriptionAssigner
+	userSubRepo          UserSubscriptionRepository
+	privacyClientFactory PrivacyClientFactory
 }
 
 type userGroupRateBatchReader interface {
@@ -459,6 +463,8 @@ func NewAdminService(
 	entClient *dbent.Client,
 	settingService *SettingService,
 	defaultSubAssigner DefaultSubscriptionAssigner,
+	userSubRepo UserSubscriptionRepository,
+	privacyClientFactory PrivacyClientFactory,
 ) AdminService {
 	return &adminServiceImpl{
 		userRepo:             userRepo,
@@ -476,6 +482,8 @@ func NewAdminService(
 		entClient:            entClient,
 		settingService:       settingService,
 		defaultSubAssigner:   defaultSubAssigner,
+		userSubRepo:          userSubRepo,
+		privacyClientFactory: privacyClientFactory,
 	}
 }
 
@@ -1277,9 +1285,17 @@ func (s *adminServiceImpl) AdminUpdateAPIKeyGroupID(ctx context.Context, keyID i
 		if group.Status != StatusActive {
 			return nil, infraerrors.BadRequest("GROUP_NOT_ACTIVE", "target group is not active")
 		}
-		// 订阅类型分组：不允许通过此 API 直接绑定，需通过订阅管理流程
+		// 订阅类型分组：用户须持有该分组的有效订阅才可绑定
 		if group.IsSubscriptionType() {
-			return nil, infraerrors.BadRequest("SUBSCRIPTION_GROUP_NOT_ALLOWED", "subscription groups must be managed through the subscription workflow")
+			if s.userSubRepo == nil {
+				return nil, infraerrors.InternalServer("SUBSCRIPTION_REPOSITORY_UNAVAILABLE", "subscription repository is not configured")
+			}
+			if _, err := s.userSubRepo.GetActiveByUserIDAndGroupID(ctx, apiKey.UserID, *groupID); err != nil {
+				if errors.Is(err, ErrSubscriptionNotFound) {
+					return nil, infraerrors.BadRequest("SUBSCRIPTION_REQUIRED", "user does not have an active subscription for this group")
+				}
+				return nil, err
+			}
 		}
 
 		gid := *groupID
@@ -1287,7 +1303,7 @@ func (s *adminServiceImpl) AdminUpdateAPIKeyGroupID(ctx context.Context, keyID i
 		apiKey.Group = group
 
 		// 专属标准分组：使用事务保证「添加分组权限」与「更新 API Key」的原子性
-		if group.IsExclusive {
+		if group.IsExclusive && !group.IsSubscriptionType() {
 			opCtx := ctx
 			var tx *dbent.Tx
 			if s.entClient == nil {
@@ -2490,4 +2506,40 @@ func (e *MixedChannelError) Error() string {
 
 func (s *adminServiceImpl) ResetAccountQuota(ctx context.Context, id int64) error {
 	return s.accountRepo.ResetQuotaUsed(ctx, id)
+}
+
+// EnsureOpenAIPrivacy 检查 OpenAI OAuth 账号是否已设置 privacy_mode，
+// 未设置则调用 disableOpenAITraining 并持久化到 Extra，返回设置的 mode 值。
+func (s *adminServiceImpl) EnsureOpenAIPrivacy(ctx context.Context, account *Account) string {
+	if account.Platform != PlatformOpenAI || account.Type != AccountTypeOAuth {
+		return ""
+	}
+	if s.privacyClientFactory == nil {
+		return ""
+	}
+	if account.Extra != nil {
+		if _, ok := account.Extra["privacy_mode"]; ok {
+			return ""
+		}
+	}
+
+	token, _ := account.Credentials["access_token"].(string)
+	if token == "" {
+		return ""
+	}
+
+	var proxyURL string
+	if account.ProxyID != nil {
+		if p, err := s.proxyRepo.GetByID(ctx, *account.ProxyID); err == nil && p != nil {
+			proxyURL = p.URL()
+		}
+	}
+
+	mode := disableOpenAITraining(ctx, s.privacyClientFactory, token, proxyURL)
+	if mode == "" {
+		return ""
+	}
+
+	_ = s.accountRepo.UpdateExtra(ctx, account.ID, map[string]any{"privacy_mode": mode})
+	return mode
 }
