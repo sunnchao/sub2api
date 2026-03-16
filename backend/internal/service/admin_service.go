@@ -42,6 +42,9 @@ type AdminService interface {
 	UpdateGroup(ctx context.Context, id int64, input *UpdateGroupInput) (*Group, error)
 	DeleteGroup(ctx context.Context, id int64) error
 	GetGroupAPIKeys(ctx context.Context, groupID int64, page, pageSize int) ([]APIKey, int64, error)
+	GetGroupRateMultipliers(ctx context.Context, groupID int64) ([]UserGroupRateEntry, error)
+	ClearGroupRateMultipliers(ctx context.Context, groupID int64) error
+	BatchSetGroupRateMultipliers(ctx context.Context, groupID int64, entries []GroupRateMultiplierInput) error
 	UpdateGroupSortOrders(ctx context.Context, updates []GroupSortOrderUpdate) error
 
 	// API Key management (admin)
@@ -365,6 +368,10 @@ type ProxyExitInfoProber interface {
 	ProbeProxy(ctx context.Context, proxyURL string) (*ProxyExitInfo, int64, error)
 }
 
+type groupExistenceBatchReader interface {
+	ExistsByIDs(ctx context.Context, ids []int64) (map[int64]bool, error)
+}
+
 type proxyQualityTarget struct {
 	Target          string
 	URL             string
@@ -440,10 +447,6 @@ type adminServiceImpl struct {
 
 type userGroupRateBatchReader interface {
 	GetByUserIDs(ctx context.Context, userIDs []int64) (map[int64]map[int64]float64, error)
-}
-
-type groupExistenceBatchReader interface {
-	ExistsByIDs(ctx context.Context, ids []int64) (map[int64]bool, error)
 }
 
 // NewAdminService creates a new AdminService
@@ -829,7 +832,7 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 		subscriptionType = SubscriptionTypeStandard
 	}
 
-	// 限额字段：0 和 nil 都表示"无限制"
+	// 限额字段：nil/负数 表示"无限制"，0 表示"不允许用量"，正数表示具体限额
 	dailyLimit := normalizeLimit(input.DailyLimitUSD)
 	weeklyLimit := normalizeLimit(input.WeeklyLimitUSD)
 	monthlyLimit := normalizeLimit(input.MonthlyLimitUSD)
@@ -941,9 +944,9 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 	return group, nil
 }
 
-// normalizeLimit 将 0 或负数转换为 nil（表示无限制）
+// normalizeLimit 将负数转换为 nil（表示无限制），0 保留（表示限额为零）
 func normalizeLimit(limit *float64) *float64 {
-	if limit == nil || *limit <= 0 {
+	if limit == nil || *limit < 0 {
 		return nil
 	}
 	return limit
@@ -1055,16 +1058,11 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 	if input.SubscriptionType != "" {
 		group.SubscriptionType = input.SubscriptionType
 	}
-	// 限额字段：0 和 nil 都表示"无限制"，正数表示具体限额
-	if input.DailyLimitUSD != nil {
-		group.DailyLimitUSD = normalizeLimit(input.DailyLimitUSD)
-	}
-	if input.WeeklyLimitUSD != nil {
-		group.WeeklyLimitUSD = normalizeLimit(input.WeeklyLimitUSD)
-	}
-	if input.MonthlyLimitUSD != nil {
-		group.MonthlyLimitUSD = normalizeLimit(input.MonthlyLimitUSD)
-	}
+	// 限额字段：nil/负数 表示"无限制"，0 表示"不允许用量"，正数表示具体限额
+	// 前端始终发送这三个字段，无需 nil 守卫
+	group.DailyLimitUSD = normalizeLimit(input.DailyLimitUSD)
+	group.WeeklyLimitUSD = normalizeLimit(input.WeeklyLimitUSD)
+	group.MonthlyLimitUSD = normalizeLimit(input.MonthlyLimitUSD)
 	// 图片生成计费配置：负数表示清除（使用默认价格）
 	if input.ImagePrice1K != nil {
 		group.ImagePrice1K = normalizePrice(input.ImagePrice1K)
@@ -1247,6 +1245,27 @@ func (s *adminServiceImpl) GetGroupAPIKeys(ctx context.Context, groupID int64, p
 		return nil, 0, err
 	}
 	return keys, result.Total, nil
+}
+
+func (s *adminServiceImpl) GetGroupRateMultipliers(ctx context.Context, groupID int64) ([]UserGroupRateEntry, error) {
+	if s.userGroupRateRepo == nil {
+		return nil, nil
+	}
+	return s.userGroupRateRepo.GetByGroupID(ctx, groupID)
+}
+
+func (s *adminServiceImpl) ClearGroupRateMultipliers(ctx context.Context, groupID int64) error {
+	if s.userGroupRateRepo == nil {
+		return nil
+	}
+	return s.userGroupRateRepo.DeleteByGroupID(ctx, groupID)
+}
+
+func (s *adminServiceImpl) BatchSetGroupRateMultipliers(ctx context.Context, groupID int64, entries []GroupRateMultiplierInput) error {
+	if s.userGroupRateRepo == nil {
+		return nil
+	}
+	return s.userGroupRateRepo.SyncGroupRateMultipliers(ctx, groupID, entries)
 }
 
 func (s *adminServiceImpl) UpdateGroupSortOrders(ctx context.Context, updates []GroupSortOrderUpdate) error {
@@ -1438,6 +1457,13 @@ func (s *adminServiceImpl) CreateAccount(ctx context.Context, input *CreateAccou
 		Status:      StatusActive,
 		Schedulable: true,
 	}
+	// 预计算固定时间重置的下次重置时间
+	if account.Extra != nil {
+		if err := ValidateQuotaResetConfig(account.Extra); err != nil {
+			return nil, err
+		}
+		ComputeQuotaResetAt(account.Extra)
+	}
 	if input.ExpiresAt != nil && *input.ExpiresAt > 0 {
 		expiresAt := time.Unix(*input.ExpiresAt, 0)
 		account.ExpiresAt = &expiresAt
@@ -1490,6 +1516,7 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 	if err != nil {
 		return nil, err
 	}
+	wasOveragesEnabled := account.IsOveragesEnabled()
 
 	if input.Name != "" {
 		account.Name = input.Name
@@ -1511,6 +1538,22 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 			}
 		}
 		account.Extra = input.Extra
+		if account.Platform == PlatformAntigravity && wasOveragesEnabled && !account.IsOveragesEnabled() {
+			delete(account.Extra, "antigravity_credits_overages") // 清理旧版 overages 运行态
+			// 清除 AICredits 限流 key
+			if rawLimits, ok := account.Extra[modelRateLimitsKey].(map[string]any); ok {
+				delete(rawLimits, creditsExhaustedKey)
+			}
+		}
+		if account.Platform == PlatformAntigravity && !wasOveragesEnabled && account.IsOveragesEnabled() {
+			delete(account.Extra, modelRateLimitsKey)
+			delete(account.Extra, "antigravity_credits_overages") // 清理旧版 overages 运行态
+		}
+		// 校验并预计算固定时间重置的下次重置时间
+		if err := ValidateQuotaResetConfig(account.Extra); err != nil {
+			return nil, err
+		}
+		ComputeQuotaResetAt(account.Extra)
 	}
 	if input.ProxyID != nil {
 		// 0 表示清除代理（前端发送 0 而不是 null 来表达清除意图）

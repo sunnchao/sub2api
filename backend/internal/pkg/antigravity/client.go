@@ -19,6 +19,16 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/proxyutil"
 )
 
+// ForbiddenError 表示上游返回 403 Forbidden
+type ForbiddenError struct {
+	StatusCode int
+	Body       string
+}
+
+func (e *ForbiddenError) Error() string {
+	return fmt.Sprintf("fetchAvailableModels 失败 (HTTP %d): %s", e.StatusCode, e.Body)
+}
+
 // NewAPIRequestWithURL 使用指定的 base URL 创建 Antigravity API 请求（v1internal 端点）
 func NewAPIRequestWithURL(ctx context.Context, baseURL, action, accessToken string, body []byte) (*http.Request, error) {
 	// 构建 URL，流式请求添加 ?alt=sse 参数
@@ -114,8 +124,66 @@ type IneligibleTier struct {
 type LoadCodeAssistResponse struct {
 	CloudAICompanionProject string            `json:"cloudaicompanionProject"`
 	CurrentTier             *TierInfo         `json:"currentTier,omitempty"`
-	PaidTier                *TierInfo         `json:"paidTier,omitempty"`
+	PaidTier                *PaidTierInfo     `json:"paidTier,omitempty"`
 	IneligibleTiers         []*IneligibleTier `json:"ineligibleTiers,omitempty"`
+}
+
+// PaidTierInfo 付费等级信息，包含 AI Credits 余额。
+type PaidTierInfo struct {
+	ID               string            `json:"id"`
+	Name             string            `json:"name"`
+	Description      string            `json:"description"`
+	AvailableCredits []AvailableCredit `json:"availableCredits,omitempty"`
+}
+
+// UnmarshalJSON 兼容 paidTier 既可能是字符串也可能是对象的情况。
+func (p *PaidTierInfo) UnmarshalJSON(data []byte) error {
+	data = bytes.TrimSpace(data)
+	if len(data) == 0 || string(data) == "null" {
+		return nil
+	}
+	if data[0] == '"' {
+		var id string
+		if err := json.Unmarshal(data, &id); err != nil {
+			return err
+		}
+		p.ID = id
+		return nil
+	}
+	type alias PaidTierInfo
+	var raw alias
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	*p = PaidTierInfo(raw)
+	return nil
+}
+
+// AvailableCredit 表示一条 AI Credits 余额记录。
+type AvailableCredit struct {
+	CreditType                  string `json:"creditType,omitempty"`
+	CreditAmount                string `json:"creditAmount,omitempty"`
+	MinimumCreditAmountForUsage string `json:"minimumCreditAmountForUsage,omitempty"`
+}
+
+// GetAmount 将 creditAmount 解析为浮点数。
+func (c *AvailableCredit) GetAmount() float64 {
+	if c.CreditAmount == "" {
+		return 0
+	}
+	var value float64
+	_, _ = fmt.Sscanf(c.CreditAmount, "%f", &value)
+	return value
+}
+
+// GetMinimumAmount 将 minimumCreditAmountForUsage 解析为浮点数。
+func (c *AvailableCredit) GetMinimumAmount() float64 {
+	if c.MinimumCreditAmountForUsage == "" {
+		return 0
+	}
+	var value float64
+	_, _ = fmt.Sscanf(c.MinimumCreditAmountForUsage, "%f", &value)
+	return value
 }
 
 // OnboardUserRequest onboardUser 请求
@@ -145,6 +213,14 @@ func (r *LoadCodeAssistResponse) GetTier() string {
 		return r.CurrentTier.ID
 	}
 	return ""
+}
+
+// GetAvailableCredits 返回 paid tier 中的 AI Credits 余额列表。
+func (r *LoadCodeAssistResponse) GetAvailableCredits() []AvailableCredit {
+	if r.PaidTier == nil {
+		return nil
+	}
+	return r.PaidTier.AvailableCredits
 }
 
 // Client Antigravity API 客户端
@@ -514,7 +590,20 @@ type ModelQuotaInfo struct {
 
 // ModelInfo 模型信息
 type ModelInfo struct {
-	QuotaInfo *ModelQuotaInfo `json:"quotaInfo,omitempty"`
+	QuotaInfo          *ModelQuotaInfo `json:"quotaInfo,omitempty"`
+	DisplayName        string          `json:"displayName,omitempty"`
+	SupportsImages     *bool           `json:"supportsImages,omitempty"`
+	SupportsThinking   *bool           `json:"supportsThinking,omitempty"`
+	ThinkingBudget     *int            `json:"thinkingBudget,omitempty"`
+	Recommended        *bool           `json:"recommended,omitempty"`
+	MaxTokens          *int            `json:"maxTokens,omitempty"`
+	MaxOutputTokens    *int            `json:"maxOutputTokens,omitempty"`
+	SupportedMimeTypes map[string]bool `json:"supportedMimeTypes,omitempty"`
+}
+
+// DeprecatedModelInfo 废弃模型转发信息
+type DeprecatedModelInfo struct {
+	NewModelID string `json:"newModelId"`
 }
 
 // FetchAvailableModelsRequest fetchAvailableModels 请求
@@ -524,7 +613,8 @@ type FetchAvailableModelsRequest struct {
 
 // FetchAvailableModelsResponse fetchAvailableModels 响应
 type FetchAvailableModelsResponse struct {
-	Models map[string]ModelInfo `json:"models"`
+	Models             map[string]ModelInfo           `json:"models"`
+	DeprecatedModelIDs map[string]DeprecatedModelInfo `json:"deprecatedModelIds,omitempty"`
 }
 
 // FetchAvailableModels 获取可用模型和配额信息，返回解析后的结构体和原始 JSON
@@ -571,6 +661,13 @@ func (c *Client) FetchAvailableModels(ctx context.Context, accessToken, projectI
 		if shouldFallbackToNextURL(nil, resp.StatusCode) && urlIdx < len(availableURLs)-1 {
 			log.Printf("[antigravity] fetchAvailableModels URL fallback (HTTP %d): %s -> %s", resp.StatusCode, baseURL, availableURLs[urlIdx+1])
 			continue
+		}
+
+		if resp.StatusCode == http.StatusForbidden {
+			return nil, nil, &ForbiddenError{
+				StatusCode: resp.StatusCode,
+				Body:       string(respBodyBytes),
+			}
 		}
 
 		if resp.StatusCode != http.StatusOK {

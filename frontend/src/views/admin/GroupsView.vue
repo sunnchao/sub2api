@@ -182,6 +182,13 @@
                 <span class="text-xs">{{ t('common.edit') }}</span>
               </button>
               <button
+                @click="handleRateMultipliers(row)"
+                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-purple-600 dark:hover:bg-dark-700 dark:hover:text-purple-400"
+              >
+                <Icon name="dollar" size="sm" />
+                <span class="text-xs">{{ t('admin.groups.rateMultipliers') }}</span>
+              </button>
+              <button
                 @click="handleDelete(row)"
                 class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
               >
@@ -1775,6 +1782,14 @@
         </div>
       </template>
     </BaseDialog>
+
+    <!-- Group Rate Multipliers Modal -->
+    <GroupRateMultipliersModal
+      :show="showRateMultipliersModal"
+      :group="rateMultipliersGroup"
+      @close="showRateMultipliersModal = false"
+      @success="loadGroups"
+    />
   </AppLayout>
 </template>
 
@@ -1796,6 +1811,7 @@ import EmptyState from '@/components/common/EmptyState.vue'
 import Select from '@/components/common/Select.vue'
 import PlatformIcon from '@/components/common/PlatformIcon.vue'
 import Icon from '@/components/icons/Icon.vue'
+import GroupRateMultipliersModal from '@/components/admin/group/GroupRateMultipliersModal.vue'
 import { VueDraggable } from 'vue-draggable-plus'
 import { createStableObjectKeyResolver } from '@/utils/stableObjectKey'
 import { useKeyedDebouncedSearch } from '@/composables/useKeyedDebouncedSearch'
@@ -1970,6 +1986,8 @@ const submitting = ref(false)
 const sortSubmitting = ref(false)
 const editingGroup = ref<AdminGroup | null>(null)
 const deletingGroup = ref<AdminGroup | null>(null)
+const showRateMultipliersModal = ref(false)
+const rateMultipliersGroup = ref<AdminGroup | null>(null)
 const sortableGroups = ref<AdminGroup[]>([])
 
 const createForm = reactive({
@@ -2350,6 +2368,23 @@ const closeCreateModal = () => {
   createModelRoutingRules.value = []
 }
 
+const normalizeOptionalLimit = (value: number | string | null | undefined): number | null => {
+  if (value === null || value === undefined) {
+    return null
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (!trimmed) {
+      return null
+    }
+    const parsed = Number(trimmed)
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null
+  }
+
+  return Number.isFinite(value) && value > 0 ? value : null
+}
+
 const handleCreateGroup = async () => {
   if (!createForm.name.trim()) {
     appStore.showError(t('admin.groups.nameRequired'))
@@ -2361,9 +2396,17 @@ const handleCreateGroup = async () => {
     const { sora_storage_quota_gb: createQuotaGb, ...createRest } = createForm
     const requestData = {
       ...createRest,
+      daily_limit_usd: normalizeOptionalLimit(createForm.daily_limit_usd as number | string | null),
+      weekly_limit_usd: normalizeOptionalLimit(createForm.weekly_limit_usd as number | string | null),
+      monthly_limit_usd: normalizeOptionalLimit(createForm.monthly_limit_usd as number | string | null),
       sora_storage_quota_bytes: createQuotaGb ? Math.round(createQuotaGb * 1024 * 1024 * 1024) : 0,
       model_routing: convertRoutingRulesToApiFormat(createModelRoutingRules.value)
     }
+    // v-model.number 清空输入框时产生 ""，转为 null 让后端设为无限制
+    const emptyToNull = (v: any) => v === '' ? null : v
+    requestData.daily_limit_usd = emptyToNull(requestData.daily_limit_usd)
+    requestData.weekly_limit_usd = emptyToNull(requestData.weekly_limit_usd)
+    requestData.monthly_limit_usd = emptyToNull(requestData.monthly_limit_usd)
     await adminAPI.groups.create(requestData)
     appStore.showSuccess(t('admin.groups.groupCreated'))
     closeCreateModal()
@@ -2439,6 +2482,9 @@ const handleUpdateGroup = async () => {
     const { sora_storage_quota_gb: editQuotaGb, ...editRest } = editForm
     const payload = {
       ...editRest,
+      daily_limit_usd: normalizeOptionalLimit(editForm.daily_limit_usd as number | string | null),
+      weekly_limit_usd: normalizeOptionalLimit(editForm.weekly_limit_usd as number | string | null),
+      monthly_limit_usd: normalizeOptionalLimit(editForm.monthly_limit_usd as number | string | null),
       sora_storage_quota_bytes: editQuotaGb ? Math.round(editQuotaGb * 1024 * 1024 * 1024) : 0,
       fallback_group_id: editForm.fallback_group_id === null ? 0 : editForm.fallback_group_id,
       fallback_group_id_on_invalid_request:
@@ -2447,6 +2493,11 @@ const handleUpdateGroup = async () => {
           : editForm.fallback_group_id_on_invalid_request,
       model_routing: convertRoutingRulesToApiFormat(editModelRoutingRules.value)
     }
+    // v-model.number 清空输入框时产生 ""，转为 null 让后端设为无限制
+    const emptyToNull = (v: any) => v === '' ? null : v
+    payload.daily_limit_usd = emptyToNull(payload.daily_limit_usd)
+    payload.weekly_limit_usd = emptyToNull(payload.weekly_limit_usd)
+    payload.monthly_limit_usd = emptyToNull(payload.monthly_limit_usd)
     await adminAPI.groups.update(editingGroup.value.id, payload)
     appStore.showSuccess(t('admin.groups.groupUpdated'))
     closeEditModal()
@@ -2457,6 +2508,11 @@ const handleUpdateGroup = async () => {
   } finally {
     submitting.value = false
   }
+}
+
+const handleRateMultipliers = (group: AdminGroup) => {
+  rateMultipliersGroup.value = group
+  showRateMultipliersModal.value = true
 }
 
 const handleDelete = (group: AdminGroup) => {

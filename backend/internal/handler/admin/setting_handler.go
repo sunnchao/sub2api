@@ -80,6 +80,7 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		RegistrationEmailSuffixWhitelist:     settings.RegistrationEmailSuffixWhitelist,
 		PromoCodeEnabled:                     settings.PromoCodeEnabled,
 		PasswordResetEnabled:                 settings.PasswordResetEnabled,
+		FrontendURL:                          settings.FrontendURL,
 		InvitationCodeEnabled:                settings.InvitationCodeEnabled,
 		TotpEnabled:                          settings.TotpEnabled,
 		TotpEncryptionKeyConfigured:          h.settingService.IsTotpEncryptionKeyConfigured(),
@@ -125,6 +126,7 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		OpsMetricsIntervalSeconds:            settings.OpsMetricsIntervalSeconds,
 		MinClaudeCodeVersion:                 settings.MinClaudeCodeVersion,
 		AllowUngroupedKeyScheduling:          settings.AllowUngroupedKeyScheduling,
+		BackendModeEnabled:                   settings.BackendModeEnabled,
 	})
 }
 
@@ -136,6 +138,7 @@ type UpdateSettingsRequest struct {
 	RegistrationEmailSuffixWhitelist []string `json:"registration_email_suffix_whitelist"`
 	PromoCodeEnabled                 bool     `json:"promo_code_enabled"`
 	PasswordResetEnabled             bool     `json:"password_reset_enabled"`
+	FrontendURL                      string   `json:"frontend_url"`
 	InvitationCodeEnabled            bool     `json:"invitation_code_enabled"`
 	TotpEnabled                      bool     `json:"totp_enabled"` // TOTP 双因素认证
 
@@ -199,6 +202,9 @@ type UpdateSettingsRequest struct {
 
 	// 分组隔离
 	AllowUngroupedKeyScheduling bool `json:"allow_ungrouped_key_scheduling"`
+
+	// Backend Mode
+	BackendModeEnabled bool `json:"backend_mode_enabled"`
 }
 
 // UpdateSettings 更新系统设置
@@ -322,6 +328,15 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		}
 	}
 
+	// Frontend URL 验证
+	req.FrontendURL = strings.TrimSpace(req.FrontendURL)
+	if req.FrontendURL != "" {
+		if err := config.ValidateAbsoluteHTTPURL(req.FrontendURL); err != nil {
+			response.BadRequest(c, "Frontend URL must be an absolute http(s) URL")
+			return
+		}
+	}
+
 	// 自定义菜单项验证
 	const (
 		maxCustomMenuItems    = 20
@@ -433,6 +448,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		RegistrationEmailSuffixWhitelist: req.RegistrationEmailSuffixWhitelist,
 		PromoCodeEnabled:                 req.PromoCodeEnabled,
 		PasswordResetEnabled:             req.PasswordResetEnabled,
+		FrontendURL:                      req.FrontendURL,
 		InvitationCodeEnabled:            req.InvitationCodeEnabled,
 		TotpEnabled:                      req.TotpEnabled,
 		SMTPHost:                         req.SMTPHost,
@@ -473,6 +489,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		IdentityPatchPrompt:              req.IdentityPatchPrompt,
 		MinClaudeCodeVersion:             req.MinClaudeCodeVersion,
 		AllowUngroupedKeyScheduling:      req.AllowUngroupedKeyScheduling,
+		BackendModeEnabled:               req.BackendModeEnabled,
 		OpsMonitoringEnabled: func() bool {
 			if req.OpsMonitoringEnabled != nil {
 				return *req.OpsMonitoringEnabled
@@ -526,6 +543,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		RegistrationEmailSuffixWhitelist:     updatedSettings.RegistrationEmailSuffixWhitelist,
 		PromoCodeEnabled:                     updatedSettings.PromoCodeEnabled,
 		PasswordResetEnabled:                 updatedSettings.PasswordResetEnabled,
+		FrontendURL:                          updatedSettings.FrontendURL,
 		InvitationCodeEnabled:                updatedSettings.InvitationCodeEnabled,
 		TotpEnabled:                          updatedSettings.TotpEnabled,
 		TotpEncryptionKeyConfigured:          h.settingService.IsTotpEncryptionKeyConfigured(),
@@ -571,6 +589,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		OpsMetricsIntervalSeconds:            updatedSettings.OpsMetricsIntervalSeconds,
 		MinClaudeCodeVersion:                 updatedSettings.MinClaudeCodeVersion,
 		AllowUngroupedKeyScheduling:          updatedSettings.AllowUngroupedKeyScheduling,
+		BackendModeEnabled:                   updatedSettings.BackendModeEnabled,
 	})
 }
 
@@ -607,6 +626,9 @@ func diffSettings(before *service.SystemSettings, after *service.SystemSettings,
 	}
 	if before.PasswordResetEnabled != after.PasswordResetEnabled {
 		changed = append(changed, "password_reset_enabled")
+	}
+	if before.FrontendURL != after.FrontendURL {
+		changed = append(changed, "frontend_url")
 	}
 	if before.TotpEnabled != after.TotpEnabled {
 		changed = append(changed, "totp_enabled")
@@ -724,6 +746,9 @@ func diffSettings(before *service.SystemSettings, after *service.SystemSettings,
 	}
 	if before.AllowUngroupedKeyScheduling != after.AllowUngroupedKeyScheduling {
 		changed = append(changed, "allow_ungrouped_key_scheduling")
+	}
+	if before.BackendModeEnabled != after.BackendModeEnabled {
+		changed = append(changed, "backend_mode_enabled")
 	}
 	if before.PurchaseSubscriptionEnabled != after.PurchaseSubscriptionEnabled {
 		changed = append(changed, "purchase_subscription_enabled")

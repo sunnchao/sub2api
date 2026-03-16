@@ -368,11 +368,14 @@ func defaultOpsAdvancedSettings() *OpsAdvancedSettings {
 		Aggregation: OpsAggregationSettings{
 			AggregationEnabled: false,
 		},
-		IgnoreCountTokensErrors:   true,  // count_tokens 404 是预期行为，默认忽略
-		IgnoreContextCanceled:     true,  // Default to true - client disconnects are not errors
-		IgnoreNoAvailableAccounts: false, // Default to false - this is a real routing issue
-		AutoRefreshEnabled:        false,
-		AutoRefreshIntervalSec:    30,
+		IgnoreCountTokensErrors:         true,  // count_tokens 404 是预期行为，默认忽略
+		IgnoreContextCanceled:           true,  // Default to true - client disconnects are not errors
+		IgnoreNoAvailableAccounts:       false, // Default to false - this is a real routing issue
+		IgnoreInsufficientBalanceErrors: false, // 默认不忽略，余额不足可能需要关注
+		DisplayOpenAITokenStats:         false,
+		DisplayAlertEvents:              true,
+		AutoRefreshEnabled:              false,
+		AutoRefreshIntervalSec:          30,
 	}
 }
 
@@ -438,7 +441,7 @@ func (s *OpsService) GetOpsAdvancedSettings(ctx context.Context) (*OpsAdvancedSe
 		return nil, err
 	}
 
-	cfg := &OpsAdvancedSettings{}
+	cfg := defaultOpsAdvancedSettings()
 	if err := json.Unmarshal([]byte(raw), cfg); err != nil {
 		return defaultCfg, nil
 	}

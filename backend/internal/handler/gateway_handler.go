@@ -391,6 +391,8 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 			if fs.SwitchCount > 0 {
 				requestCtx = service.WithAccountSwitchCount(requestCtx, fs.SwitchCount, h.metadataBridgeEnabled())
 			}
+			// 记录 Forward 前已写入字节数，Forward 后若增加则说明 SSE 内容已发，禁止 failover
+			writerSizeBeforeForward := c.Writer.Size()
 			if account.Platform == service.PlatformAntigravity {
 				result, err = h.antigravityGatewayService.ForwardGemini(requestCtx, c, account, reqModel, "generateContent", reqStream, body, hasBoundSession)
 			} else {
@@ -402,6 +404,11 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 			if err != nil {
 				var failoverErr *service.UpstreamFailoverError
 				if errors.As(err, &failoverErr) {
+					// 流式内容已写入客户端，无法撤销，禁止 failover 以防止流拼接腐化
+					if c.Writer.Size() != writerSizeBeforeForward {
+						h.handleFailoverExhausted(c, failoverErr, service.PlatformGemini, true)
+						return
+					}
 					action := fs.HandleFailoverError(c.Request.Context(), h.gatewayService, account.ID, account.Platform, failoverErr)
 					switch action {
 					case FailoverContinue:
@@ -434,19 +441,29 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 			// 捕获请求信息（用于异步记录，避免在 goroutine 中访问 gin.Context）
 			userAgent := c.GetHeader("User-Agent")
 			clientIP := ip.GetClientIP(c)
+			requestPayloadHash := service.HashUsageRequestPayload(body)
+			inboundEndpoint := GetInboundEndpoint(c)
+			upstreamEndpoint := GetUpstreamEndpoint(c, account.Platform)
+
+			if result.ReasoningEffort == nil {
+				result.ReasoningEffort = service.NormalizeClaudeOutputEffort(parsedReq.OutputEffort)
+			}
 
 			// 使用量记录通过有界 worker 池提交，避免请求热路径创建无界 goroutine。
 			h.submitUsageRecordTask(func(ctx context.Context) {
 				if err := h.gatewayService.RecordUsage(ctx, &service.RecordUsageInput{
-					Result:            result,
-					APIKey:            apiKey,
-					User:              apiKey.User,
-					Account:           account,
-					Subscription:      subscription,
-					UserAgent:         userAgent,
-					IPAddress:         clientIP,
-					ForceCacheBilling: fs.ForceCacheBilling,
-					APIKeyService:     h.apiKeyService,
+					Result:             result,
+					APIKey:             apiKey,
+					User:               apiKey.User,
+					Account:            account,
+					Subscription:       subscription,
+					InboundEndpoint:    inboundEndpoint,
+					UpstreamEndpoint:   upstreamEndpoint,
+					UserAgent:          userAgent,
+					IPAddress:          clientIP,
+					RequestPayloadHash: requestPayloadHash,
+					ForceCacheBilling:  fs.ForceCacheBilling,
+					APIKeyService:      h.apiKeyService,
 				}); err != nil {
 					logger.L().With(
 						zap.String("component", "handler.gateway.messages"),
@@ -635,6 +652,8 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 			if fs.SwitchCount > 0 {
 				requestCtx = service.WithAccountSwitchCount(requestCtx, fs.SwitchCount, h.metadataBridgeEnabled())
 			}
+			// 记录 Forward 前已写入字节数，Forward 后若增加则说明 SSE 内容已发，禁止 failover
+			writerSizeBeforeForward := c.Writer.Size()
 			if account.Platform == service.PlatformAntigravity && account.Type != service.AccountTypeAPIKey {
 				result, err = h.antigravityGatewayService.Forward(requestCtx, c, account, body, hasBoundSession)
 			} else {
@@ -704,6 +723,11 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 				}
 				var failoverErr *service.UpstreamFailoverError
 				if errors.As(err, &failoverErr) {
+					// 流式内容已写入客户端，无法撤销，禁止 failover 以防止流拼接腐化
+					if c.Writer.Size() != writerSizeBeforeForward {
+						h.handleFailoverExhausted(c, failoverErr, account.Platform, true)
+						return
+					}
 					action := fs.HandleFailoverError(c.Request.Context(), h.gatewayService, account.ID, account.Platform, failoverErr)
 					switch action {
 					case FailoverContinue:
@@ -736,19 +760,29 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 			// 捕获请求信息（用于异步记录，避免在 goroutine 中访问 gin.Context）
 			userAgent := c.GetHeader("User-Agent")
 			clientIP := ip.GetClientIP(c)
+			requestPayloadHash := service.HashUsageRequestPayload(body)
+			inboundEndpoint := GetInboundEndpoint(c)
+			upstreamEndpoint := GetUpstreamEndpoint(c, account.Platform)
+
+			if result.ReasoningEffort == nil {
+				result.ReasoningEffort = service.NormalizeClaudeOutputEffort(parsedReq.OutputEffort)
+			}
 
 			// 使用量记录通过有界 worker 池提交，避免请求热路径创建无界 goroutine。
 			h.submitUsageRecordTask(func(ctx context.Context) {
 				if err := h.gatewayService.RecordUsage(ctx, &service.RecordUsageInput{
-					Result:            result,
-					APIKey:            currentAPIKey,
-					User:              currentAPIKey.User,
-					Account:           account,
-					Subscription:      currentSubscription,
-					UserAgent:         userAgent,
-					IPAddress:         clientIP,
-					ForceCacheBilling: fs.ForceCacheBilling,
-					APIKeyService:     h.apiKeyService,
+					Result:             result,
+					APIKey:             currentAPIKey,
+					User:               currentAPIKey.User,
+					Account:            account,
+					Subscription:       currentSubscription,
+					InboundEndpoint:    inboundEndpoint,
+					UpstreamEndpoint:   upstreamEndpoint,
+					UserAgent:          userAgent,
+					IPAddress:          clientIP,
+					RequestPayloadHash: requestPayloadHash,
+					ForceCacheBilling:  fs.ForceCacheBilling,
+					APIKeyService:      h.apiKeyService,
 				}); err != nil {
 					logger.L().With(
 						zap.String("component", "handler.gateway.messages"),
@@ -909,7 +943,7 @@ func (h *GatewayHandler) parseUsageDateRange(c *gin.Context) (time.Time, time.Ti
 	}
 	if s := c.Query("end_date"); s != "" {
 		if t, err := timezone.ParseInLocation("2006-01-02", s); err == nil {
-			endTime = t.Add(24*time.Hour - time.Second) // end of day
+			endTime = t.AddDate(0, 0, 1) // half-open range upper bound
 		}
 	}
 	return startTime, endTime

@@ -106,6 +106,7 @@ export interface PublicSettings {
   custom_menu_items: CustomMenuItem[]
   linuxdo_oauth_enabled: boolean
   sora_client_enabled: boolean
+  backend_mode_enabled: boolean
   version: string
 }
 
@@ -402,6 +403,8 @@ export interface AdminGroup extends Group {
 
   // MCP XML 协议注入（仅 antigravity 平台使用）
   mcp_xml_inject: boolean
+  // Claude usage 模拟开关（仅 anthropic 平台使用）
+  simulate_claude_max_enabled: boolean
 
   // 支持的模型系列（仅 antigravity 平台使用）
   supported_model_scopes?: string[]
@@ -496,6 +499,7 @@ export interface CreateGroupRequest {
   fallback_group_id?: number | null
   fallback_group_id_on_invalid_request?: number | null
   mcp_xml_inject?: boolean
+  simulate_claude_max_enabled?: boolean
   supported_model_scopes?: string[]
   // 从指定分组复制账号
   copy_accounts_from_group_ids?: number[]
@@ -524,6 +528,7 @@ export interface UpdateGroupRequest {
   fallback_group_id?: number | null
   fallback_group_id_on_invalid_request?: number | null
   mcp_xml_inject?: boolean
+  simulate_claude_max_enabled?: boolean
   supported_model_scopes?: string[]
   copy_accounts_from_group_ids?: number[]
 }
@@ -531,7 +536,7 @@ export interface UpdateGroupRequest {
 // ==================== Account & Proxy Types ====================
 
 export type AccountPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity' | 'sora'
-export type AccountType = 'oauth' | 'setup-token' | 'apikey' | 'upstream'
+export type AccountType = 'oauth' | 'setup-token' | 'apikey' | 'upstream' | 'bedrock'
 export type OAuthAddMethod = 'oauth' | 'setup-token'
 export type ProxyProtocol = 'http' | 'https' | 'socks5' | 'socks5h'
 
@@ -719,6 +724,12 @@ export interface Account {
   cache_ttl_override_enabled?: boolean | null
   cache_ttl_override_target?: string | null
 
+  // 客户端亲和调度（仅 Anthropic/Antigravity 平台有效）
+  // 启用后新会话会优先调度到客户端之前使用过的账号
+  client_affinity_enabled?: boolean | null
+  affinity_client_count?: number | null
+  affinity_clients?: string[] | null
+
   // API Key 账号配额限制
   quota_limit?: number | null
   quota_used?: number | null
@@ -726,6 +737,16 @@ export interface Account {
   quota_daily_used?: number | null
   quota_weekly_limit?: number | null
   quota_weekly_used?: number | null
+
+  // 配额固定时间重置配置
+  quota_daily_reset_mode?: 'rolling' | 'fixed' | null
+  quota_daily_reset_hour?: number | null
+  quota_weekly_reset_mode?: 'rolling' | 'fixed' | null
+  quota_weekly_reset_day?: number | null
+  quota_weekly_reset_hour?: number | null
+  quota_reset_timezone?: string | null
+  quota_daily_reset_at?: string | null
+  quota_weekly_reset_at?: string | null
 
   // 运行时状态（仅当启用对应限制时返回）
   current_window_cost?: number | null // 当前窗口费用
@@ -769,6 +790,26 @@ export interface AccountUsageInfo {
   gemini_pro_minute?: UsageProgress | null
   gemini_flash_minute?: UsageProgress | null
   antigravity_quota?: Record<string, AntigravityModelQuota> | null
+  ai_credits?: Array<{
+    credit_type?: string
+    amount?: number
+    minimum_balance?: number
+  }> | null
+  // Antigravity 403 forbidden 状态
+  is_forbidden?: boolean
+  forbidden_reason?: string
+  forbidden_type?: string   // "validation" | "violation" | "forbidden"
+  validation_url?: string   // 验证/申诉链接
+
+  // 状态标记（后端自动推导）
+  needs_verify?: boolean    // 需要人工验证（forbidden_type=validation）
+  is_banned?: boolean       // 账号被封（forbidden_type=violation）
+  needs_reauth?: boolean    // token 失效需重新授权（401）
+
+  // 机器可读错误码：forbidden / unauthenticated / rate_limited / network_error
+  error_code?: string
+
+  error?: string            // usage 获取失败时的错误信息
 }
 
 // OpenAI Codex usage snapshot (from response headers)
@@ -936,6 +977,8 @@ export interface UsageLog {
   model: string
   service_tier?: string | null
   reasoning_effort?: string | null
+  inbound_endpoint?: string | null
+  upstream_endpoint?: string | null
 
   group_id: number | null
   subscription_id: number | null
@@ -1142,6 +1185,14 @@ export interface ModelStat {
   actual_cost: number // 实际扣除
 }
 
+export interface EndpointStat {
+  endpoint: string
+  requests: number
+  total_tokens: number
+  cost: number
+  actual_cost: number
+}
+
 export interface GroupStat {
   group_id: number
   group_name: string
@@ -1155,10 +1206,28 @@ export interface UserUsageTrendPoint {
   date: string
   user_id: number
   email: string
+  username: string
   requests: number
   tokens: number
   cost: number // 标准计费
   actual_cost: number // 实际扣除
+}
+
+export interface UserSpendingRankingItem {
+  user_id: number
+  email: string
+  actual_cost: number
+  requests: number
+  tokens: number
+}
+
+export interface UserSpendingRankingResponse {
+  ranking: UserSpendingRankingItem[]
+  total_actual_cost: number
+  total_requests: number
+  total_tokens: number
+  start_date: string
+  end_date: string
 }
 
 export interface ApiKeyUsageTrendPoint {
@@ -1320,6 +1389,8 @@ export interface AccountUsageStatsResponse {
   history: AccountUsageHistory[]
   summary: AccountUsageSummary
   models: ModelStat[]
+  endpoints: EndpointStat[]
+  upstream_endpoints: EndpointStat[]
 }
 
 // ==================== User Attribute Types ====================

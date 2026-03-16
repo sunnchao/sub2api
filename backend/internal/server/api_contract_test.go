@@ -493,6 +493,7 @@ func TestAPIContracts(t *testing.T) {
 					"registration_email_suffix_whitelist": [],
 					"promo_code_enabled": true,
 					"password_reset_enabled": false,
+					"frontend_url": "",
 					"totp_enabled": false,
 					"totp_encryption_key_configured": false,
 					"smtp_host": "smtp.example.com",
@@ -537,6 +538,7 @@ func TestAPIContracts(t *testing.T) {
 					"purchase_subscription_url": "",
 					"min_claude_code_version": "",
 					"allow_ungrouped_key_scheduling": false,
+					"backend_mode_enabled": false,
 					"custom_menu_items": []
 				}
 			}`,
@@ -1623,6 +1625,14 @@ func (r *stubUsageLogRepo) GetModelStatsWithFilters(ctx context.Context, startTi
 	return nil, errors.New("not implemented")
 }
 
+func (r *stubUsageLogRepo) GetEndpointStatsWithFilters(ctx context.Context, startTime, endTime time.Time, userID, apiKeyID, accountID, groupID int64, model string, requestType *int16, stream *bool, billingType *int8) ([]usagestats.EndpointStat, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (r *stubUsageLogRepo) GetUpstreamEndpointStatsWithFilters(ctx context.Context, startTime, endTime time.Time, userID, apiKeyID, accountID, groupID int64, model string, requestType *int16, stream *bool, billingType *int8) ([]usagestats.EndpointStat, error) {
+	return nil, errors.New("not implemented")
+}
+
 func (r *stubUsageLogRepo) GetGroupStatsWithFilters(ctx context.Context, startTime, endTime time.Time, userID, apiKeyID, accountID, groupID int64, requestType *int16, stream *bool, billingType *int8) ([]usagestats.GroupStat, error) {
 	return nil, errors.New("not implemented")
 }
@@ -1632,6 +1642,10 @@ func (r *stubUsageLogRepo) GetAPIKeyUsageTrend(ctx context.Context, startTime, e
 }
 
 func (r *stubUsageLogRepo) GetUserUsageTrend(ctx context.Context, startTime, endTime time.Time, granularity string, limit int) ([]usagestats.UserUsageTrendPoint, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (r *stubUsageLogRepo) GetUserSpendingRanking(ctx context.Context, startTime, endTime time.Time, limit int) (*usagestats.UserSpendingRankingResponse, error) {
 	return nil, errors.New("not implemented")
 }
 

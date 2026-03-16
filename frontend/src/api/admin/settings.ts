@@ -21,6 +21,7 @@ export interface SystemSettings {
   registration_email_suffix_whitelist: string[]
   promo_code_enabled: boolean
   password_reset_enabled: boolean
+  frontend_url: string
   invitation_code_enabled: boolean
   totp_enabled: boolean // TOTP 双因素认证
   totp_encryption_key_configured: boolean // TOTP 加密密钥是否已配置
@@ -40,6 +41,7 @@ export interface SystemSettings {
   purchase_subscription_enabled: boolean
   purchase_subscription_url: string
   sora_client_enabled: boolean
+  backend_mode_enabled: boolean
   custom_menu_items: CustomMenuItem[]
   // SMTP settings
   smtp_host: string
@@ -90,6 +92,7 @@ export interface UpdateSettingsRequest {
   registration_email_suffix_whitelist?: string[]
   promo_code_enabled?: boolean
   password_reset_enabled?: boolean
+  frontend_url?: string
   invitation_code_enabled?: boolean
   totp_enabled?: boolean // TOTP 双因素认证
   default_balance?: number
@@ -106,6 +109,7 @@ export interface UpdateSettingsRequest {
   purchase_subscription_enabled?: boolean
   purchase_subscription_url?: string
   sora_client_enabled?: boolean
+  backend_mode_enabled?: boolean
   custom_menu_items?: CustomMenuItem[]
   smtp_host?: string
   smtp_port?: number
@@ -316,7 +320,7 @@ export async function updateRectifierSettings(
 export interface BetaPolicyRule {
   beta_token: string
   action: 'pass' | 'filter' | 'block'
-  scope: 'all' | 'oauth' | 'apikey'
+  scope: 'all' | 'oauth' | 'apikey' | 'bedrock'
   error_message?: string
 }
 

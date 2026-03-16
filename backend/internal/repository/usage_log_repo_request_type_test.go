@@ -73,6 +73,8 @@ func TestUsageLogRepositoryCreateSyncRequestTypeAndLegacyFields(t *testing.T) {
 			sqlmock.AnyArg(), // media_type
 			sqlmock.AnyArg(), // service_tier
 			sqlmock.AnyArg(), // reasoning_effort
+			sqlmock.AnyArg(), // inbound_endpoint
+			sqlmock.AnyArg(), // upstream_endpoint
 			log.CacheTTLOverridden,
 			createdAt,
 		).
@@ -140,6 +142,8 @@ func TestUsageLogRepositoryCreate_PersistsServiceTier(t *testing.T) {
 			sqlmock.AnyArg(),
 			sqlmock.AnyArg(),
 			serviceTier,
+			sqlmock.AnyArg(),
+			sqlmock.AnyArg(),
 			sqlmock.AnyArg(),
 			log.CacheTTLOverridden,
 			createdAt,
@@ -248,6 +252,37 @@ func TestUsageLogRepositoryGetStatsWithFiltersRequestTypePriority(t *testing.T) 
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestUsageLogRepositoryGetUserSpendingRanking(t *testing.T) {
+	db, mock := newSQLMock(t)
+	repo := &usageLogRepository{sql: db}
+
+	start := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	end := start.Add(24 * time.Hour)
+
+	rows := sqlmock.NewRows([]string{"user_id", "email", "actual_cost", "requests", "tokens", "total_actual_cost", "total_requests", "total_tokens"}).
+		AddRow(int64(2), "beta@example.com", 12.5, int64(9), int64(900), 40.0, int64(30), int64(2600)).
+		AddRow(int64(1), "alpha@example.com", 12.5, int64(8), int64(800), 40.0, int64(30), int64(2600)).
+		AddRow(int64(3), "gamma@example.com", 4.25, int64(5), int64(300), 40.0, int64(30), int64(2600))
+
+	mock.ExpectQuery("WITH user_spend AS \\(").
+		WithArgs(start, end, 12).
+		WillReturnRows(rows)
+
+	got, err := repo.GetUserSpendingRanking(context.Background(), start, end, 12)
+	require.NoError(t, err)
+	require.Equal(t, &usagestats.UserSpendingRankingResponse{
+		Ranking: []usagestats.UserSpendingRankingItem{
+			{UserID: 2, Email: "beta@example.com", ActualCost: 12.5, Requests: 9, Tokens: 900},
+			{UserID: 1, Email: "alpha@example.com", ActualCost: 12.5, Requests: 8, Tokens: 800},
+			{UserID: 3, Email: "gamma@example.com", ActualCost: 4.25, Requests: 5, Tokens: 300},
+		},
+		TotalActualCost: 40.0,
+		TotalRequests:   30,
+		TotalTokens:     2600,
+	}, got)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestBuildRequestTypeFilterConditionLegacyFallback(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -347,6 +382,8 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{},
 			sql.NullString{Valid: true, String: "priority"},
 			sql.NullString{},
+			sql.NullString{},
+			sql.NullString{},
 			false,
 			now,
 		}})
@@ -386,6 +423,8 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{},
 			sql.NullString{Valid: true, String: "flex"},
 			sql.NullString{},
+			sql.NullString{},
+			sql.NullString{},
 			false,
 			now,
 		}})
@@ -424,6 +463,8 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{},
 			sql.NullString{},
 			sql.NullString{Valid: true, String: "priority"},
+			sql.NullString{},
+			sql.NullString{},
 			sql.NullString{},
 			false,
 			now,
