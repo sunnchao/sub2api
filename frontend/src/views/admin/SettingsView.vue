@@ -7,7 +7,7 @@
       </div>
 
       <!-- Settings Form -->
-      <form v-else @submit.prevent="saveSettings" class="space-y-6">
+      <form v-else @submit.prevent="saveSettings" class="space-y-6" novalidate>
         <!-- Tab Navigation -->
         <div class="sticky top-0 z-10 overflow-x-auto settings-tabs-scroll">
           <nav class="settings-tabs">
@@ -1127,6 +1127,20 @@
                 {{ t('admin.settings.claudeCode.minVersionHint') }}
               </p>
             </div>
+            <div class="mt-4">
+              <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                {{ t('admin.settings.claudeCode.maxVersion') }}
+              </label>
+              <input
+                v-model="form.max_claude_code_version"
+                type="text"
+                class="input max-w-xs font-mono text-sm"
+                :placeholder="t('admin.settings.claudeCode.maxVersionPlaceholder')"
+              />
+              <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                {{ t('admin.settings.claudeCode.maxVersionHint') }}
+              </p>
+            </div>
           </div>
         </div>
 
@@ -1967,6 +1981,7 @@ const form = reactive<SettingsForm>({
   ops_metrics_interval_seconds: 60,
   // Claude Code version check
   min_claude_code_version: '',
+  max_claude_code_version: '',
   // 分组隔离
   allow_ungrouped_key_scheduling: false
 })
@@ -2183,6 +2198,35 @@ async function saveSettings() {
       return
     }
 
+    // Validate URL fields — novalidate disables browser-native checks, so we validate here
+    const isValidHttpUrl = (url: string): boolean => {
+      if (!url) return true
+      try {
+        const u = new URL(url)
+        return u.protocol === 'http:' || u.protocol === 'https:'
+      } catch {
+        return false
+      }
+    }
+    // Optional URL fields: auto-clear invalid values so they don't cause backend 400 errors
+    if (!isValidHttpUrl(form.frontend_url)) form.frontend_url = ''
+    if (!isValidHttpUrl(form.doc_url)) form.doc_url = ''
+    // Purchase URL: required when enabled; auto-clear when disabled to avoid backend rejection
+    if (form.purchase_subscription_enabled) {
+      if (!form.purchase_subscription_url) {
+        appStore.showError(t('admin.settings.purchase.url') + ': URL is required when purchase is enabled')
+        saving.value = false
+        return
+      }
+      if (!isValidHttpUrl(form.purchase_subscription_url)) {
+        appStore.showError(t('admin.settings.purchase.url') + ': must be an absolute http(s) URL (e.g. https://example.com)')
+        saving.value = false
+        return
+      }
+    } else if (!isValidHttpUrl(form.purchase_subscription_url)) {
+      form.purchase_subscription_url = ''
+    }
+
     const payload: UpdateSettingsRequest = {
       registration_enabled: form.registration_enabled,
       email_verify_enabled: form.email_verify_enabled,
@@ -2232,6 +2276,7 @@ async function saveSettings() {
       enable_identity_patch: form.enable_identity_patch,
       identity_patch_prompt: form.identity_patch_prompt,
       min_claude_code_version: form.min_claude_code_version,
+      max_claude_code_version: form.max_claude_code_version,
       allow_ungrouped_key_scheduling: form.allow_ungrouped_key_scheduling
     }
     const updated = await adminAPI.settings.updateSettings(payload)
