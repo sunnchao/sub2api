@@ -181,7 +181,7 @@ func (s *AccountTestService) TestAccountConnection(c *gin.Context, accountID int
 	// Get account
 	account, err := s.accountRepo.GetByID(ctx, accountID)
 	if err != nil {
-		return s.sendErrorAndEnd(c, "Account not found")
+		return s.sendErrorAndEnd(c, "Account not found", account)
 	}
 
 	// Route to platform-specific test method
@@ -235,14 +235,14 @@ func (s *AccountTestService) testClaudeAccountConnection(c *gin.Context, account
 		apiURL = testClaudeAPIURL
 		authToken = account.GetCredential("access_token")
 		if authToken == "" {
-			return s.sendErrorAndEnd(c, "No access token available")
+			return s.sendErrorAndEnd(c, "No access token available", account)
 		}
 	} else if account.Type == "apikey" {
 		// API Key - use x-api-key header
 		useBearer = false
 		authToken = account.GetCredential("api_key")
 		if authToken == "" {
-			return s.sendErrorAndEnd(c, "No API key available")
+			return s.sendErrorAndEnd(c, "No API key available", account)
 		}
 
 		baseURL := account.GetBaseURL()
@@ -251,11 +251,11 @@ func (s *AccountTestService) testClaudeAccountConnection(c *gin.Context, account
 		}
 		normalizedBaseURL, err := s.validateUpstreamBaseURL(baseURL)
 		if err != nil {
-			return s.sendErrorAndEnd(c, fmt.Sprintf("Invalid base URL: %s", err.Error()))
+			return s.sendErrorAndEnd(c, fmt.Sprintf("Invalid base URL: %s", err.Error()), account)
 		}
 		apiURL = strings.TrimSuffix(normalizedBaseURL, "/") + "/v1/messages?beta=true"
 	} else {
-		return s.sendErrorAndEnd(c, fmt.Sprintf("Unsupported account type: %s", account.Type))
+		return s.sendErrorAndEnd(c, fmt.Sprintf("Unsupported account type: %s", account.Type), account)
 	}
 
 	// Set SSE headers
@@ -268,7 +268,7 @@ func (s *AccountTestService) testClaudeAccountConnection(c *gin.Context, account
 	// Create Claude Code style payload (same for all account types)
 	payload, err := createTestPayload(testModelID)
 	if err != nil {
-		return s.sendErrorAndEnd(c, "Failed to create test payload")
+		return s.sendErrorAndEnd(c, "Failed to create test payload", account)
 	}
 	payloadBytes, _ := json.Marshal(payload)
 
@@ -277,7 +277,7 @@ func (s *AccountTestService) testClaudeAccountConnection(c *gin.Context, account
 
 	req, err := http.NewRequestWithContext(ctx, "POST", apiURL, bytes.NewReader(payloadBytes))
 	if err != nil {
-		return s.sendErrorAndEnd(c, "Failed to create request")
+		return s.sendErrorAndEnd(c, "Failed to create request", account)
 	}
 
 	// Set common headers
@@ -306,7 +306,7 @@ func (s *AccountTestService) testClaudeAccountConnection(c *gin.Context, account
 
 	resp, err := s.httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, s.tlsFPProfileService.ResolveTLSProfile(account))
 	if err != nil {
-		return s.sendErrorAndEnd(c, fmt.Sprintf("Request failed: %s", err.Error()))
+		return s.sendErrorAndEnd(c, fmt.Sprintf("Request failed: %s", err.Error()), account)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -319,11 +319,11 @@ func (s *AccountTestService) testClaudeAccountConnection(c *gin.Context, account
 			_ = s.accountRepo.SetError(ctx, account.ID, errMsg)
 		}
 
-		return s.sendErrorAndEnd(c, errMsg)
+		return s.sendErrorAndEnd(c, errMsg, account)
 	}
 
 	// Process SSE stream
-	return s.processClaudeStream(c, resp.Body)
+	return s.processClaudeStream(c, resp.Body, account)
 }
 
 // testBedrockAccountConnection tests a Bedrock (SigV4 or API Key) account using non-streaming invoke
@@ -331,7 +331,7 @@ func (s *AccountTestService) testBedrockAccountConnection(c *gin.Context, ctx co
 	region := bedrockRuntimeRegion(account)
 	resolvedModelID, ok := ResolveBedrockModelID(account, testModelID)
 	if !ok {
-		return s.sendErrorAndEnd(c, fmt.Sprintf("Unsupported Bedrock model: %s", testModelID))
+		return s.sendErrorAndEnd(c, fmt.Sprintf("Unsupported Bedrock model: %s", testModelID), account)
 	}
 	testModelID = resolvedModelID
 
@@ -368,7 +368,7 @@ func (s *AccountTestService) testBedrockAccountConnection(c *gin.Context, ctx co
 
 	req, err := http.NewRequestWithContext(ctx, "POST", apiURL, bytes.NewReader(bedrockBody))
 	if err != nil {
-		return s.sendErrorAndEnd(c, "Failed to create request")
+		return s.sendErrorAndEnd(c, "Failed to create request", account)
 	}
 	req.Header.Set("Content-Type", "application/json")
 
@@ -376,16 +376,16 @@ func (s *AccountTestService) testBedrockAccountConnection(c *gin.Context, ctx co
 	if account.IsBedrockAPIKey() {
 		apiKey := account.GetCredential("api_key")
 		if apiKey == "" {
-			return s.sendErrorAndEnd(c, "No API key available")
+			return s.sendErrorAndEnd(c, "No API key available", account)
 		}
 		req.Header.Set("Authorization", "Bearer "+apiKey)
 	} else {
 		signer, err := NewBedrockSignerFromAccount(account)
 		if err != nil {
-			return s.sendErrorAndEnd(c, fmt.Sprintf("Failed to create Bedrock signer: %s", err.Error()))
+			return s.sendErrorAndEnd(c, fmt.Sprintf("Failed to create Bedrock signer: %s", err.Error()), account)
 		}
 		if err := signer.SignRequest(ctx, req, bedrockBody); err != nil {
-			return s.sendErrorAndEnd(c, fmt.Sprintf("Failed to sign request: %s", err.Error()))
+			return s.sendErrorAndEnd(c, fmt.Sprintf("Failed to sign request: %s", err.Error()), account)
 		}
 	}
 
@@ -396,14 +396,14 @@ func (s *AccountTestService) testBedrockAccountConnection(c *gin.Context, ctx co
 
 	resp, err := s.httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, nil)
 	if err != nil {
-		return s.sendErrorAndEnd(c, fmt.Sprintf("Request failed: %s", err.Error()))
+		return s.sendErrorAndEnd(c, fmt.Sprintf("Request failed: %s", err.Error()), account)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	body, _ := io.ReadAll(resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
-		return s.sendErrorAndEnd(c, fmt.Sprintf("API returned %d: %s", resp.StatusCode, string(body)))
+		return s.sendErrorAndEnd(c, fmt.Sprintf("API returned %d: %s", resp.StatusCode, string(body)), account)
 	}
 
 	// Bedrock non-streaming response is standard Claude JSON, extract the text
@@ -413,7 +413,7 @@ func (s *AccountTestService) testBedrockAccountConnection(c *gin.Context, ctx co
 		} `json:"content"`
 	}
 	if err := json.Unmarshal(body, &result); err != nil {
-		return s.sendErrorAndEnd(c, fmt.Sprintf("Failed to parse response: %s", err.Error()))
+		return s.sendErrorAndEnd(c, fmt.Sprintf("Failed to parse response: %s", err.Error()), account)
 	}
 
 	text := ""
@@ -460,7 +460,7 @@ func (s *AccountTestService) testOpenAIAccountConnection(c *gin.Context, account
 		// OAuth - use Bearer token with ChatGPT internal API
 		authToken = account.GetOpenAIAccessToken()
 		if authToken == "" {
-			return s.sendErrorAndEnd(c, "No access token available")
+			return s.sendErrorAndEnd(c, "No access token available", account)
 		}
 
 		// OAuth uses ChatGPT internal API
@@ -470,7 +470,7 @@ func (s *AccountTestService) testOpenAIAccountConnection(c *gin.Context, account
 		// API Key - use Platform API
 		authToken = account.GetOpenAIApiKey()
 		if authToken == "" {
-			return s.sendErrorAndEnd(c, "No API key available")
+			return s.sendErrorAndEnd(c, "No API key available", account)
 		}
 
 		baseURL := account.GetOpenAIBaseURL()
@@ -479,11 +479,11 @@ func (s *AccountTestService) testOpenAIAccountConnection(c *gin.Context, account
 		}
 		normalizedBaseURL, err := s.validateUpstreamBaseURL(baseURL)
 		if err != nil {
-			return s.sendErrorAndEnd(c, fmt.Sprintf("Invalid base URL: %s", err.Error()))
+			return s.sendErrorAndEnd(c, fmt.Sprintf("Invalid base URL: %s", err.Error()), account)
 		}
 		apiURL = strings.TrimSuffix(normalizedBaseURL, "/") + "/responses"
 	} else {
-		return s.sendErrorAndEnd(c, fmt.Sprintf("Unsupported account type: %s", account.Type))
+		return s.sendErrorAndEnd(c, fmt.Sprintf("Unsupported account type: %s", account.Type), account)
 	}
 
 	// Set SSE headers
@@ -502,7 +502,7 @@ func (s *AccountTestService) testOpenAIAccountConnection(c *gin.Context, account
 
 	req, err := http.NewRequestWithContext(ctx, "POST", apiURL, bytes.NewReader(payloadBytes))
 	if err != nil {
-		return s.sendErrorAndEnd(c, "Failed to create request")
+		return s.sendErrorAndEnd(c, "Failed to create request", account)
 	}
 
 	// Set common headers
@@ -526,7 +526,7 @@ func (s *AccountTestService) testOpenAIAccountConnection(c *gin.Context, account
 
 	resp, err := s.httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, s.tlsFPProfileService.ResolveTLSProfile(account))
 	if err != nil {
-		return s.sendErrorAndEnd(c, fmt.Sprintf("Request failed: %s", err.Error()))
+		return s.sendErrorAndEnd(c, fmt.Sprintf("Request failed: %s", err.Error()), account)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -551,11 +551,11 @@ func (s *AccountTestService) testOpenAIAccountConnection(c *gin.Context, account
 				account.RateLimitResetAt = resetAt
 			}
 		}
-		return s.sendErrorAndEnd(c, fmt.Sprintf("API returned %d: %s", resp.StatusCode, string(body)))
+		return s.sendErrorAndEnd(c, fmt.Sprintf("API returned %d: %s", resp.StatusCode, string(body)), account)
 	}
 
 	// Process SSE stream
-	return s.processOpenAIStream(c, resp.Body)
+	return s.processOpenAIStream(c, resp.Body, account)
 }
 
 // testGeminiAccountConnection tests a Gemini account's connection
@@ -598,11 +598,11 @@ func (s *AccountTestService) testGeminiAccountConnection(c *gin.Context, account
 	case AccountTypeOAuth:
 		req, err = s.buildGeminiOAuthRequest(ctx, account, testModelID, payload)
 	default:
-		return s.sendErrorAndEnd(c, fmt.Sprintf("Unsupported account type: %s", account.Type))
+		return s.sendErrorAndEnd(c, fmt.Sprintf("Unsupported account type: %s", account.Type), account)
 	}
 
 	if err != nil {
-		return s.sendErrorAndEnd(c, fmt.Sprintf("Failed to build request: %s", err.Error()))
+		return s.sendErrorAndEnd(c, fmt.Sprintf("Failed to build request: %s", err.Error()), account)
 	}
 
 	// Send test_start event
@@ -616,17 +616,17 @@ func (s *AccountTestService) testGeminiAccountConnection(c *gin.Context, account
 
 	resp, err := s.httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, s.tlsFPProfileService.ResolveTLSProfile(account))
 	if err != nil {
-		return s.sendErrorAndEnd(c, fmt.Sprintf("Request failed: %s", err.Error()))
+		return s.sendErrorAndEnd(c, fmt.Sprintf("Request failed: %s", err.Error()), account)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		return s.sendErrorAndEnd(c, fmt.Sprintf("API returned %d: %s", resp.StatusCode, string(body)))
+		return s.sendErrorAndEnd(c, fmt.Sprintf("API returned %d: %s", resp.StatusCode, string(body)), account)
 	}
 
 	// Process SSE stream
-	return s.processGeminiStream(c, resp.Body)
+	return s.processGeminiStream(c, resp.Body, account)
 }
 
 type soraProbeStep struct {
@@ -749,18 +749,18 @@ func (s *AccountTestService) testSoraAPIKeyAccountConnection(c *gin.Context, acc
 
 	apiKey := account.GetCredential("api_key")
 	if apiKey == "" {
-		return s.sendErrorAndEnd(c, "Sora apikey 账号缺少 api_key 凭证")
+		return s.sendErrorAndEnd(c, "Sora apikey 账号缺少 api_key 凭证", account)
 	}
 
 	baseURL := account.GetBaseURL()
 	if baseURL == "" {
-		return s.sendErrorAndEnd(c, "Sora apikey 账号缺少 base_url")
+		return s.sendErrorAndEnd(c, "Sora apikey 账号缺少 base_url", account)
 	}
 
 	// 验证 base_url 格式
 	normalizedBaseURL, err := s.validateUpstreamBaseURL(baseURL)
 	if err != nil {
-		return s.sendErrorAndEnd(c, fmt.Sprintf("base_url 无效: %s", err.Error()))
+		return s.sendErrorAndEnd(c, fmt.Sprintf("base_url 无效: %s", err.Error()), account)
 	}
 	upstreamURL := strings.TrimSuffix(normalizedBaseURL, "/") + "/sora/v1/chat/completions"
 
@@ -773,7 +773,7 @@ func (s *AccountTestService) testSoraAPIKeyAccountConnection(c *gin.Context, acc
 
 	if wait, ok := s.acquireSoraTestPermit(account.ID); !ok {
 		msg := fmt.Sprintf("Sora 账号测试过于频繁，请 %d 秒后重试", ceilSeconds(wait))
-		return s.sendErrorAndEnd(c, msg)
+		return s.sendErrorAndEnd(c, msg, account)
 	}
 
 	s.sendEvent(c, TestEvent{Type: "test_start", Model: "sora-upstream"})
@@ -788,7 +788,7 @@ func (s *AccountTestService) testSoraAPIKeyAccountConnection(c *gin.Context, acc
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, upstreamURL, bytes.NewReader(payloadBytes))
 	if err != nil {
-		return s.sendErrorAndEnd(c, "构建测试请求失败")
+		return s.sendErrorAndEnd(c, "构建测试请求失败", account)
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+apiKey)
@@ -801,7 +801,7 @@ func (s *AccountTestService) testSoraAPIKeyAccountConnection(c *gin.Context, acc
 
 	resp, err := s.httpUpstream.Do(req, proxyURL, account.ID, account.Concurrency)
 	if err != nil {
-		return s.sendErrorAndEnd(c, fmt.Sprintf("上游连接失败: %s", err.Error()))
+		return s.sendErrorAndEnd(c, fmt.Sprintf("上游连接失败: %s", err.Error()), account)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -815,7 +815,7 @@ func (s *AccountTestService) testSoraAPIKeyAccountConnection(c *gin.Context, acc
 	}
 
 	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
-		return s.sendErrorAndEnd(c, fmt.Sprintf("上游认证失败 (HTTP %d)，请检查 API Key 是否正确", resp.StatusCode))
+		return s.sendErrorAndEnd(c, fmt.Sprintf("上游认证失败 (HTTP %d)，请检查 API Key 是否正确", resp.StatusCode), account)
 	}
 
 	// 其他错误但能连通（如 400 参数错误）也算连通性测试通过
@@ -826,7 +826,7 @@ func (s *AccountTestService) testSoraAPIKeyAccountConnection(c *gin.Context, acc
 		return nil
 	}
 
-	return s.sendErrorAndEnd(c, fmt.Sprintf("上游返回异常 HTTP %d: %s", resp.StatusCode, truncateSoraErrorBody(respBody, 256)))
+	return s.sendErrorAndEnd(c, fmt.Sprintf("上游返回异常 HTTP %d: %s", resp.StatusCode, truncateSoraErrorBody(respBody, 256)), account)
 }
 
 // testSoraAccountConnection 测试 Sora 账号的连接
@@ -845,7 +845,7 @@ func (s *AccountTestService) testSoraAccountConnection(c *gin.Context, account *
 	if authToken == "" {
 		recorder.addStep("me", "failed", http.StatusUnauthorized, "missing_access_token", "No access token available")
 		s.emitSoraProbeSummary(c, recorder)
-		return s.sendErrorAndEnd(c, "No access token available")
+		return s.sendErrorAndEnd(c, "No access token available", account)
 	}
 
 	// Set SSE headers
@@ -859,7 +859,7 @@ func (s *AccountTestService) testSoraAccountConnection(c *gin.Context, account *
 		msg := fmt.Sprintf("Sora 账号测试过于频繁，请 %d 秒后重试", ceilSeconds(wait))
 		recorder.addStep("rate_limit", "failed", http.StatusTooManyRequests, "test_rate_limited", msg)
 		s.emitSoraProbeSummary(c, recorder)
-		return s.sendErrorAndEnd(c, msg)
+		return s.sendErrorAndEnd(c, msg, account)
 	}
 
 	// Send test_start event
@@ -869,7 +869,7 @@ func (s *AccountTestService) testSoraAccountConnection(c *gin.Context, account *
 	if err != nil {
 		recorder.addStep("me", "failed", 0, "request_build_failed", err.Error())
 		s.emitSoraProbeSummary(c, recorder)
-		return s.sendErrorAndEnd(c, "Failed to create request")
+		return s.sendErrorAndEnd(c, "Failed to create request", account)
 	}
 
 	// 使用 Sora 客户端标准请求头
@@ -891,7 +891,7 @@ func (s *AccountTestService) testSoraAccountConnection(c *gin.Context, account *
 	if err != nil {
 		recorder.addStep("me", "failed", 0, "network_error", err.Error())
 		s.emitSoraProbeSummary(c, recorder)
-		return s.sendErrorAndEnd(c, fmt.Sprintf("Request failed: %s", err.Error()))
+		return s.sendErrorAndEnd(c, fmt.Sprintf("Request failed: %s", err.Error()), account)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -902,26 +902,26 @@ func (s *AccountTestService) testSoraAccountConnection(c *gin.Context, account *
 			recorder.addStep("me", "failed", resp.StatusCode, "cf_challenge", "Cloudflare challenge detected")
 			s.emitSoraProbeSummary(c, recorder)
 			s.logSoraCloudflareChallenge(account, proxyURL, soraMeAPIURL, resp.Header, body)
-			return s.sendErrorAndEnd(c, formatCloudflareChallengeMessage(fmt.Sprintf("Sora request blocked by Cloudflare challenge (HTTP %d). Please switch to a clean proxy/network and retry.", resp.StatusCode), resp.Header, body))
+			return s.sendErrorAndEnd(c, formatCloudflareChallengeMessage(fmt.Sprintf("Sora request blocked by Cloudflare challenge (HTTP %d). Please switch to a clean proxy/network and retry.", resp.StatusCode), resp.Header, body), account)
 		}
 		upstreamCode, upstreamMessage := soraerror.ExtractUpstreamErrorCodeAndMessage(body)
 		switch {
 		case resp.StatusCode == http.StatusUnauthorized && strings.EqualFold(upstreamCode, "token_invalidated"):
 			recorder.addStep("me", "failed", resp.StatusCode, "token_invalidated", "Sora token invalidated")
 			s.emitSoraProbeSummary(c, recorder)
-			return s.sendErrorAndEnd(c, "Sora token 已失效（token_invalidated），请重新授权账号")
+			return s.sendErrorAndEnd(c, "Sora token 已失效（token_invalidated），请重新授权账号", account)
 		case strings.EqualFold(upstreamCode, "unsupported_country_code"):
 			recorder.addStep("me", "failed", resp.StatusCode, "unsupported_country_code", "Sora is unavailable in current egress region")
 			s.emitSoraProbeSummary(c, recorder)
-			return s.sendErrorAndEnd(c, "Sora 在当前网络出口地区不可用（unsupported_country_code），请切换到支持地区后重试")
+			return s.sendErrorAndEnd(c, "Sora 在当前网络出口地区不可用（unsupported_country_code），请切换到支持地区后重试", account)
 		case strings.TrimSpace(upstreamMessage) != "":
 			recorder.addStep("me", "failed", resp.StatusCode, upstreamCode, upstreamMessage)
 			s.emitSoraProbeSummary(c, recorder)
-			return s.sendErrorAndEnd(c, fmt.Sprintf("Sora API returned %d: %s", resp.StatusCode, upstreamMessage))
+			return s.sendErrorAndEnd(c, fmt.Sprintf("Sora API returned %d: %s", resp.StatusCode, upstreamMessage), account)
 		default:
 			recorder.addStep("me", "failed", resp.StatusCode, upstreamCode, "Sora me endpoint failed")
 			s.emitSoraProbeSummary(c, recorder)
-			return s.sendErrorAndEnd(c, fmt.Sprintf("Sora API returned %d: %s", resp.StatusCode, truncateSoraErrorBody(body, 512)))
+			return s.sendErrorAndEnd(c, fmt.Sprintf("Sora API returned %d: %s", resp.StatusCode, truncateSoraErrorBody(body, 512)), account)
 		}
 	}
 	recorder.addStep("me", "success", resp.StatusCode, "", "me endpoint ok")
@@ -1345,7 +1345,7 @@ func (s *AccountTestService) testAntigravityAccountConnection(c *gin.Context, ac
 	}
 
 	if s.antigravityGatewayService == nil {
-		return s.sendErrorAndEnd(c, "Antigravity gateway service not configured")
+		return s.sendErrorAndEnd(c, "Antigravity gateway service not configured", account)
 	}
 
 	// Set SSE headers
@@ -1361,7 +1361,7 @@ func (s *AccountTestService) testAntigravityAccountConnection(c *gin.Context, ac
 	// 调用 AntigravityGatewayService.TestConnection（复用协议转换逻辑）
 	result, err := s.antigravityGatewayService.TestConnection(ctx, account, testModelID)
 	if err != nil {
-		return s.sendErrorAndEnd(c, err.Error())
+		return s.sendErrorAndEnd(c, err.Error(), account)
 	}
 
 	// 发送响应内容
@@ -1528,7 +1528,7 @@ func createGeminiTestPayload(modelID string, prompt string) []byte {
 }
 
 // processGeminiStream processes SSE stream from Gemini API
-func (s *AccountTestService) processGeminiStream(c *gin.Context, body io.Reader) error {
+func (s *AccountTestService) processGeminiStream(c *gin.Context, body io.Reader, account *Account) error {
 	reader := bufio.NewReader(body)
 
 	for {
@@ -1538,7 +1538,7 @@ func (s *AccountTestService) processGeminiStream(c *gin.Context, body io.Reader)
 				s.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
 				return nil
 			}
-			return s.sendErrorAndEnd(c, fmt.Sprintf("Stream read error: %s", err.Error()))
+			return s.sendErrorAndEnd(c, fmt.Sprintf("Stream read error: %s", err.Error()), account)
 		}
 
 		line = strings.TrimSpace(line)
@@ -1603,7 +1603,7 @@ func (s *AccountTestService) processGeminiStream(c *gin.Context, body io.Reader)
 			if msg, ok := errData["message"].(string); ok {
 				errorMsg = msg
 			}
-			return s.sendErrorAndEnd(c, errorMsg)
+			return s.sendErrorAndEnd(c, errorMsg, account)
 		}
 	}
 }
@@ -1638,7 +1638,7 @@ func createOpenAITestPayload(modelID string, isOAuth bool) map[string]any {
 }
 
 // processClaudeStream processes the SSE stream from Claude API
-func (s *AccountTestService) processClaudeStream(c *gin.Context, body io.Reader) error {
+func (s *AccountTestService) processClaudeStream(c *gin.Context, body io.Reader, account *Account) error {
 	reader := bufio.NewReader(body)
 
 	for {
@@ -1648,7 +1648,7 @@ func (s *AccountTestService) processClaudeStream(c *gin.Context, body io.Reader)
 				s.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
 				return nil
 			}
-			return s.sendErrorAndEnd(c, fmt.Sprintf("Stream read error: %s", err.Error()))
+			return s.sendErrorAndEnd(c, fmt.Sprintf("Stream read error: %s", err.Error()), account)
 		}
 
 		line = strings.TrimSpace(line)
@@ -1686,13 +1686,13 @@ func (s *AccountTestService) processClaudeStream(c *gin.Context, body io.Reader)
 					errorMsg = msg
 				}
 			}
-			return s.sendErrorAndEnd(c, errorMsg)
+			return s.sendErrorAndEnd(c, errorMsg, account)
 		}
 	}
 }
 
 // processOpenAIStream processes the SSE stream from OpenAI Responses API
-func (s *AccountTestService) processOpenAIStream(c *gin.Context, body io.Reader) error {
+func (s *AccountTestService) processOpenAIStream(c *gin.Context, body io.Reader, account *Account) error {
 	reader := bufio.NewReader(body)
 
 	for {
@@ -1702,7 +1702,7 @@ func (s *AccountTestService) processOpenAIStream(c *gin.Context, body io.Reader)
 				s.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
 				return nil
 			}
-			return s.sendErrorAndEnd(c, fmt.Sprintf("Stream read error: %s", err.Error()))
+			return s.sendErrorAndEnd(c, fmt.Sprintf("Stream read error: %s", err.Error()), account)
 		}
 
 		line = strings.TrimSpace(line)
@@ -1739,7 +1739,7 @@ func (s *AccountTestService) processOpenAIStream(c *gin.Context, body io.Reader)
 					errorMsg = msg
 				}
 			}
-			return s.sendErrorAndEnd(c, errorMsg)
+			return s.sendErrorAndEnd(c, errorMsg, account)
 		}
 	}
 }
@@ -1755,8 +1755,11 @@ func (s *AccountTestService) sendEvent(c *gin.Context, event TestEvent) {
 }
 
 // sendErrorAndEnd sends an error event and ends the stream
-func (s *AccountTestService) sendErrorAndEnd(c *gin.Context, errorMsg string) error {
+func (s *AccountTestService) sendErrorAndEnd(c *gin.Context, errorMsg string, account *Account) error {
 	log.Printf("Account test error: %s", errorMsg)
+	if account != nil {
+		log.Printf("Account Id: %v, Account Name: %s", account.ID, account.Name)
+	}
 	s.sendEvent(c, TestEvent{Type: "error", Error: errorMsg})
 	return fmt.Errorf("%s", errorMsg)
 }
