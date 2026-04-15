@@ -1,7 +1,6 @@
 package admin
 
 import (
-	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -28,24 +27,32 @@ func NewChannelHandler(channelService *service.ChannelService, billingService *s
 // --- Request / Response types ---
 
 type createChannelRequest struct {
-	Name               string                       `json:"name" binding:"required,max=100"`
-	Description        string                       `json:"description"`
-	GroupIDs           []int64                      `json:"group_ids"`
-	ModelPricing       []channelModelPricingRequest `json:"model_pricing"`
-	ModelMapping       map[string]map[string]string `json:"model_mapping"`
-	BillingModelSource string                       `json:"billing_model_source" binding:"omitempty,oneof=requested upstream channel_mapped"`
-	RestrictModels     bool                         `json:"restrict_models"`
+	Name                       string                           `json:"name" binding:"required,max=100"`
+	Description                string                           `json:"description"`
+	GroupIDs                   []int64                          `json:"group_ids"`
+	ModelPricing               []channelModelPricingRequest     `json:"model_pricing"`
+	ModelMapping               map[string]map[string]string     `json:"model_mapping"`
+	BillingModelSource         string                           `json:"billing_model_source" binding:"omitempty,oneof=requested upstream channel_mapped"`
+	RestrictModels             bool                             `json:"restrict_models"`
+	Features                   string                           `json:"features"`
+	FeaturesConfig             map[string]any                   `json:"features_config"`
+	ApplyPricingToAccountStats bool                             `json:"apply_pricing_to_account_stats"`
+	AccountStatsPricingRules   []accountStatsPricingRuleRequest `json:"account_stats_pricing_rules"`
 }
 
 type updateChannelRequest struct {
-	Name               string                        `json:"name" binding:"omitempty,max=100"`
-	Description        *string                       `json:"description"`
-	Status             string                        `json:"status" binding:"omitempty,oneof=active disabled"`
-	GroupIDs           *[]int64                      `json:"group_ids"`
-	ModelPricing       *[]channelModelPricingRequest `json:"model_pricing"`
-	ModelMapping       map[string]map[string]string  `json:"model_mapping"`
-	BillingModelSource string                        `json:"billing_model_source" binding:"omitempty,oneof=requested upstream channel_mapped"`
-	RestrictModels     *bool                         `json:"restrict_models"`
+	Name                       string                            `json:"name" binding:"omitempty,max=100"`
+	Description                *string                           `json:"description"`
+	Status                     string                            `json:"status" binding:"omitempty,oneof=active disabled"`
+	GroupIDs                   *[]int64                          `json:"group_ids"`
+	ModelPricing               *[]channelModelPricingRequest     `json:"model_pricing"`
+	ModelMapping               map[string]map[string]string      `json:"model_mapping"`
+	BillingModelSource         string                            `json:"billing_model_source" binding:"omitempty,oneof=requested upstream channel_mapped"`
+	RestrictModels             *bool                             `json:"restrict_models"`
+	Features                   *string                           `json:"features"`
+	FeaturesConfig             map[string]any                    `json:"features_config"`
+	ApplyPricingToAccountStats *bool                             `json:"apply_pricing_to_account_stats"`
+	AccountStatsPricingRules   *[]accountStatsPricingRuleRequest `json:"account_stats_pricing_rules"`
 }
 
 type channelModelPricingRequest struct {
@@ -73,18 +80,29 @@ type pricingIntervalRequest struct {
 	SortOrder       int      `json:"sort_order"`
 }
 
+type accountStatsPricingRuleRequest struct {
+	Name       string                       `json:"name"`
+	GroupIDs   []int64                      `json:"group_ids"`
+	AccountIDs []int64                      `json:"account_ids"`
+	Pricing    []channelModelPricingRequest `json:"pricing"`
+}
+
 type channelResponse struct {
-	ID                 int64                         `json:"id"`
-	Name               string                        `json:"name"`
-	Description        string                        `json:"description"`
-	Status             string                        `json:"status"`
-	BillingModelSource string                        `json:"billing_model_source"`
-	RestrictModels     bool                          `json:"restrict_models"`
-	GroupIDs           []int64                       `json:"group_ids"`
-	ModelPricing       []channelModelPricingResponse `json:"model_pricing"`
-	ModelMapping       map[string]map[string]string  `json:"model_mapping"`
-	CreatedAt          string                        `json:"created_at"`
-	UpdatedAt          string                        `json:"updated_at"`
+	ID                         int64                             `json:"id"`
+	Name                       string                            `json:"name"`
+	Description                string                            `json:"description"`
+	Status                     string                            `json:"status"`
+	BillingModelSource         string                            `json:"billing_model_source"`
+	RestrictModels             bool                              `json:"restrict_models"`
+	Features                   string                            `json:"features"`
+	FeaturesConfig             map[string]any                    `json:"features_config"`
+	GroupIDs                   []int64                           `json:"group_ids"`
+	ModelPricing               []channelModelPricingResponse     `json:"model_pricing"`
+	ModelMapping               map[string]map[string]string      `json:"model_mapping"`
+	ApplyPricingToAccountStats bool                              `json:"apply_pricing_to_account_stats"`
+	AccountStatsPricingRules   []accountStatsPricingRuleResponse `json:"account_stats_pricing_rules"`
+	CreatedAt                  string                            `json:"created_at"`
+	UpdatedAt                  string                            `json:"updated_at"`
 }
 
 type channelModelPricingResponse struct {
@@ -114,6 +132,14 @@ type pricingIntervalResponse struct {
 	SortOrder       int      `json:"sort_order"`
 }
 
+type accountStatsPricingRuleResponse struct {
+	ID         int64                         `json:"id"`
+	Name       string                        `json:"name"`
+	GroupIDs   []int64                       `json:"group_ids"`
+	AccountIDs []int64                       `json:"account_ids"`
+	Pricing    []channelModelPricingResponse `json:"pricing"`
+}
+
 func channelToResponse(ch *service.Channel) *channelResponse {
 	if ch == nil {
 		return nil
@@ -124,6 +150,8 @@ func channelToResponse(ch *service.Channel) *channelResponse {
 		Description:    ch.Description,
 		Status:         ch.Status,
 		RestrictModels: ch.RestrictModels,
+		Features:       ch.Features,
+		FeaturesConfig: ch.FeaturesConfig,
 		GroupIDs:       ch.GroupIDs,
 		ModelMapping:   ch.ModelMapping,
 		CreatedAt:      ch.CreatedAt.Format("2006-01-02T15:04:05Z"),
@@ -144,6 +172,29 @@ func channelToResponse(ch *service.Channel) *channelResponse {
 	for _, p := range ch.ModelPricing {
 		resp.ModelPricing = append(resp.ModelPricing, pricingToResponse(&p))
 	}
+
+	resp.ApplyPricingToAccountStats = ch.ApplyPricingToAccountStats
+	resp.AccountStatsPricingRules = make([]accountStatsPricingRuleResponse, 0, len(ch.AccountStatsPricingRules))
+	for _, rule := range ch.AccountStatsPricingRules {
+		ruleResp := accountStatsPricingRuleResponse{
+			ID:         rule.ID,
+			Name:       rule.Name,
+			GroupIDs:   rule.GroupIDs,
+			AccountIDs: rule.AccountIDs,
+			Pricing:    make([]channelModelPricingResponse, 0, len(rule.Pricing)),
+		}
+		if ruleResp.GroupIDs == nil {
+			ruleResp.GroupIDs = []int64{}
+		}
+		if ruleResp.AccountIDs == nil {
+			ruleResp.AccountIDs = []int64{}
+		}
+		for i := range rule.Pricing {
+			ruleResp.Pricing = append(ruleResp.Pricing, pricingToResponse(&rule.Pricing[i]))
+		}
+		resp.AccountStatsPricingRules = append(resp.AccountStatsPricingRules, ruleResp)
+	}
+
 	return resp
 }
 
@@ -202,9 +253,6 @@ func pricingRequestToService(reqs []channelModelPricingRequest) []service.Channe
 			billingMode = service.BillingModeToken
 		}
 		platform := r.Platform
-		if platform == "" {
-			platform = service.PlatformAnthropic
-		}
 		intervals := make([]service.PricingInterval, 0, len(r.Intervals))
 		for _, iv := range r.Intervals {
 			intervals = append(intervals, service.PricingInterval{
@@ -235,59 +283,13 @@ func pricingRequestToService(reqs []channelModelPricingRequest) []service.Channe
 	return result
 }
 
-// validatePricingBillingMode 校验计费配置
-func validatePricingBillingMode(pricing []service.ChannelModelPricing) error {
-	for _, p := range pricing {
-		// 按次/图片模式必须配置默认价格或区间
-		if p.BillingMode == service.BillingModePerRequest || p.BillingMode == service.BillingModeImage {
-			if p.PerRequestPrice == nil && len(p.Intervals) == 0 {
-				return errors.New("per-request price or intervals required for per_request/image billing mode")
-			}
-		}
-		// 校验价格不能为负
-		if err := validatePriceNotNegative("input_price", p.InputPrice); err != nil {
-			return err
-		}
-		if err := validatePriceNotNegative("output_price", p.OutputPrice); err != nil {
-			return err
-		}
-		if err := validatePriceNotNegative("cache_write_price", p.CacheWritePrice); err != nil {
-			return err
-		}
-		if err := validatePriceNotNegative("cache_read_price", p.CacheReadPrice); err != nil {
-			return err
-		}
-		if err := validatePriceNotNegative("image_output_price", p.ImageOutputPrice); err != nil {
-			return err
-		}
-		if err := validatePriceNotNegative("per_request_price", p.PerRequestPrice); err != nil {
-			return err
-		}
-		// 校验 interval：至少有一个价格字段非空
-		for _, iv := range p.Intervals {
-			if iv.InputPrice == nil && iv.OutputPrice == nil &&
-				iv.CacheWritePrice == nil && iv.CacheReadPrice == nil &&
-				iv.PerRequestPrice == nil {
-				return fmt.Errorf("interval [%d, %s] has no price fields set for model %v",
-					iv.MinTokens, formatMaxTokens(iv.MaxTokens), p.Models)
-			}
-		}
+func accountStatsPricingRuleRequestToService(r accountStatsPricingRuleRequest) service.AccountStatsPricingRule {
+	return service.AccountStatsPricingRule{
+		Name:       r.Name,
+		GroupIDs:   r.GroupIDs,
+		AccountIDs: r.AccountIDs,
+		Pricing:    pricingRequestToService(r.Pricing),
 	}
-	return nil
-}
-
-func validatePriceNotNegative(field string, val *float64) error {
-	if val != nil && *val < 0 {
-		return fmt.Errorf("%s must be >= 0", field)
-	}
-	return nil
-}
-
-func formatMaxTokens(max *int) string {
-	if max == nil {
-		return "∞"
-	}
-	return fmt.Sprintf("%d", *max)
 }
 
 // --- Handlers ---
@@ -302,7 +304,12 @@ func (h *ChannelHandler) List(c *gin.Context) {
 		search = search[:100]
 	}
 
-	channels, pag, err := h.channelService.List(c.Request.Context(), pagination.PaginationParams{Page: page, PageSize: pageSize}, status, search)
+	channels, pag, err := h.channelService.List(c.Request.Context(), pagination.PaginationParams{
+		Page:      page,
+		PageSize:  pageSize,
+		SortBy:    c.DefaultQuery("sort_by", "created_at"),
+		SortOrder: c.DefaultQuery("sort_order", "desc"),
+	}, status, search)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
@@ -343,19 +350,42 @@ func (h *ChannelHandler) Create(c *gin.Context) {
 	}
 
 	pricing := pricingRequestToService(req.ModelPricing)
-	if err := validatePricingBillingMode(pricing); err != nil {
-		response.ErrorFrom(c, infraerrors.BadRequest("VALIDATION_ERROR", err.Error()))
-		return
+	// Main model_pricing requires a platform; default to anthropic for backward compatibility.
+	for i := range pricing {
+		if pricing[i].Platform == "" {
+			pricing[i].Platform = service.PlatformAnthropic
+		}
+	}
+
+	var statsRules []service.AccountStatsPricingRule
+	for i, r := range req.AccountStatsPricingRules {
+		if len(r.GroupIDs) == 0 && len(r.AccountIDs) == 0 {
+			response.ErrorFrom(c, infraerrors.BadRequest("PRICING_RULE_EMPTY_SCOPE",
+				fmt.Sprintf("pricing rule #%d must have at least one group or account", i+1)))
+			return
+		}
+		if len(r.Pricing) == 0 {
+			response.ErrorFrom(c, infraerrors.BadRequest("PRICING_RULE_EMPTY_PRICING",
+				fmt.Sprintf("pricing rule #%d must have at least one pricing entry", i+1)))
+			return
+		}
+		rule := accountStatsPricingRuleRequestToService(r)
+		rule.SortOrder = i
+		statsRules = append(statsRules, rule)
 	}
 
 	channel, err := h.channelService.Create(c.Request.Context(), &service.CreateChannelInput{
-		Name:               req.Name,
-		Description:        req.Description,
-		GroupIDs:           req.GroupIDs,
-		ModelPricing:       pricing,
-		ModelMapping:       req.ModelMapping,
-		BillingModelSource: req.BillingModelSource,
-		RestrictModels:     req.RestrictModels,
+		Name:                       req.Name,
+		Description:                req.Description,
+		GroupIDs:                   req.GroupIDs,
+		ModelPricing:               pricing,
+		ModelMapping:               req.ModelMapping,
+		BillingModelSource:         req.BillingModelSource,
+		RestrictModels:             req.RestrictModels,
+		Features:                   req.Features,
+		FeaturesConfig:             req.FeaturesConfig,
+		ApplyPricingToAccountStats: req.ApplyPricingToAccountStats,
+		AccountStatsPricingRules:   statsRules,
 	})
 	if err != nil {
 		response.ErrorFrom(c, err)
@@ -381,21 +411,44 @@ func (h *ChannelHandler) Update(c *gin.Context) {
 	}
 
 	input := &service.UpdateChannelInput{
-		Name:               req.Name,
-		Description:        req.Description,
-		Status:             req.Status,
-		GroupIDs:           req.GroupIDs,
-		ModelMapping:       req.ModelMapping,
-		BillingModelSource: req.BillingModelSource,
-		RestrictModels:     req.RestrictModels,
+		Name:                       req.Name,
+		Description:                req.Description,
+		Status:                     req.Status,
+		GroupIDs:                   req.GroupIDs,
+		ModelMapping:               req.ModelMapping,
+		BillingModelSource:         req.BillingModelSource,
+		RestrictModels:             req.RestrictModels,
+		Features:                   req.Features,
+		FeaturesConfig:             req.FeaturesConfig,
+		ApplyPricingToAccountStats: req.ApplyPricingToAccountStats,
 	}
 	if req.ModelPricing != nil {
 		pricing := pricingRequestToService(*req.ModelPricing)
-		if err := validatePricingBillingMode(pricing); err != nil {
-			response.ErrorFrom(c, infraerrors.BadRequest("VALIDATION_ERROR", err.Error()))
-			return
+		for i := range pricing {
+			if pricing[i].Platform == "" {
+				pricing[i].Platform = service.PlatformAnthropic
+			}
 		}
 		input.ModelPricing = &pricing
+	}
+	if req.AccountStatsPricingRules != nil {
+		statsRules := make([]service.AccountStatsPricingRule, 0, len(*req.AccountStatsPricingRules))
+		for i, r := range *req.AccountStatsPricingRules {
+			if len(r.GroupIDs) == 0 && len(r.AccountIDs) == 0 {
+				response.ErrorFrom(c, infraerrors.BadRequest("PRICING_RULE_EMPTY_SCOPE",
+					fmt.Sprintf("pricing rule #%d must have at least one group or account", i+1)))
+				return
+			}
+			if len(r.Pricing) == 0 {
+				response.ErrorFrom(c, infraerrors.BadRequest("PRICING_RULE_EMPTY_PRICING",
+					fmt.Sprintf("pricing rule #%d must have at least one pricing entry", i+1)))
+				return
+			}
+			rule := accountStatsPricingRuleRequestToService(r)
+			rule.SortOrder = i
+			statsRules = append(statsRules, rule)
+		}
+		input.AccountStatsPricingRules = &statsRules
 	}
 
 	channel, err := h.channelService.Update(c.Request.Context(), id, input)
