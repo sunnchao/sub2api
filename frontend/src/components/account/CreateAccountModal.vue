@@ -3116,7 +3116,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, watch } from 'vue'
+import { ref, reactive, computed, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import {
@@ -3142,6 +3142,7 @@ import { useAntigravityOAuth } from '@/composables/useAntigravityOAuth'
 import type {
   Proxy,
   AdminGroup,
+  Account,
   AccountPlatform,
   AccountType,
   CheckMixedChannelResponse,
@@ -3214,6 +3215,7 @@ interface Props {
   show: boolean
   proxies: Proxy[]
   groups: AdminGroup[]
+  initialData?: Account
 }
 
 const props = defineProps<Props>()
@@ -3317,7 +3319,9 @@ const {
   globalEnabled: quotaNotifyGlobalEnabled,
   state: quotaNotifyState,
   loadGlobalState: loadQuotaNotifyGlobal,
+  loadFromExtra: loadQuotaNotifyFromExtra,
   writeToExtra: writeQuotaNotifyToExtra,
+  reset: resetQuotaNotify,
 } = useQuotaNotifyState()
 
 // Load global feature states once
@@ -3580,19 +3584,24 @@ watch(
       adminAPI.tlsFingerprintProfiles.list()
         .then(profiles => { tlsFingerprintProfiles.value = profiles.map(p => ({ id: p.id, name: p.name })) })
         .catch(() => { tlsFingerprintProfiles.value = [] })
-      // Modal opened - fill related models
-      allowedModels.value = [...getModelsByPlatform(form.platform)]
-      // Antigravity: 默认使用映射模式并填充默认映射
-      if (form.platform === 'antigravity') {
-        antigravityModelRestrictionMode.value = 'mapping'
-        fetchAntigravityDefaultMappings().then(mappings => {
-          antigravityModelMappings.value = [...mappings]
-        })
-        antigravityWhitelistModels.value = []
+      if (props.initialData) {
+        resetForm()
+        prefillFromAccount(props.initialData)
       } else {
-        antigravityWhitelistModels.value = []
-        antigravityModelMappings.value = []
-        antigravityModelRestrictionMode.value = 'mapping'
+        // Modal opened - fill related models
+        allowedModels.value = [...getModelsByPlatform(form.platform)]
+        // Antigravity: 默认使用映射模式并填充默认映射
+        if (form.platform === 'antigravity') {
+          antigravityModelRestrictionMode.value = 'mapping'
+          fetchAntigravityDefaultMappings().then(mappings => {
+            antigravityModelMappings.value = [...mappings]
+          })
+          antigravityWhitelistModels.value = []
+        } else {
+          antigravityWhitelistModels.value = []
+          antigravityModelMappings.value = []
+          antigravityModelRestrictionMode.value = 'mapping'
+        }
       }
     } else {
       resetForm()
@@ -4127,6 +4136,274 @@ const handleClose = () => {
   antigravityMixedChannelConfirmed.value = false
   clearMixedChannelDialog()
   emit('close')
+}
+
+const prefillFromAccount = async (account: Account) => {
+  // Base fields
+  form.name = `${account.name} (Copy)`
+  form.notes = account.notes || ''
+  form.platform = account.platform
+  form.proxy_id = account.proxy_id
+  form.concurrency = account.concurrency
+  form.load_factor = account.load_factor ?? null
+  form.priority = account.priority
+  form.rate_multiplier = account.rate_multiplier ?? 1
+  form.group_ids = account.group_ids || []
+  form.expires_at = account.expires_at ?? null
+
+  // Type / category mapping
+  if (account.platform === 'antigravity') {
+    if (account.type === 'upstream') {
+      antigravityAccountType.value = 'upstream'
+      accountCategory.value = 'apikey'
+    } else {
+      antigravityAccountType.value = 'oauth'
+      accountCategory.value = 'oauth-based'
+    }
+  } else if (account.type === 'bedrock') {
+    accountCategory.value = 'bedrock'
+  } else if (account.type === 'service_account') {
+    accountCategory.value = 'service_account'
+  } else if (account.type === 'apikey' || account.type === 'upstream') {
+    accountCategory.value = 'apikey'
+  } else if (account.type === 'oauth' || account.type === 'setup-token') {
+    accountCategory.value = 'oauth-based'
+    addMethod.value = account.type === 'setup-token' ? 'setup-token' : 'oauth'
+  }
+
+  const credentials = account.credentials as Record<string, unknown> | undefined
+  const extra = account.extra as Record<string, unknown> | undefined
+
+  // General toggles
+  interceptWarmupRequests.value = credentials?.intercept_warmup_requests === true
+  autoPauseOnExpired.value = (account as any).auto_pause_on_expired === true
+
+  // OpenAI specific
+  openaiPassthroughEnabled.value = false
+  openAICompactMode.value = 'auto'
+  openAICompactModelMappings.value = []
+  codexCLIOnlyEnabled.value = false
+  if (account.platform === 'openai' && (account.type === 'oauth' || account.type === 'apikey')) {
+    openaiPassthroughEnabled.value = extra?.openai_passthrough === true || extra?.openai_oauth_passthrough === true
+    openAICompactMode.value = (extra?.openai_compact_mode as OpenAICompactMode) || 'auto'
+    if (account.type === 'oauth') {
+      codexCLIOnlyEnabled.value = extra?.codex_cli_only === true
+    }
+    const compactMappings = credentials?.compact_model_mapping as Record<string, string> | undefined
+    if (compactMappings && typeof compactMappings === 'object') {
+      openAICompactModelMappings.value = Object.entries(compactMappings).map(([from, to]) => ({ from, to }))
+    }
+  }
+
+  // Anthropic apikey specific
+  anthropicPassthroughEnabled.value = false
+  webSearchEmulationMode.value = 'default'
+  if (account.platform === 'anthropic' && account.type === 'apikey') {
+    anthropicPassthroughEnabled.value = extra?.anthropic_passthrough === true
+    const wsVal = extra?.web_search_emulation
+    if (wsVal === 'enabled' || wsVal === 'disabled') {
+      webSearchEmulationMode.value = wsVal
+    } else if (wsVal === true) {
+      webSearchEmulationMode.value = 'enabled'
+    } else {
+      webSearchEmulationMode.value = 'default'
+    }
+  }
+
+  // Antigravity specific
+  mixedScheduling.value = extra?.mixed_scheduling === true
+  allowOverages.value = extra?.allow_overages === true
+
+  // Quota limits (apikey / upstream / bedrock)
+  if (account.type === 'apikey' || account.type === 'upstream' || account.type === 'bedrock') {
+    const qExtra = extra || {}
+    editQuotaLimit.value = typeof qExtra.quota_limit === 'number' && qExtra.quota_limit > 0 ? qExtra.quota_limit : null
+    editQuotaDailyLimit.value = typeof qExtra.quota_daily_limit === 'number' && qExtra.quota_daily_limit > 0 ? qExtra.quota_daily_limit : null
+    editQuotaWeeklyLimit.value = typeof qExtra.quota_weekly_limit === 'number' && qExtra.quota_weekly_limit > 0 ? qExtra.quota_weekly_limit : null
+    editDailyResetMode.value = (qExtra.quota_daily_reset_mode as 'rolling' | 'fixed') || null
+    editDailyResetHour.value = (qExtra.quota_daily_reset_hour as number) ?? null
+    editWeeklyResetMode.value = (qExtra.quota_weekly_reset_mode as 'rolling' | 'fixed') || null
+    editWeeklyResetDay.value = (qExtra.quota_weekly_reset_day as number) ?? null
+    editWeeklyResetHour.value = (qExtra.quota_weekly_reset_hour as number) ?? null
+    editResetTimezone.value = (qExtra.quota_reset_timezone as string) || null
+    loadQuotaNotifyFromExtra(qExtra)
+  } else {
+    editQuotaLimit.value = null
+    editQuotaDailyLimit.value = null
+    editQuotaWeeklyLimit.value = null
+    editDailyResetMode.value = null
+    editDailyResetHour.value = null
+    editWeeklyResetMode.value = null
+    editWeeklyResetDay.value = null
+    editWeeklyResetHour.value = null
+    editResetTimezone.value = null
+    resetQuotaNotify()
+  }
+
+  // Temp unschedulable rules
+  tempUnschedEnabled.value = credentials?.temp_unschedulable_enabled === true
+  const rawRules = credentials?.temp_unschedulable_rules
+  if (Array.isArray(rawRules)) {
+    tempUnschedRules.value = rawRules.map((rule: any) => {
+      const errorCode = Number(rule?.error_code)
+      const duration = Number(rule?.duration_minutes)
+      const keywords = Array.isArray(rule?.keywords)
+        ? rule.keywords.filter((k: any) => typeof k === 'string').join(', ')
+        : ''
+      return {
+        error_code: Number.isFinite(errorCode) && errorCode > 0 ? Math.trunc(errorCode) : null,
+        keywords,
+        duration_minutes: Number.isFinite(duration) && duration > 0 ? Math.trunc(duration) : null,
+        description: typeof rule?.description === 'string' ? rule.description : ''
+      }
+    })
+  } else {
+    tempUnschedRules.value = []
+  }
+
+  // Wait for platform watcher to run, then restore fields it overwrites
+  await nextTick()
+
+  const platformDefaultUrl =
+    account.platform === 'openai'
+      ? 'https://api.openai.com'
+      : account.platform === 'gemini'
+        ? 'https://generativelanguage.googleapis.com'
+        : 'https://api.anthropic.com'
+
+  if (account.type === 'apikey' && credentials) {
+    apiKeyBaseUrl.value = (credentials.base_url as string) || platformDefaultUrl
+
+    // Model restriction
+    const rawMapping = credentials.model_mapping as Record<string, unknown> | undefined
+    if (rawMapping && typeof rawMapping === 'object') {
+      const whitelist = rawMapping.whitelist as string[] | undefined
+      const mapping = rawMapping.mapping as Record<string, string> | undefined
+      if (Array.isArray(whitelist) && whitelist.length > 0) {
+        modelRestrictionMode.value = 'whitelist'
+        allowedModels.value = [...whitelist]
+        modelMappings.value = []
+      } else if (mapping && typeof mapping === 'object') {
+        modelRestrictionMode.value = 'mapping'
+        modelMappings.value = Object.entries(mapping).map(([from, to]) => ({ from, to }))
+        allowedModels.value = []
+      } else {
+        modelRestrictionMode.value = 'whitelist'
+        allowedModels.value = [...getModelsByPlatform(account.platform)]
+        modelMappings.value = []
+      }
+    } else {
+      modelRestrictionMode.value = 'whitelist'
+      allowedModels.value = [...getModelsByPlatform(account.platform)]
+      modelMappings.value = []
+    }
+
+    // Pool mode
+    poolModeEnabled.value = credentials.pool_mode === true
+    poolModeRetryCount.value = normalizePoolModeRetryCount(
+      Number(credentials.pool_mode_retry_count ?? DEFAULT_POOL_MODE_RETRY_COUNT)
+    )
+
+    // Custom error codes
+    customErrorCodesEnabled.value = credentials.custom_error_codes_enabled === true
+    const existingErrorCodes = credentials.custom_error_codes as number[] | undefined
+    if (existingErrorCodes && Array.isArray(existingErrorCodes)) {
+      selectedErrorCodes.value = [...existingErrorCodes]
+    } else {
+      selectedErrorCodes.value = []
+    }
+  } else if (account.type === 'upstream' && credentials) {
+    upstreamBaseUrl.value = (credentials.base_url as string) || ''
+
+    // Antigravity upstream model mapping
+    if (account.platform === 'antigravity') {
+      const rawAgMapping = credentials.model_mapping as Record<string, string> | undefined
+      if (rawAgMapping && typeof rawAgMapping === 'object') {
+        antigravityModelMappings.value = Object.entries(rawAgMapping).map(([from, to]) => ({ from, to }))
+      } else {
+        const rawWhitelist = credentials.model_whitelist
+        if (Array.isArray(rawWhitelist) && rawWhitelist.length > 0) {
+          antigravityModelMappings.value = rawWhitelist
+            .map((v: any) => String(v).trim())
+            .filter((v: string) => v.length > 0)
+            .map((m: string) => ({ from: m, to: m }))
+        } else {
+          antigravityModelMappings.value = []
+        }
+      }
+    }
+  } else if (account.type === 'bedrock' && credentials) {
+    bedrockAuthMode.value = (credentials.auth_mode as string) === 'apikey' ? 'apikey' : 'sigv4'
+    bedrockRegion.value = (credentials.aws_region as string) || 'us-east-1'
+    bedrockForceGlobal.value = (credentials.aws_force_global as string) === 'true'
+
+    // Pool mode for bedrock
+    poolModeEnabled.value = credentials.pool_mode === true
+    const retryCount = credentials.pool_mode_retry_count
+    poolModeRetryCount.value = (typeof retryCount === 'number' && retryCount >= 0) ? retryCount : DEFAULT_POOL_MODE_RETRY_COUNT
+
+    // Model mappings for bedrock
+    const rawMapping = credentials.model_mapping as Record<string, unknown> | undefined
+    if (rawMapping && typeof rawMapping === 'object') {
+      const whitelist = rawMapping.whitelist as string[] | undefined
+      const mapping = rawMapping.mapping as Record<string, string> | undefined
+      if (Array.isArray(whitelist) && whitelist.length > 0) {
+        modelRestrictionMode.value = 'whitelist'
+        allowedModels.value = [...whitelist]
+        modelMappings.value = []
+      } else if (mapping && typeof mapping === 'object') {
+        modelRestrictionMode.value = 'mapping'
+        modelMappings.value = Object.entries(mapping).map(([from, to]) => ({ from, to }))
+        allowedModels.value = []
+      } else {
+        modelRestrictionMode.value = 'whitelist'
+        allowedModels.value = [...getModelsByPlatform(account.platform)]
+        modelMappings.value = []
+      }
+    } else {
+      modelRestrictionMode.value = 'whitelist'
+      allowedModels.value = [...getModelsByPlatform(account.platform)]
+      modelMappings.value = []
+    }
+  } else if ((account.platform === 'gemini' || account.platform === 'anthropic') && account.type === 'service_account' && credentials) {
+    vertexProjectId.value = (credentials.project_id as string) || ''
+    vertexClientEmail.value = (credentials.client_email as string) || ''
+    vertexLocation.value = (credentials.location as string) || (credentials.vertex_location as string) || 'global'
+
+    // Model mappings for service_account
+    const rawMapping = credentials.model_mapping as Record<string, unknown> | undefined
+    if (rawMapping && typeof rawMapping === 'object') {
+      const whitelist = rawMapping.whitelist as string[] | undefined
+      const mapping = rawMapping.mapping as Record<string, string> | undefined
+      if (Array.isArray(whitelist) && whitelist.length > 0) {
+        modelRestrictionMode.value = 'whitelist'
+        allowedModels.value = [...whitelist]
+        modelMappings.value = []
+      } else if (mapping && typeof mapping === 'object') {
+        modelRestrictionMode.value = 'mapping'
+        modelMappings.value = Object.entries(mapping).map(([from, to]) => ({ from, to }))
+        allowedModels.value = []
+      } else {
+        modelRestrictionMode.value = 'whitelist'
+        allowedModels.value = [...getModelsByPlatform(account.platform)]
+        modelMappings.value = []
+      }
+    } else {
+      modelRestrictionMode.value = 'whitelist'
+      allowedModels.value = [...getModelsByPlatform(account.platform)]
+      modelMappings.value = []
+    }
+  } else {
+    // Default fill for OAuth accounts (or unsupported types)
+    apiKeyBaseUrl.value = platformDefaultUrl
+    modelRestrictionMode.value = 'whitelist'
+    allowedModels.value = [...getModelsByPlatform(account.platform)]
+    modelMappings.value = []
+    poolModeEnabled.value = false
+    poolModeRetryCount.value = DEFAULT_POOL_MODE_RETRY_COUNT
+    customErrorCodesEnabled.value = false
+    selectedErrorCodes.value = []
+  }
 }
 
 const buildOpenAIExtra = (base?: Record<string, unknown>): Record<string, unknown> | undefined => {

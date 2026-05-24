@@ -3141,6 +3141,7 @@ export default {
         thresholdPlaceholder: '输入百分比',
       },
       testConnection: '测试连接',
+      duplicateAccount: '复制账号',
       reAuthorize: '重新授权',
       refreshToken: '刷新令牌',
       noAccountsYet: '暂无账号',
