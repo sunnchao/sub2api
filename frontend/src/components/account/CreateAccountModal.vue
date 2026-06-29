@@ -4658,9 +4658,31 @@ const prefillFromAccount = async (account: Account) => {
   } else {
     // Default fill for OAuth accounts (or unsupported types)
     apiKeyBaseUrl.value = platformDefaultUrl
-    modelRestrictionMode.value = 'whitelist'
-    allowedModels.value = [...getModelsByPlatform(account.platform)]
-    modelMappings.value = []
+
+    // Restore model mapping for OAuth / setup-token accounts
+    const rawMapping = credentials?.model_mapping as Record<string, unknown> | undefined
+    if (rawMapping && typeof rawMapping === 'object') {
+      const whitelist = rawMapping.whitelist as string[] | undefined
+      const mapping = rawMapping.mapping as Record<string, string> | undefined
+      if (Array.isArray(whitelist) && whitelist.length > 0) {
+        modelRestrictionMode.value = 'whitelist'
+        allowedModels.value = [...whitelist]
+        modelMappings.value = []
+      } else if (mapping && typeof mapping === 'object') {
+        modelRestrictionMode.value = 'mapping'
+        modelMappings.value = Object.entries(mapping).map(([from, to]) => ({ from, to }))
+        allowedModels.value = []
+      } else {
+        modelRestrictionMode.value = 'whitelist'
+        allowedModels.value = [...getModelsByPlatform(account.platform)]
+        modelMappings.value = []
+      }
+    } else {
+      modelRestrictionMode.value = 'whitelist'
+      allowedModels.value = [...getModelsByPlatform(account.platform)]
+      modelMappings.value = []
+    }
+
     poolModeEnabled.value = false
     poolModeRetryCount.value = DEFAULT_POOL_MODE_RETRY_COUNT
     customErrorCodesEnabled.value = false
