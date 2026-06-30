@@ -143,3 +143,4 @@ output/
 
 config.yaml
 .installed
+.commandcode
