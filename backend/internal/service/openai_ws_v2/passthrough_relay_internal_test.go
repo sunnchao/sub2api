@@ -458,7 +458,7 @@ func TestObserveUpstreamMessage_ResponseIDFallbackPolicy(t *testing.T) {
 	// 非 terminal：仅有顶层 id，不应把 event id 当成 response_id。
 	observed := observeUpstreamMessage(
 		state,
-		[]byte(`{"type":"response.output_text.delta","id":"evt_123","delta":"hi"}`),
+		[]byte(`{"type":"response.output_text.delta","id":"evt_123","delta":"time now?"}`),
 		startAt,
 		nowFn,
 		nil,

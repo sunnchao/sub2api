@@ -1929,17 +1929,17 @@ func TestRemovePreviousResponseIDFromBody(t *testing.T) {
 	})
 
 	t.Run("no previous_response_id field is a no-op", func(t *testing.T) {
-		body := []byte(`{"model":"gpt-5","input":"hi"}`)
+		body := []byte(`{"model":"gpt-5","input":"time now?"}`)
 		result := RemovePreviousResponseIDFromBody(body)
 		require.Equal(t, body, result)
 	})
 
 	t.Run("strips previous_response_id and preserves other fields", func(t *testing.T) {
-		body := []byte(`{"model":"gpt-5","previous_response_id":"resp_abc","input":"hi"}`)
+		body := []byte(`{"model":"gpt-5","previous_response_id":"resp_abc","input":"time now?"}`)
 		result := RemovePreviousResponseIDFromBody(body)
 		require.False(t, gjson.GetBytes(result, "previous_response_id").Exists())
 		require.Equal(t, "gpt-5", gjson.GetBytes(result, "model").String())
-		require.Equal(t, "hi", gjson.GetBytes(result, "input").String())
+		require.Equal(t, "time now?", gjson.GetBytes(result, "input").String())
 	})
 
 	t.Run("empty-string previous_response_id is also stripped", func(t *testing.T) {

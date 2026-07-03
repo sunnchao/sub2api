@@ -200,7 +200,7 @@ func TestAccountTestService_OpenAIStreamEOFBeforeCompletedFails(t *testing.T) {
 	ctx, recorder := newTestContext()
 
 	resp := newJSONResponse(http.StatusOK, "")
-	resp.Body = io.NopCloser(strings.NewReader(`data: {"type":"response.output_text.delta","delta":"hi"}
+	resp.Body = io.NopCloser(strings.NewReader(`data: {"type":"response.output_text.delta","delta":"time now?"}
 
 `))
 

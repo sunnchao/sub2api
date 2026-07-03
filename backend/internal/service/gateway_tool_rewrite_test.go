@@ -90,7 +90,7 @@ func TestApplyToolNameRewriteToBody_RenamesToolUseInMessages(t *testing.T) {
 	// sessions_list 通过静态前缀规则改写为 cc_sess_list
 	// web_search 是 server tool（type != ""），不参与工具名改写
 	// messages 中的 tool_use.name 必须同步改写，才能和 tools[] 保持一致
-	body := []byte(`{"tools":[{"name":"sessions_list","input_schema":{}},{"name":"web_search","type":"web_search_20250305"}],"messages":[{"role":"user","content":[{"type":"text","text":"hi"}]},{"role":"assistant","content":[{"type":"tool_use","id":"tu_01","name":"sessions_list","input":{}},{"type":"text","text":"thinking"}]},{"role":"user","content":[{"type":"tool_result","tool_use_id":"tu_01","content":"ok"}]}]}`)
+	body := []byte(`{"tools":[{"name":"sessions_list","input_schema":{}},{"name":"web_search","type":"web_search_20250305"}],"messages":[{"role":"user","content":[{"type":"text","text":"time now?"}]},{"role":"assistant","content":[{"type":"tool_use","id":"tu_01","name":"sessions_list","input":{}},{"type":"text","text":"thinking"}]},{"role":"user","content":[{"type":"tool_result","tool_use_id":"tu_01","content":"ok"}]}]}`)
 	rw := buildToolNameRewriteFromBody(body)
 	require.NotNil(t, rw)
 	require.Equal(t, "cc_sess_list", rw.Forward["sessions_list"])
@@ -150,7 +150,7 @@ func TestApplyToolsLastCacheBreakpoint_PassesThroughClientTTL(t *testing.T) {
 }
 
 func TestStripMessageCacheControl(t *testing.T) {
-	body := []byte(`{"messages":[{"role":"user","content":[{"type":"text","text":"hi","cache_control":{"type":"ephemeral"}}]}]}`)
+	body := []byte(`{"messages":[{"role":"user","content":[{"type":"text","text":"time now?","cache_control":{"type":"ephemeral"}}]}]}`)
 	out := stripMessageCacheControl(body)
 	require.False(t, gjson.GetBytes(out, "messages.0.content.0.cache_control").Exists())
 }
@@ -181,12 +181,12 @@ func TestAddMessageCacheBreakpoints_SecondToLastUserTurn(t *testing.T) {
 }
 
 func TestAddMessageCacheBreakpoints_StringContentPromoted(t *testing.T) {
-	body := []byte(`{"messages":[{"role":"user","content":"hi"}]}`)
+	body := []byte(`{"messages":[{"role":"user","content":"time now?"}]}`)
 	out := addMessageCacheBreakpoints(body)
 	// content 升级成数组
 	require.True(t, gjson.GetBytes(out, "messages.0.content").IsArray())
 	require.Equal(t, "text", gjson.GetBytes(out, "messages.0.content.0.type").String())
-	require.Equal(t, "hi", gjson.GetBytes(out, "messages.0.content.0.text").String())
+	require.Equal(t, "time now?", gjson.GetBytes(out, "messages.0.content.0.text").String())
 	require.Equal(t, "5m", gjson.GetBytes(out, "messages.0.content.0.cache_control.ttl").String())
 }
 

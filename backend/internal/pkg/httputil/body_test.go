@@ -11,7 +11,7 @@ import (
 	"github.com/klauspost/compress/zstd"
 )
 
-const samplePayload = `{"model":"gpt-5.5","input":"hi","stream":false}`
+const samplePayload = `{"model":"gpt-5.5","input":"time now?","stream":false}`
 
 func newRequestWithBody(t *testing.T, body []byte, encoding string) *http.Request {
 	t.Helper()

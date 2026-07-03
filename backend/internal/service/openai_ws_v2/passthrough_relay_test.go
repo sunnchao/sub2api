@@ -396,7 +396,7 @@ func TestRelay_MultipleUpstreamMessages(t *testing.T) {
 		},
 	}, true)
 
-	firstPayload := []byte(`{"type":"response.create","model":"gpt-4o","input":[{"type":"input_text","text":"hi"}]}`)
+	firstPayload := []byte(`{"type":"response.create","model":"gpt-4o","input":[{"type":"input_text","text":"time now?"}]}`)
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
@@ -460,7 +460,7 @@ func TestRelay_OnTurnComplete_ProvidesTurnMetrics(t *testing.T) {
 	upstreamConn := newPassthroughTestFrameConn([]passthroughTestFrame{
 		{
 			msgType: coderws.MessageText,
-			payload: []byte(`{"type":"response.output_text.delta","response_id":"resp_metric","delta":"hi"}`),
+			payload: []byte(`{"type":"response.output_text.delta","response_id":"resp_metric","delta":"time now?"}`),
 		},
 		{
 			msgType: coderws.MessageText,

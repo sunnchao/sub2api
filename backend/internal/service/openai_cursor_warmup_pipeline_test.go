@@ -88,7 +88,7 @@ func TestCursorMixedShapeDetection(t *testing.T) {
 func TestCursorMixedShapeDetection_NormalChatCompletionsUnaffected(t *testing.T) {
 	body := []byte(`{
 		"model": "gpt-4o",
-		"messages": [{"role":"user","content":"hi"}],
+		"messages": [{"role":"user","content":"time now?"}],
 		"stream": true
 	}`)
 
@@ -108,7 +108,7 @@ func TestCursorMixedShapeDetection_NormalChatCompletionsUnaffected(t *testing.T)
 func TestCursorMixedShapeDetection_BothFieldsPrefersMessages(t *testing.T) {
 	body := []byte(`{
 		"model": "gpt-4o",
-		"messages": [{"role":"user","content":"hi"}],
+		"messages": [{"role":"user","content":"time now?"}],
 		"input": [{"role":"user","content":"other"}]
 	}`)
 
@@ -138,7 +138,7 @@ func TestCursorMixedShapeDetection_EmptyBody(t *testing.T) {
 // valid JSON and parseable back into a map without surprises — catches
 // any encoding drift from sjson.
 func TestCursorMixedShape_JSONRoundtrip(t *testing.T) {
-	cursorBody := []byte(`{"model":"gpt-5.4","stream":true,"input":[{"role":"user","content":"hi"}]}`)
+	cursorBody := []byte(`{"model":"gpt-5.4","stream":true,"input":[{"role":"user","content":"time now?"}]}`)
 
 	rewritten, err := sjson.SetBytes(cursorBody, "model", "gpt-5.1-codex")
 	require.NoError(t, err)
@@ -168,7 +168,7 @@ func TestCursorMixedShape_StripsUnsupportedFields(t *testing.T) {
 		"safety_identifier": "cursor-user-xyz",
 		"metadata": {"trace_id":"abc","caller":"cursor"},
 		"stream_options": {"include_usage": true},
-		"input": [{"role":"user","content":"hi"}]
+		"input": [{"role":"user","content":"time now?"}]
 	}`)
 
 	// Sanity: the test fixture contains every field the production code strips.

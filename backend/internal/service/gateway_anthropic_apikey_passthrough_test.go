@@ -685,7 +685,7 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_CountTokens404PassthroughNotE
 			c, _ := gin.CreateTestContext(rec)
 			c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages/count_tokens", nil)
 
-			body := []byte(`{"model":"claude-sonnet-4-5-20250929","messages":[{"role":"user","content":"hi"}]}`)
+			body := []byte(`{"model":"claude-sonnet-4-5-20250929","messages":[{"role":"user","content":"time now?"}]}`)
 			parsed := &ParsedRequest{Body: NewRequestBodyRef(body), Model: "claude-sonnet-4-5-20250929"}
 
 			upstream := &anthropicHTTPUpstreamRecorder{

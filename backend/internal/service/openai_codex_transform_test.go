@@ -81,7 +81,7 @@ func TestApplyCodexOAuthTransform_ToolContinuationPreservesNativeMessageAndReaso
 	reqBody := map[string]any{
 		"model": "gpt-5.2",
 		"input": []any{
-			map[string]any{"type": "message", "id": "msg_0", "role": "user", "content": "hi"},
+			map[string]any{"type": "message", "id": "msg_0", "role": "user", "content": "time now?"},
 			map[string]any{"type": "item_reference", "id": "rs_123"},
 		},
 		"tool_choice": "auto",
@@ -454,7 +454,7 @@ func TestApplyCodexOAuthTransform_NonContinuationDefaultsStoreFalseAndStripsIDs(
 	reqBody := map[string]any{
 		"model": "gpt-5.1",
 		"input": []any{
-			map[string]any{"type": "text", "id": "t1", "text": "hi"},
+			map[string]any{"type": "text", "id": "t1", "text": "time now?"},
 		},
 	}
 
@@ -477,7 +477,7 @@ func TestApplyCodexOAuthTransform_NonContinuationDefaultsStoreFalseAndStripsIDs(
 func TestFilterCodexInput_RemovesItemReferenceWhenNotPreserved(t *testing.T) {
 	input := []any{
 		map[string]any{"type": "item_reference", "id": "ref1"},
-		map[string]any{"type": "text", "id": "t1", "text": "hi"},
+		map[string]any{"type": "text", "id": "t1", "text": "time now?"},
 	}
 
 	filtered := filterCodexInput(input, false)
@@ -1155,7 +1155,7 @@ func TestExtractSystemMessagesFromInput(t *testing.T) {
 			"input": []any{
 				map[string]any{"role": "system", "content": "First."},
 				map[string]any{"role": "system", "content": "Second."},
-				map[string]any{"role": "user", "content": "hi"},
+				map[string]any{"role": "user", "content": "time now?"},
 			},
 		}
 		result := extractSystemMessagesFromInput(reqBody)
@@ -1205,7 +1205,7 @@ func TestExtractSystemMessagesFromInput(t *testing.T) {
 		reqBody := map[string]any{
 			"input": []any{
 				map[string]any{"role": "system", "content": "Extracted."},
-				map[string]any{"role": "user", "content": "hi"},
+				map[string]any{"role": "user", "content": "time now?"},
 			},
 			"instructions": "Existing instructions.",
 		}
@@ -1229,7 +1229,7 @@ func TestApplyCodexOAuthTransform_StripsPromptCacheRetention(t *testing.T) {
 		"model":                  "gpt-5.1",
 		"prompt_cache_retention": "24h",
 		"input": []any{
-			map[string]any{"role": "user", "content": "hi"},
+			map[string]any{"role": "user", "content": "time now?"},
 		},
 	}
 
@@ -1249,7 +1249,7 @@ func TestApplyCodexOAuthTransform_StripsChatGPTInternalUnsupportedFields(t *test
 		"safety_identifier":      "sid",
 		"stream_options":         map[string]any{"include_usage": true},
 		"input": []any{
-			map[string]any{"role": "user", "content": "hi"},
+			map[string]any{"role": "user", "content": "time now?"},
 		},
 	}
 
@@ -1485,7 +1485,7 @@ func TestFilterCodexInput_PreservesReasoningSummaryAndContent(t *testing.T) {
 func TestFilterCodexInput_PreservesReasoningInMixedInput(t *testing.T) {
 	build := func() []any {
 		return []any{
-			map[string]any{"type": "message", "id": "msg_0", "role": "user", "content": "hi"},
+			map[string]any{"type": "message", "id": "msg_0", "role": "user", "content": "time now?"},
 			map[string]any{
 				"type":              "reasoning",
 				"id":                "rs_1",

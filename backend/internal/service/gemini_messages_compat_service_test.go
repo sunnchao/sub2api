@@ -72,7 +72,7 @@ func TestGeminiForwardAsChatCompletions_OAuthRoutesToGeminiAndReturnsChatFormat(
 
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
-	body := []byte(`{"model":"gemini-2.5-flash","messages":[{"role":"user","content":"hi"}]}`)
+	body := []byte(`{"model":"gemini-2.5-flash","messages":[{"role":"user","content":"time now?"}]}`)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(body))
 
 	result, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body)
@@ -95,7 +95,7 @@ func TestGeminiForwardAsChatCompletions_OAuthRoutesToGeminiAndReturnsChatFormat(
 	require.NoError(t, json.Unmarshal(sentBody, &sent))
 	require.Equal(t, "gemini-2.5-flash", sent["model"])
 	require.Equal(t, "project-1", sent["project"])
-	require.Contains(t, fmt.Sprint(sent["request"]), "hi")
+	require.Contains(t, fmt.Sprint(sent["request"]), "time now?")
 
 	var got map[string]any
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
@@ -146,7 +146,7 @@ func TestGeminiForwardAsChatCompletions_StreamsOpenAIChunksFromGeminiSSE(t *test
 
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
-	body := []byte(`{"model":"gemini-2.5-flash","stream":true,"stream_options":{"include_usage":true},"messages":[{"role":"user","content":"hi"}]}`)
+	body := []byte(`{"model":"gemini-2.5-flash","stream":true,"stream_options":{"include_usage":true},"messages":[{"role":"user","content":"time now?"}]}`)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(body))
 
 	result, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body)
@@ -489,7 +489,7 @@ func TestConvertClaudeMessagesToGeminiGenerateContent_AddsThoughtSignatureForToo
 			map[string]any{
 				"role": "user",
 				"content": []any{
-					map[string]any{"type": "text", "text": "hi"},
+					map[string]any{"type": "text", "text": "time now?"},
 				},
 			},
 			map[string]any{

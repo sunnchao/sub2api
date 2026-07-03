@@ -56,7 +56,7 @@ func TestTransformBedrockInvocationMetrics(t *testing.T) {
 	})
 
 	t.Run("no metrics present", func(t *testing.T) {
-		input := `{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hi"}}`
+		input := `{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"time now?"}}`
 		result := transformBedrockInvocationMetrics([]byte(input))
 		assert.JSONEq(t, input, string(result))
 	})

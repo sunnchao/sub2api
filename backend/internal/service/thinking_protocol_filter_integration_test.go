@@ -16,7 +16,7 @@ const passbackThinkingBody = `{
 	"model":"deepseek-v4-pro",
 	"thinking":{"type":"enabled","budget_tokens":1024},
 	"messages":[
-		{"role":"user","content":[{"type":"text","text":"Hi"}]},
+		{"role":"user","content":[{"type":"text","text":"time now?"}]},
 		{"role":"assistant","content":[
 			{"type":"thinking","thinking":"Let me think..."},
 			{"type":"text","text":"Answer"}

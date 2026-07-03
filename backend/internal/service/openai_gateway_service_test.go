@@ -2465,10 +2465,10 @@ func TestReplaceModelInSSELine(t *testing.T) {
 		},
 		{
 			name:     "保持其他字段不变",
-			line:     `data: {"id":"abc","object":"chat.completion.chunk","model":"gpt-4o","created":1234567890,"choices":[{"index":0,"delta":{"content":"hi"}}]}`,
+			line:     `data: {"id":"abc","object":"chat.completion.chunk","model":"gpt-4o","created":1234567890,"choices":[{"index":0,"delta":{"content":"time now?"}}]}`,
 			from:     "gpt-4o",
 			to:       "alias",
-			expected: `data: {"id":"abc","object":"chat.completion.chunk","model":"alias","created":1234567890,"choices":[{"index":0,"delta":{"content":"hi"}}]}`,
+			expected: `data: {"id":"abc","object":"chat.completion.chunk","model":"alias","created":1234567890,"choices":[{"index":0,"delta":{"content":"time now?"}}]}`,
 		},
 		{
 			name:     "顶层优先于嵌套：同时存在两个 model",

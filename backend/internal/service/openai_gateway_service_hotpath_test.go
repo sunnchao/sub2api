@@ -28,7 +28,7 @@ func TestOpenAIRequestView_ExtractsRawScalars(t *testing.T) {
 }
 
 func TestOpenAIRequestView_DecodeKeepsFullMapBehavior(t *testing.T) {
-	view := newOpenAIRequestView([]byte(`{"model":"gpt-5","stream":true,"input":[{"type":"message","content":"hi"}]}`))
+	view := newOpenAIRequestView([]byte(`{"model":"gpt-5","stream":true,"input":[{"type":"message","content":"time now?"}]}`))
 
 	reqBody, err := view.Decode(nil)
 	require.NoError(t, err)
@@ -37,14 +37,14 @@ func TestOpenAIRequestView_DecodeKeepsFullMapBehavior(t *testing.T) {
 }
 
 func TestOpenAIRequestView_ApplyPatches(t *testing.T) {
-	view := newOpenAIRequestView([]byte(`{"model":"gpt-5","previous_response_id":"resp_1","reasoning":{"effort":"minimal"},"input":[{"type":"message","content":"hi"}]}`))
+	view := newOpenAIRequestView([]byte(`{"model":"gpt-5","previous_response_id":"resp_1","reasoning":{"effort":"minimal"},"input":[{"type":"message","content":"time now?"}]}`))
 	view.MarkPatchSet("model", "gpt-5.1")
 	view.MarkPatchDelete("previous_response_id")
 	view.MarkPatchSet("reasoning.effort", "none")
 
 	patched, err := view.ApplyPatches()
 	require.NoError(t, err)
-	require.JSONEq(t, `{"model":"gpt-5.1","reasoning":{"effort":"none"},"input":[{"type":"message","content":"hi"}]}`, string(patched))
+	require.JSONEq(t, `{"model":"gpt-5.1","reasoning":{"effort":"none"},"input":[{"type":"message","content":"time now?"}]}`, string(patched))
 }
 
 func TestOpenAIRequestView_RejectsEscapedPatchPath(t *testing.T) {
@@ -107,14 +107,14 @@ func TestOpenAIGatewayService_Forward_HTTPPatchPathKeepsLargeInputRaw(t *testing
 	c.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/responses", nil)
 	SetOpenAIClientTransport(c, OpenAIClientTransportHTTP)
 
-	body := []byte(`{"model":"gpt-5","stream":false,"reasoning":{"effort":"minimal"},"input":[{"type":"message","content":[{"type":"input_text","text":"hi","nonce":9007199254740993}]}]}`)
+	body := []byte(`{"model":"gpt-5","stream":false,"reasoning":{"effort":"minimal"},"input":[{"type":"message","content":[{"type":"input_text","text":"time now?","nonce":9007199254740993}]}]}`)
 	result, err := svc.Forward(context.Background(), c, account, body)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.NotNil(t, upstream.lastReq)
 	// 合成路径默认 instructions 现按模型填入真实 Codex base prompt（此处 inbound model=gpt-5）。
 	encodedInstr, _ := json.Marshal(defaultCodexSynthInstructions("gpt-5"))
-	expectedBody := fmt.Sprintf(`{"model":"gpt-5","stream":false,"reasoning":{"effort":"none"},"instructions":%s,"input":[{"type":"message","content":[{"type":"input_text","text":"hi","nonce":9007199254740993}]}]}`, string(encodedInstr))
+	expectedBody := fmt.Sprintf(`{"model":"gpt-5","stream":false,"reasoning":{"effort":"none"},"instructions":%s,"input":[{"type":"message","content":[{"type":"input_text","text":"time now?","nonce":9007199254740993}]}]}`, string(encodedInstr))
 	require.JSONEq(t, expectedBody, string(upstream.lastBody))
 	require.Equal(t, "9007199254740993", gjson.GetBytes(upstream.lastBody, "input.0.content.0.nonce").Raw)
 }
@@ -345,7 +345,7 @@ func TestOpenAIGatewayService_Forward_HTTPRetryRecoveryDoesNotDecodeBeforeError(
 	c.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/responses", nil)
 	SetOpenAIClientTransport(c, OpenAIClientTransportHTTP)
 
-	body := []byte(`{"model":"gpt-5","stream":false,"input":[{"type":"reasoning","encrypted_content":"gAAA","summary":[{"type":"summary_text","text":"keep me"}]},{"type":"message","content":[{"type":"input_text","text":"hi","nonce":9007199254740993}]}]}`)
+	body := []byte(`{"model":"gpt-5","stream":false,"input":[{"type":"reasoning","encrypted_content":"gAAA","summary":[{"type":"summary_text","text":"keep me"}]},{"type":"message","content":[{"type":"input_text","text":"time now?","nonce":9007199254740993}]}]}`)
 	result, err := svc.Forward(context.Background(), c, account, body)
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -454,8 +454,8 @@ func TestOpenAIGatewayService_Forward_HTTPDeletesPreviousResponseIDWhenPresent(t
 	}
 
 	for _, body := range [][]byte{
-		[]byte(`{"model":"gpt-5","stream":false,"previous_response_id":"","input":"hi"}`),
-		[]byte(`{"model":"gpt-5","stream":false,"previous_response_id":null,"input":"hi"}`),
+		[]byte(`{"model":"gpt-5","stream":false,"previous_response_id":"","input":"time now?"}`),
+		[]byte(`{"model":"gpt-5","stream":false,"previous_response_id":null,"input":"time now?"}`),
 	} {
 		upstream := &httpUpstreamRecorder{
 			resp: &http.Response{
@@ -509,7 +509,7 @@ func TestOpenAIGatewayService_Forward_StripsImageGenerationToolForSparkAPIKey(t 
 	c.Set("api_key", &APIKey{Group: &Group{AllowImageGeneration: true}})
 	SetOpenAIClientTransport(c, OpenAIClientTransportHTTP)
 
-	body := []byte(`{"model":"gpt-5.3-codex-spark","stream":false,"input":"hi","tools":[{"type":"function","name":"shell"},{"type":"image_generation","output_format":"png"}]}`)
+	body := []byte(`{"model":"gpt-5.3-codex-spark","stream":false,"input":"time now?","tools":[{"type":"function","name":"shell"},{"type":"image_generation","output_format":"png"}]}`)
 	result, err := svc.Forward(context.Background(), c, account, body)
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -651,14 +651,14 @@ func TestExtractOpenAIReasoningEffortFromBody(t *testing.T) {
 		},
 		{
 			name:      "缺失字段时从模型后缀推导",
-			body:      []byte(`{"input":"hi"}`),
+			body:      []byte(`{"input":"time now?"}`),
 			model:     "gpt-5-high",
 			wantNil:   false,
 			wantValue: "high",
 		},
 		{
 			name:    "未知后缀不返回",
-			body:    []byte(`{"input":"hi"}`),
+			body:    []byte(`{"input":"time now?"}`),
 			model:   "gpt-5-unknown",
 			wantNil: true,
 		},

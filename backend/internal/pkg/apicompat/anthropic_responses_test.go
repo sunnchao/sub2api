@@ -47,7 +47,7 @@ func TestAnthropicToResponses_SystemPrompt(t *testing.T) {
 			Model:     "gpt-5.2",
 			MaxTokens: 100,
 			System:    json.RawMessage(`"You are helpful."`),
-			Messages:  []AnthropicMessage{{Role: "user", Content: json.RawMessage(`"Hi"`)}},
+			Messages:  []AnthropicMessage{{Role: "user", Content: json.RawMessage(`"time now?"`)}},
 		}
 		resp, err := AnthropicToResponses(req)
 		require.NoError(t, err)
@@ -68,7 +68,7 @@ func TestAnthropicToResponses_SystemPrompt(t *testing.T) {
 			Model:     "gpt-5.2",
 			MaxTokens: 100,
 			System:    json.RawMessage(`[{"type":"text","text":"Part 1"},{"type":"text","text":"Part 2"}]`),
-			Messages:  []AnthropicMessage{{Role: "user", Content: json.RawMessage(`"Hi"`)}},
+			Messages:  []AnthropicMessage{{Role: "user", Content: json.RawMessage(`"time now?"`)}},
 		}
 		resp, err := AnthropicToResponses(req)
 		require.NoError(t, err)
@@ -91,7 +91,7 @@ func TestAnthropicToResponses_SystemPrompt(t *testing.T) {
 			Model:     "gpt-5.2",
 			MaxTokens: 100,
 			System:    json.RawMessage(`[{"type":"text","text":"x-anthropic-billing-header: cc_version=1;"},{"type":"text","text":"Project prompt"}]`),
-			Messages:  []AnthropicMessage{{Role: "user", Content: json.RawMessage(`"Hi"`)}},
+			Messages:  []AnthropicMessage{{Role: "user", Content: json.RawMessage(`"time now?"`)}},
 		}
 		resp, err := AnthropicToResponses(req)
 		require.NoError(t, err)
@@ -177,7 +177,7 @@ func TestAnthropicToResponses_MaxTokensFloor(t *testing.T) {
 	req := &AnthropicRequest{
 		Model:     "gpt-5.2",
 		MaxTokens: 10, // below minMaxOutputTokens (128)
-		Messages:  []AnthropicMessage{{Role: "user", Content: json.RawMessage(`"Hi"`)}},
+		Messages:  []AnthropicMessage{{Role: "user", Content: json.RawMessage(`"time now?"`)}},
 	}
 
 	resp, err := AnthropicToResponses(req)

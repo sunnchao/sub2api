@@ -196,7 +196,7 @@ func TestOpenAIImageOutputCounter_AddDataArray_FromVariousSources(t *testing.T) 
 	}{
 		{
 			name: "standard response.done event",
-			json: `{"type":"response.done","response":{"id":"r1","output":[{"type":"message","id":"m1","content":[{"type":"output_text","text":"hi"}]}]}}`,
+			json: `{"type":"response.done","response":{"id":"r1","output":[{"type":"message","id":"m1","content":[{"type":"output_text","text":"time now?"}]}]}}`,
 		},
 		{
 			name: "response with null data field",
@@ -237,11 +237,11 @@ func TestOpenAIImageOutputCounter_AddJSONResponse_Exported(t *testing.T) {
 	}{
 		{
 			name: "standard /v1/responses JSON response",
-			json: `{"id":"r1","object":"response","output":[{"type":"message","id":"m1","content":[{"type":"output_text","text":"hi"}]}],"usage":{"input_tokens":10,"output_tokens":5}}`,
+			json: `{"id":"r1","object":"response","output":[{"type":"message","id":"m1","content":[{"type":"output_text","text":"time now?"}]}],"usage":{"input_tokens":10,"output_tokens":5}}`,
 		},
 		{
 			name: "response with data field (like /v1/images/generations)",
-			json: `{"id":"r1","object":"response","output":[{"type":"message","id":"m1","content":[{"type":"output_text","text":"hi"}]}],"data":[{"url":"https://example.com/img.png"}],"usage":{"input_tokens":10,"output_tokens":5}}`,
+			json: `{"id":"r1","object":"response","output":[{"type":"message","id":"m1","content":[{"type":"output_text","text":"time now?"}]}],"data":[{"url":"https://example.com/img.png"}],"usage":{"input_tokens":10,"output_tokens":5}}`,
 		},
 	}
 

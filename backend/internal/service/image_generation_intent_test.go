@@ -86,7 +86,7 @@ func TestResolveOpenAIResponsesImageBillingConfigToolModelWins(t *testing.T) {
 
 func TestResolveOpenAIResponsesImageBillingConfigFromBodyIgnoresUnrelatedLargeInput(t *testing.T) {
 	cfg, err := resolveOpenAIResponsesImageBillingConfigDetailedFromBody(
-		[]byte(`{"model":"mapped-text-model","tools":[{"type":"image_generation","model":"gpt-image-2","size":"2048x1152"}],"input":[{"type":"message","content":[{"type":"input_text","text":"hi","nonce":1e1000000}]}]}`),
+		[]byte(`{"model":"mapped-text-model","tools":[{"type":"image_generation","model":"gpt-image-2","size":"2048x1152"}],"input":[{"type":"message","content":[{"type":"input_text","text":"time now?","nonce":1e1000000}]}]}`),
 		"requested-model",
 	)
 	require.NoError(t, err)

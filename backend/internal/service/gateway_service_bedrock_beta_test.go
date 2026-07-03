@@ -73,7 +73,7 @@ func TestResolveBedrockBetaTokensForRequest_BlocksOnOriginalAnthropicToken(t *te
 		context.Background(),
 		account,
 		"advanced-tool-use-2025-11-20",
-		[]byte(`{"messages":[{"role":"user","content":"hi"}]}`),
+		[]byte(`{"messages":[{"role":"user","content":"time now?"}]}`),
 		"us.anthropic.claude-opus-4-6-v1",
 	)
 	if err == nil {
@@ -113,7 +113,7 @@ func TestResolveBedrockBetaTokensForRequest_FiltersAfterBedrockTransform(t *test
 		context.Background(),
 		account,
 		"advanced-tool-use-2025-11-20",
-		[]byte(`{"messages":[{"role":"user","content":"hi"}]}`),
+		[]byte(`{"messages":[{"role":"user","content":"time now?"}]}`),
 		"us.anthropic.claude-opus-4-6-v1",
 	)
 	if err != nil {
@@ -160,7 +160,7 @@ func TestResolveBedrockBetaTokensForRequest_BlocksBodyAutoInjectedComputerUse(t 
 		context.Background(),
 		account,
 		"", // 空 header
-		[]byte(`{"tools":[{"type":"computer_20250124","name":"computer"}],"messages":[{"role":"user","content":"hi"}]}`),
+		[]byte(`{"tools":[{"type":"computer_20250124","name":"computer"}],"messages":[{"role":"user","content":"time now?"}]}`),
 		"us.anthropic.claude-opus-4-6-v1",
 	)
 	if err == nil {
@@ -205,7 +205,7 @@ func TestResolveBedrockBetaTokensForRequest_BlocksBodyAutoInjectedToolSearch(t *
 		context.Background(),
 		account,
 		"",
-		[]byte(`{"tools":[{"type":"tool_search_tool_regex_20251119","name":"search"}],"messages":[{"role":"user","content":"hi"}]}`),
+		[]byte(`{"tools":[{"type":"tool_search_tool_regex_20251119","name":"search"}],"messages":[{"role":"user","content":"time now?"}]}`),
 		"us.anthropic.claude-sonnet-4-6",
 	)
 	if err == nil {
@@ -249,7 +249,7 @@ func TestResolveBedrockBetaTokensForRequest_PassesWhenNoBlockRuleMatches(t *test
 		context.Background(),
 		account,
 		"",
-		[]byte(`{"tools":[{"type":"computer_20250124","name":"computer"}],"messages":[{"role":"user","content":"hi"}]}`),
+		[]byte(`{"tools":[{"type":"computer_20250124","name":"computer"}],"messages":[{"role":"user","content":"time now?"}]}`),
 		"us.anthropic.claude-opus-4-6-v1",
 	)
 	if err != nil {

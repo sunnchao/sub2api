@@ -48,12 +48,12 @@ func TestNormalizeVertexAnthropicModelID(t *testing.T) {
 }
 
 func TestBuildVertexAnthropicRequestBody(t *testing.T) {
-	got, err := buildVertexAnthropicRequestBody([]byte(`{"model":"claude-sonnet-4-5","anthropic_version":"2023-06-01","max_tokens":64,"messages":[{"role":"user","content":"hi"}]}`))
+	got, err := buildVertexAnthropicRequestBody([]byte(`{"model":"claude-sonnet-4-5","anthropic_version":"2023-06-01","max_tokens":64,"messages":[{"role":"user","content":"time now?"}]}`))
 	require.NoError(t, err)
 	require.Equal(t, "", gjson.GetBytes(got, "model").String())
 	require.Equal(t, vertexAnthropicVersion, gjson.GetBytes(got, "anthropic_version").String())
 	require.Equal(t, int64(64), gjson.GetBytes(got, "max_tokens").Int())
-	require.Equal(t, "hi", gjson.GetBytes(got, "messages.0.content").String())
+	require.Equal(t, "time now?", gjson.GetBytes(got, "messages.0.content").String())
 }
 
 func TestBuildVertexGeminiURLRejectsInvalidLocation(t *testing.T) {

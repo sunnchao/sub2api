@@ -14,7 +14,7 @@ import (
 )
 
 func TestParseGatewayRequest(t *testing.T) {
-	body := []byte(`{"model":"claude-3-7-sonnet","stream":true,"metadata":{"user_id":"session_123e4567-e89b-12d3-a456-426614174000"},"system":[{"type":"text","text":"hello","cache_control":{"type":"ephemeral"}}],"messages":[{"content":"hi"}]}`)
+	body := []byte(`{"model":"claude-3-7-sonnet","stream":true,"metadata":{"user_id":"session_123e4567-e89b-12d3-a456-426614174000"},"system":[{"type":"text","text":"hello","cache_control":{"type":"ephemeral"}}],"messages":[{"content":"time now?"}]}`)
 	parsed, err := ParseGatewayRequest(NewRequestBodyRef(body), "")
 	require.NoError(t, err)
 	require.Equal(t, "claude-3-7-sonnet", parsed.Model)
@@ -27,7 +27,7 @@ func TestParseGatewayRequest(t *testing.T) {
 }
 
 func TestParseGatewayRequest_ThinkingEnabled(t *testing.T) {
-	body := []byte(`{"model":"claude-sonnet-4-5","thinking":{"type":"enabled"},"messages":[{"content":"hi"}]}`)
+	body := []byte(`{"model":"claude-sonnet-4-5","thinking":{"type":"enabled"},"messages":[{"content":"time now?"}]}`)
 	parsed, err := ParseGatewayRequest(NewRequestBodyRef(body), "")
 	require.NoError(t, err)
 	require.Equal(t, "claude-sonnet-4-5", parsed.Model)
@@ -35,7 +35,7 @@ func TestParseGatewayRequest_ThinkingEnabled(t *testing.T) {
 }
 
 func TestParseGatewayRequest_ThinkingAdaptiveEnabled(t *testing.T) {
-	body := []byte(`{"model":"claude-sonnet-4-5","thinking":{"type":"adaptive"},"messages":[{"content":"hi"}]}`)
+	body := []byte(`{"model":"claude-sonnet-4-5","thinking":{"type":"adaptive"},"messages":[{"content":"time now?"}]}`)
 	parsed, err := ParseGatewayRequest(NewRequestBodyRef(body), "")
 	require.NoError(t, err)
 	require.Equal(t, "claude-sonnet-4-5", parsed.Model)
@@ -305,7 +305,7 @@ func TestFilterThinkingBlocksForRetry_DisablesThinkingAndPreservesAsText(t *test
 		"model":"claude-3-5-sonnet-20241022",
 		"thinking":{"type":"enabled","budget_tokens":1024},
 		"messages":[
-			{"role":"user","content":[{"type":"text","text":"Hi"}]},
+			{"role":"user","content":[{"type":"text","text":"time now?"}]},
 			{"role":"assistant","content":[
 				{"type":"thinking","thinking":"Let me think...","signature":"bad_sig"},
 				{"type":"text","text":"Answer"}
@@ -341,7 +341,7 @@ func TestFilterThinkingBlocksForRetry_DisablesThinkingEvenWithoutThinkingBlocks(
 		"model":"claude-3-5-sonnet-20241022",
 		"thinking":{"type":"enabled","budget_tokens":1024},
 		"messages":[
-			{"role":"user","content":[{"type":"text","text":"Hi"}]},
+			{"role":"user","content":[{"type":"text","text":"time now?"}]},
 			{"role":"assistant","content":[{"type":"text","text":"Prefill"}]}
 		]
 	}`)
@@ -393,7 +393,7 @@ func TestFilterThinkingBlocksForRetry_DropsThinkingBlockWithEmptyContent(t *test
 	input := []byte(`{
 		"thinking":{"type":"enabled","budget_tokens":1024},
 		"messages":[
-			{"role":"user","content":[{"type":"text","text":"Hi"}]},
+			{"role":"user","content":[{"type":"text","text":"time now?"}]},
 			{"role":"assistant","content":[
 				{"type":"thinking","thinking":"","signature":"sig"},
 				{"type":"text","text":"Answer"}
@@ -747,7 +747,7 @@ func TestFilterThinkingBlocksForRetry_NoContextManagement_Unaffected(t *testing.
 	// 无 context_management 时不应报错，且 thinking 正常被移除
 	input := []byte(`{
 		"thinking":{"type":"enabled"},
-		"messages":[{"role":"user","content":[{"type":"text","text":"Hi"}]}]
+		"messages":[{"role":"user","content":[{"type":"text","text":"time now?"}]}]
 	}`)
 
 	out := FilterThinkingBlocksForRetry(input, "claude-sonnet-4-5")

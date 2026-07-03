@@ -22,7 +22,7 @@ func marshalEvent(t *testing.T, e ResponsesStreamEvent) map[string]any {
 // content_index/summary_index must serialize even when 0.
 func TestWire_IndexFieldsPresentAtZero(t *testing.T) {
 	m := marshalEvent(t, ResponsesStreamEvent{
-		Type: "response.output_text.delta", OutputIndex: 0, ContentIndex: 0, ItemID: "msg_1", Delta: "hi",
+		Type: "response.output_text.delta", OutputIndex: 0, ContentIndex: 0, ItemID: "msg_1", Delta: "time now?",
 	})
 	require.Contains(t, m, "output_index")
 	require.Contains(t, m, "content_index")

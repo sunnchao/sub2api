@@ -125,7 +125,7 @@ func TestGenerateSessionHash_DifferentSystemsSameMessages(t *testing.T) {
 func TestGenerateSessionHash_SameSystemSameMessages(t *testing.T) {
 	svc := &GatewayService{}
 	mk := func() *ParsedRequest {
-		return mustParseSessionHashRequest(t, anthropicSessionBody("You are a helpful assistant.", []any{msg("user", "hello"), msg("assistant", "hi")}, ""), nil)
+		return mustParseSessionHashRequest(t, anthropicSessionBody("You are a helpful assistant.", []any{msg("user", "hello"), msg("assistant", "time now?")}, ""), nil)
 	}
 
 	h1 := svc.GenerateSessionHash(mk())

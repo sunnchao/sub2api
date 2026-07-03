@@ -84,7 +84,7 @@ func TestGatewayService_BuildAnthropicVertexServiceAccount_StripsContextManageme
 		Credentials: map[string]any{"project_id": "vertex-proj", "location": "us-east5"},
 	}
 	// body 带了 context_management 字段（客户端透传 / normalize 补齐 / mimicry 注入等场景都可能导致）
-	body := []byte(`{"model":"claude-haiku-4-5","context_management":{"edits":[{"type":"clear_thinking_20251015","keep":"all"}]},"messages":[{"role":"user","content":"hi"}]}`)
+	body := []byte(`{"model":"claude-haiku-4-5","context_management":{"edits":[{"type":"clear_thinking_20251015","keep":"all"}]},"messages":[{"role":"user","content":"time now?"}]}`)
 
 	svc := &GatewayService{}
 	req, _, err := svc.buildUpstreamRequest(

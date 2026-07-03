@@ -28,7 +28,7 @@ func TestNeedsToolContinuationSignals(t *testing.T) {
 		{name: "tool_choice", body: map[string]any{"tool_choice": "auto"}, want: true},
 		{name: "tool_choice_object", body: map[string]any{"tool_choice": map[string]any{"type": "function"}}, want: true},
 		{name: "tool_choice_empty_object", body: map[string]any{"tool_choice": map[string]any{}}, want: false},
-		{name: "none", body: map[string]any{"input": []any{map[string]any{"type": "text", "text": "hi"}}}, want: false},
+		{name: "none", body: map[string]any{"input": []any{map[string]any{"type": "text", "text": "time now?"}}}, want: false},
 	}
 
 	for _, tt := range cases {

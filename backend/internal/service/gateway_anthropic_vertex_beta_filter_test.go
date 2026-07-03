@@ -49,7 +49,7 @@ func TestVertexBetaFilter_StripsUnsupportedClaudeCodeTokens(t *testing.T) {
 			"redact-thinking-2026-02-12,thinking-token-count-2026-05-13,"+
 			"context-management-2025-06-27")
 
-	body := []byte(`{"model":"claude-opus-4-7","max_tokens":32,"messages":[{"role":"user","content":"hi"}]}`)
+	body := []byte(`{"model":"claude-opus-4-7","max_tokens":32,"messages":[{"role":"user","content":"time now?"}]}`)
 
 	svc := &GatewayService{}
 	req, _, err := svc.buildUpstreamRequest(
@@ -89,7 +89,7 @@ func TestVertexBetaFilter_DropsHeaderWhenAllUnsupported(t *testing.T) {
 	c := newVertexBetaTestContext(t,
 		"prompt-caching-scope-2026-01-05,redact-thinking-2026-02-12")
 
-	body := []byte(`{"model":"claude-opus-4-7","max_tokens":32,"messages":[{"role":"user","content":"hi"}]}`)
+	body := []byte(`{"model":"claude-opus-4-7","max_tokens":32,"messages":[{"role":"user","content":"time now?"}]}`)
 
 	svc := &GatewayService{}
 	req, _, err := svc.buildUpstreamRequest(
@@ -108,7 +108,7 @@ func TestVertexBetaFilter_DropsHeaderWhenAllUnsupported(t *testing.T) {
 func TestVertexBetaFilter_BodySanitizeKeysOnFinalBeta(t *testing.T) {
 	c := newVertexBetaTestContext(t, "prompt-caching-scope-2026-01-05")
 
-	body := []byte(`{"model":"claude-opus-4-7","context_management":{"edits":[{"type":"clear_thinking_20251015"}]},"messages":[{"role":"user","content":"hi"}]}`)
+	body := []byte(`{"model":"claude-opus-4-7","context_management":{"edits":[{"type":"clear_thinking_20251015"}]},"messages":[{"role":"user","content":"time now?"}]}`)
 
 	svc := &GatewayService{}
 	req, _, err := svc.buildUpstreamRequest(
@@ -149,7 +149,7 @@ func TestVertexBetaFilter_BlocksViaBetaPolicy(t *testing.T) {
 
 	c := newVertexBetaTestContext(t,
 		"interleaved-thinking-2025-05-14,context-management-2025-06-27")
-	body := []byte(`{"model":"claude-opus-4-7","max_tokens":32,"messages":[{"role":"user","content":"hi"}]}`)
+	body := []byte(`{"model":"claude-opus-4-7","max_tokens":32,"messages":[{"role":"user","content":"time now?"}]}`)
 
 	_, _, err = svc.buildUpstreamRequest(
 		context.Background(), c, newVertexServiceAccount(404), body,

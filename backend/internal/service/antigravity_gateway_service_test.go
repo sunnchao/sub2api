@@ -389,7 +389,7 @@ func TestAntigravityGatewayService_Forward_PromptTooLong(t *testing.T) {
 	body, err := json.Marshal(map[string]any{
 		"model": "claude-opus-4-6",
 		"messages": []map[string]any{
-			{"role": "user", "content": "hi"},
+			{"role": "user", "content": "time now?"},
 		},
 		"max_tokens": 1,
 		"stream":     false,
@@ -453,7 +453,7 @@ func TestAntigravityGatewayService_Forward_ModelRateLimitTriggersFailover(t *tes
 	body, err := json.Marshal(map[string]any{
 		"model": "claude-opus-4-6",
 		"messages": []map[string]any{
-			{"role": "user", "content": "hi"},
+			{"role": "user", "content": "time now?"},
 		},
 		"max_tokens": 1,
 		"stream":     false,
@@ -512,7 +512,7 @@ func TestAntigravityGatewayService_ForwardGemini_ModelRateLimitTriggersFailover(
 
 	body, err := json.Marshal(map[string]any{
 		"contents": []map[string]any{
-			{"role": "user", "parts": []map[string]any{{"text": "hi"}}},
+			{"role": "user", "parts": []map[string]any{{"text": "time now?"}}},
 		},
 	})
 	require.NoError(t, err)
@@ -624,7 +624,7 @@ func TestAntigravityGatewayService_ForwardGemini_StickySessionForceCacheBilling(
 
 	body, err := json.Marshal(map[string]any{
 		"contents": []map[string]any{
-			{"role": "user", "parts": []map[string]any{{"text": "hi"}}},
+			{"role": "user", "parts": []map[string]any{{"text": "time now?"}}},
 		},
 	})
 	require.NoError(t, err)
@@ -678,7 +678,7 @@ func TestAntigravityGatewayService_ForwardGemini_ClearsStickySessionOnGeminiRate
 
 	body, err := json.Marshal(map[string]any{
 		"contents": []map[string]any{
-			{"role": "user", "parts": []map[string]any{{"text": "hi"}}},
+			{"role": "user", "parts": []map[string]any{{"text": "time now?"}}},
 		},
 	})
 	require.NoError(t, err)
@@ -1263,7 +1263,7 @@ func TestHandleClaudeStreamingResponse_ThoughtsTokenCount(t *testing.T) {
 
 	go func() {
 		defer func() { _ = pw.Close() }()
-		fmt.Fprintln(pw, `data: {"response":{"candidates":[{"content":{"parts":[{"text":"Hi"}]},"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":50,"candidatesTokenCount":10,"thoughtsTokenCount":25}}}`)
+		fmt.Fprintln(pw, `data: {"response":{"candidates":[{"content":{"parts":[{"text":"time now?"}]},"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":50,"candidatesTokenCount":10,"thoughtsTokenCount":25}}}`)
 		fmt.Fprintln(pw, "")
 	}()
 
@@ -1410,7 +1410,7 @@ func TestHandleGeminiStreamingResponse_ClientDisconnect(t *testing.T) {
 
 	go func() {
 		defer func() { _ = pw.Close() }()
-		fmt.Fprintln(pw, `data: {"candidates":[{"content":{"parts":[{"text":"hi"}]}}],"usageMetadata":{"promptTokenCount":5,"candidatesTokenCount":10}}`)
+		fmt.Fprintln(pw, `data: {"candidates":[{"content":{"parts":[{"text":"time now?"}]}}],"usageMetadata":{"promptTokenCount":5,"candidatesTokenCount":10}}`)
 		fmt.Fprintln(pw, "")
 	}()
 

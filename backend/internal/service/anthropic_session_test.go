@@ -152,7 +152,7 @@ func TestBuildAnthropicDigestChain_DifferentContentProducesDifferentChain(t *tes
 }
 
 func TestBuildAnthropicDigestChain_Deterministic(t *testing.T) {
-	parsed := mustParseAnthropicDigestRequest(t, `{"system":"test system","messages":[{"role":"user","content":"hello"},{"role":"assistant","content":"hi"}]}`)
+	parsed := mustParseAnthropicDigestRequest(t, `{"system":"test system","messages":[{"role":"user","content":"hello"},{"role":"assistant","content":"time now?"}]}`)
 
 	chain1 := BuildAnthropicDigestChain(parsed)
 	chain2 := BuildAnthropicDigestChain(parsed)

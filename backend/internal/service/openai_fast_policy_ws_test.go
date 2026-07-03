@@ -26,7 +26,7 @@ func TestWSResponseCreate_DefaultPassesPriorityAndNormalizesFast(t *testing.T) {
 	svc := newOpenAIGatewayServiceWithSettings(t, DefaultOpenAIFastPolicySettings())
 	account := &Account{Platform: PlatformOpenAI, Type: AccountTypeAPIKey}
 
-	frame := []byte(`{"type":"response.create","model":"gpt-5.5","service_tier":"priority","input":[{"type":"input_text","text":"hi"}]}`)
+	frame := []byte(`{"type":"response.create","model":"gpt-5.5","service_tier":"priority","input":[{"type":"input_text","text":"time now?"}]}`)
 	updated, blocked, err := svc.applyOpenAIFastPolicyToWSResponseCreate(context.Background(), account, "gpt-5.5", frame)
 	require.NoError(t, err)
 	require.Nil(t, blocked)
@@ -34,7 +34,7 @@ func TestWSResponseCreate_DefaultPassesPriorityAndNormalizesFast(t *testing.T) {
 	// Other fields preserved.
 	require.Equal(t, "response.create", gjson.GetBytes(updated, "type").String())
 	require.Equal(t, "gpt-5.5", gjson.GetBytes(updated, "model").String())
-	require.Equal(t, "hi", gjson.GetBytes(updated, "input.0.text").String())
+	require.Equal(t, "time now?", gjson.GetBytes(updated, "input.0.text").String())
 
 	frame = []byte(`{"type":"response.create","model":"gpt-5.5","service_tier":"fast"}`)
 	updated, blocked, err = svc.applyOpenAIFastPolicyToWSResponseCreate(context.Background(), account, "gpt-5.5", frame)
@@ -54,7 +54,7 @@ func TestWSResponseCreate_ExplicitFilterStripsServiceTier(t *testing.T) {
 	svc := newOpenAIGatewayServiceWithSettings(t, openAIFastFilterPriorityPolicy())
 	account := &Account{Platform: PlatformOpenAI, Type: AccountTypeAPIKey}
 
-	frame := []byte(`{"type":"response.create","model":"gpt-5.5","service_tier":"priority","input":[{"type":"input_text","text":"hi"}]}`)
+	frame := []byte(`{"type":"response.create","model":"gpt-5.5","service_tier":"priority","input":[{"type":"input_text","text":"time now?"}]}`)
 	updated, blocked, err := svc.applyOpenAIFastPolicyToWSResponseCreate(context.Background(), account, "gpt-5.5", frame)
 	require.NoError(t, err)
 	require.Nil(t, blocked)
@@ -653,7 +653,7 @@ func TestForwardAsAnthropicMessages_BetaFastModePassesOpenAIFastPolicyByDefault(
 	account := &Account{Platform: PlatformOpenAI, Type: AccountTypeAPIKey}
 
 	// Step 1: parse Anthropic request (mirrors openai_gateway_messages.go:38-50).
-	anthropicBody := []byte(`{"model":"gpt-5.5","max_tokens":64,"messages":[{"role":"user","content":"hi"}]}`)
+	anthropicBody := []byte(`{"model":"gpt-5.5","max_tokens":64,"messages":[{"role":"user","content":"time now?"}]}`)
 	var anthropicReq apicompat.AnthropicRequest
 	require.NoError(t, json.Unmarshal(anthropicBody, &anthropicReq))
 	responsesReq, err := apicompat.AnthropicToResponses(&anthropicReq)

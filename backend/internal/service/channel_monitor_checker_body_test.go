@@ -321,7 +321,7 @@ func TestRunCheckForModel_ReplaceMode_FullBodyUsedAndChallengeSkipped(t *testing
 
 	userBody := map[string]any{
 		"model":      "user-forced-model",
-		"messages":   []any{map[string]any{"role": "user", "content": "hi"}},
+		"messages":   []any{map[string]any{"role": "user", "content": "time now?"}},
 		"max_tokens": float64(10),
 		"system":     "You are someone else",
 	}

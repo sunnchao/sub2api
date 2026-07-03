@@ -37,7 +37,7 @@ func TestChatCompletionsToResponses_SystemMessage(t *testing.T) {
 		Model: "gpt-4o",
 		Messages: []ChatMessage{
 			{Role: "system", Content: json.RawMessage(`"You are helpful."`)},
-			{Role: "user", Content: json.RawMessage(`"Hi"`)},
+			{Role: "user", Content: json.RawMessage(`"time now?"`)},
 		},
 	}
 
@@ -130,7 +130,7 @@ func TestChatCompletionsToResponses_ToolStrict(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			req := &ChatCompletionsRequest{
 				Model:    "gpt-4o",
-				Messages: []ChatMessage{{Role: "user", Content: json.RawMessage(`"Hi"`)}},
+				Messages: []ChatMessage{{Role: "user", Content: json.RawMessage(`"time now?"`)}},
 				Tools: []ChatTool{{
 					Type: "function",
 					Function: &ChatFunction{
@@ -164,7 +164,7 @@ func TestChatCompletionsToResponses_ToolStrict(t *testing.T) {
 func TestChatCompletionsToResponses_LegacyFunctionDefaultsStrictFalse(t *testing.T) {
 	req := &ChatCompletionsRequest{
 		Model:    "gpt-4o",
-		Messages: []ChatMessage{{Role: "user", Content: json.RawMessage(`"Hi"`)}},
+		Messages: []ChatMessage{{Role: "user", Content: json.RawMessage(`"time now?"`)}},
 		Functions: []ChatFunction{{
 			Name: "lookup",
 		}},
@@ -204,7 +204,7 @@ func TestChatCompletionsToResponses_MaxTokens(t *testing.T) {
 		req := &ChatCompletionsRequest{
 			Model:     "gpt-4o",
 			MaxTokens: &maxTokens,
-			Messages:  []ChatMessage{{Role: "user", Content: json.RawMessage(`"Hi"`)}},
+			Messages:  []ChatMessage{{Role: "user", Content: json.RawMessage(`"time now?"`)}},
 		}
 		resp, err := ChatCompletionsToResponses(req)
 		require.NoError(t, err)
@@ -220,7 +220,7 @@ func TestChatCompletionsToResponses_MaxTokens(t *testing.T) {
 			Model:               "gpt-4o",
 			MaxTokens:           &maxTokens,
 			MaxCompletionTokens: &maxCompletion,
-			Messages:            []ChatMessage{{Role: "user", Content: json.RawMessage(`"Hi"`)}},
+			Messages:            []ChatMessage{{Role: "user", Content: json.RawMessage(`"time now?"`)}},
 		}
 		resp, err := ChatCompletionsToResponses(req)
 		require.NoError(t, err)
@@ -233,7 +233,7 @@ func TestChatCompletionsToResponses_ReasoningEffort(t *testing.T) {
 	req := &ChatCompletionsRequest{
 		Model:           "gpt-4o",
 		ReasoningEffort: "high",
-		Messages:        []ChatMessage{{Role: "user", Content: json.RawMessage(`"Hi"`)}},
+		Messages:        []ChatMessage{{Role: "user", Content: json.RawMessage(`"time now?"`)}},
 	}
 	resp, err := ChatCompletionsToResponses(req)
 	require.NoError(t, err)
@@ -437,7 +437,7 @@ func TestChatCompletionsToResponses_LegacyFunctions(t *testing.T) {
 	req := &ChatCompletionsRequest{
 		Model: "gpt-4o",
 		Messages: []ChatMessage{
-			{Role: "user", Content: json.RawMessage(`"Hi"`)},
+			{Role: "user", Content: json.RawMessage(`"time now?"`)},
 		},
 		Functions: []ChatFunction{
 			{
@@ -468,7 +468,7 @@ func TestChatCompletionsToResponses_ServiceTier(t *testing.T) {
 	req := &ChatCompletionsRequest{
 		Model:       "gpt-4o",
 		ServiceTier: "flex",
-		Messages:    []ChatMessage{{Role: "user", Content: json.RawMessage(`"Hi"`)}},
+		Messages:    []ChatMessage{{Role: "user", Content: json.RawMessage(`"time now?"`)}},
 	}
 	resp, err := ChatCompletionsToResponses(req)
 	require.NoError(t, err)
@@ -483,7 +483,7 @@ func TestChatCompletionsToResponses_TemperatureStrippedForReasoningModel(t *test
 	temp := 0.7
 	req := &ChatCompletionsRequest{
 		Model:       "gpt-5.2",
-		Messages:    []ChatMessage{{Role: "user", Content: json.RawMessage(`"Hi"`)}},
+		Messages:    []ChatMessage{{Role: "user", Content: json.RawMessage(`"time now?"`)}},
 		Temperature: &temp,
 		TopP:        &temp,
 	}
@@ -504,7 +504,7 @@ func TestChatCompletionsToResponses_TemperaturePreservedForNonReasoningModel(t *
 	temp := 0.7
 	req := &ChatCompletionsRequest{
 		Model:       "gpt-4o",
-		Messages:    []ChatMessage{{Role: "user", Content: json.RawMessage(`"Hi"`)}},
+		Messages:    []ChatMessage{{Role: "user", Content: json.RawMessage(`"time now?"`)}},
 		Temperature: &temp,
 		TopP:        &temp,
 	}
@@ -556,7 +556,7 @@ func TestChatCompletionsToResponses_AssistantArrayContentPreserved(t *testing.T)
 	req := &ChatCompletionsRequest{
 		Model: "gpt-4o",
 		Messages: []ChatMessage{
-			{Role: "user", Content: json.RawMessage(`"Hi"`)},
+			{Role: "user", Content: json.RawMessage(`"time now?"`)},
 			{Role: "assistant", Content: json.RawMessage(`[{"type":"text","text":"A"},{"type":"text","text":"B"}]`)},
 		},
 	}
@@ -580,7 +580,7 @@ func TestChatCompletionsToResponses_AssistantThinkingTagPreserved(t *testing.T) 
 	req := &ChatCompletionsRequest{
 		Model: "gpt-4o",
 		Messages: []ChatMessage{
-			{Role: "user", Content: json.RawMessage(`"Hi"`)},
+			{Role: "user", Content: json.RawMessage(`"time now?"`)},
 			{Role: "assistant", Content: json.RawMessage(`[{"type":"thinking","thinking":"internal plan"},{"type":"text","text":"final answer"}]`)},
 		},
 	}
@@ -604,7 +604,7 @@ func TestChatCompletionsToResponses_AssistantReasoningContentPreserved(t *testin
 	req := &ChatCompletionsRequest{
 		Model: "gpt-4o",
 		Messages: []ChatMessage{
-			{Role: "user", Content: json.RawMessage(`"Hi"`)},
+			{Role: "user", Content: json.RawMessage(`"time now?"`)},
 			{
 				Role:             "assistant",
 				ReasoningContent: "internal plan",
@@ -893,7 +893,7 @@ func TestResponsesToChatCompletions_NoReasoningTokensWhenZero(t *testing.T) {
 		Output: []ResponsesOutput{
 			{
 				Type:    "message",
-				Content: []ResponsesContentPart{{Type: "output_text", Text: "hi"}},
+				Content: []ResponsesContentPart{{Type: "output_text", Text: "time now?"}},
 			},
 		},
 		Usage: &ResponsesUsage{

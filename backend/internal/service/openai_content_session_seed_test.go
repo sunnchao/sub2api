@@ -50,16 +50,16 @@ func TestDeriveOpenAIContentSessionSeed_ChatCompletions_DifferentFirstUserDiffer
 }
 
 func TestDeriveOpenAIContentSessionSeed_ChatCompletions_DifferentSystemDiffers(t *testing.T) {
-	req1 := []byte(`{"model":"gpt-5.4","messages":[{"role":"system","content":"A"},{"role":"user","content":"Hi"}]}`)
-	req2 := []byte(`{"model":"gpt-5.4","messages":[{"role":"system","content":"B"},{"role":"user","content":"Hi"}]}`)
+	req1 := []byte(`{"model":"gpt-5.4","messages":[{"role":"system","content":"A"},{"role":"user","content":"time now?"}]}`)
+	req2 := []byte(`{"model":"gpt-5.4","messages":[{"role":"system","content":"B"},{"role":"user","content":"time now?"}]}`)
 	s1 := deriveOpenAIContentSessionSeed(req1)
 	s2 := deriveOpenAIContentSessionSeed(req2)
 	require.NotEqual(t, s1, s2)
 }
 
 func TestDeriveOpenAIContentSessionSeed_ChatCompletions_DifferentModelDiffers(t *testing.T) {
-	req1 := []byte(`{"model":"gpt-5.4","messages":[{"role":"user","content":"Hi"}]}`)
-	req2 := []byte(`{"model":"gpt-4o","messages":[{"role":"user","content":"Hi"}]}`)
+	req1 := []byte(`{"model":"gpt-5.4","messages":[{"role":"user","content":"time now?"}]}`)
+	req2 := []byte(`{"model":"gpt-4o","messages":[{"role":"user","content":"time now?"}]}`)
 	s1 := deriveOpenAIContentSessionSeed(req1)
 	s2 := deriveOpenAIContentSessionSeed(req2)
 	require.NotEqual(t, s1, s2)
@@ -160,14 +160,14 @@ func TestDeriveOpenAIContentSessionSeed_Deterministic(t *testing.T) {
 }
 
 func TestDeriveOpenAIContentSessionSeed_PrefixPresent(t *testing.T) {
-	body := []byte(`{"model":"gpt-5.4","messages":[{"role":"user","content":"Hi"}]}`)
+	body := []byte(`{"model":"gpt-5.4","messages":[{"role":"user","content":"time now?"}]}`)
 	seed := deriveOpenAIContentSessionSeed(body)
 	require.True(t, len(seed) > len(contentSessionSeedPrefix))
 	require.Equal(t, contentSessionSeedPrefix, seed[:len(contentSessionSeedPrefix)])
 }
 
 func TestDeriveOpenAIContentSessionSeed_EmptyToolsIgnored(t *testing.T) {
-	body := []byte(`{"model":"gpt-5.4","tools":[],"messages":[{"role":"user","content":"Hi"}]}`)
+	body := []byte(`{"model":"gpt-5.4","tools":[],"messages":[{"role":"user","content":"time now?"}]}`)
 	seed := deriveOpenAIContentSessionSeed(body)
 	require.NotContains(t, seed, "|tools=")
 }
@@ -184,13 +184,13 @@ func TestDeriveOpenAIContentSessionSeed_MessagesPreferredOverInput(t *testing.T)
 }
 
 func TestDeriveOpenAIContentSessionSeed_JSONCanonicalisation(t *testing.T) {
-	compact := []byte(`{"model":"gpt-5.4","tools":[{"type":"function","function":{"name":"get_weather","description":"Get weather"}}],"messages":[{"role":"user","content":"Hi"}]}`)
+	compact := []byte(`{"model":"gpt-5.4","tools":[{"type":"function","function":{"name":"get_weather","description":"Get weather"}}],"messages":[{"role":"user","content":"time now?"}]}`)
 	spaced := []byte(`{
 		"model": "gpt-5.4",
 		"tools": [
 			{ "type" : "function", "function": { "description": "Get weather", "name": "get_weather" } }
 		],
-		"messages": [ { "role": "user", "content": "Hi" } ]
+		"messages": [ { "role": "user", "content": "time now?" } ]
 	}`)
 	s1 := deriveOpenAIContentSessionSeed(compact)
 	s2 := deriveOpenAIContentSessionSeed(spaced)
