@@ -92,7 +92,7 @@ func TestBuildGeminiDigestChain(t *testing.T) {
 				},
 				Contents: []antigravity.GeminiContent{
 					{Role: "user", Parts: []antigravity.GeminiPart{{Text: "hello"}}},
-					{Role: "model", Parts: []antigravity.GeminiPart{{Text: "hi"}}},
+					{Role: "model", Parts: []antigravity.GeminiPart{{Text: "time now?"}}},
 					{Role: "user", Parts: []antigravity.GeminiPart{{Text: "how are you?"}}},
 				},
 			},

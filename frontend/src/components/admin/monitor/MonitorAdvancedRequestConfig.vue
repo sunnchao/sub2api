@@ -314,6 +314,6 @@ const bodyPlaceholder = computed(() => {
   if (props.bodyOverrideMode === 'merge') {
     return '{\n  "system": "You are Claude Code..."\n}'
   }
-  return '{\n  "model": "claude-x",\n  "messages": [{"role":"user","content":"hi"}],\n  "max_tokens": 10\n}'
+  return '{\n  "model": "claude-x",\n  "messages": [{"role":"user","content":"time now?"}],\n  "max_tokens": 10\n}'
 })
 </script>

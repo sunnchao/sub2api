@@ -9,7 +9,7 @@ import (
 )
 
 func TestPrepareBedrockRequestBody_BasicFields(t *testing.T) {
-	input := `{"model":"claude-opus-4-6","stream":true,"max_tokens":1024,"messages":[{"role":"user","content":"hi"}]}`
+	input := `{"model":"claude-opus-4-6","stream":true,"max_tokens":1024,"messages":[{"role":"user","content":"time now?"}]}`
 	result, err := PrepareBedrockRequestBody([]byte(input), "us.anthropic.claude-opus-4-6-v1", "")
 	require.NoError(t, err)
 
@@ -49,7 +49,7 @@ func TestPrepareBedrockRequestBody_OutputFormatInlineSchema(t *testing.T) {
 	})
 
 	t.Run("no schema field just removes output_format", func(t *testing.T) {
-		input := `{"model":"claude-sonnet-4-5","output_format":{"type":"json"},"messages":[{"role":"user","content":"hi"}]}`
+		input := `{"model":"claude-sonnet-4-5","output_format":{"type":"json"},"messages":[{"role":"user","content":"time now?"}]}`
 		result, err := PrepareBedrockRequestBody([]byte(input), "us.anthropic.claude-sonnet-4-5-v1", "")
 		require.NoError(t, err)
 
@@ -98,7 +98,7 @@ func TestRemoveCustomFieldFromTools(t *testing.T) {
 }
 
 func TestRemoveCustomFieldFromTools_NoTools(t *testing.T) {
-	input := `{"messages":[{"role":"user","content":"hi"}]}`
+	input := `{"messages":[{"role":"user","content":"time now?"}]}`
 	result := removeCustomFieldFromTools([]byte(input))
 	// 无 tools 时不改变原始数据
 	assert.JSONEq(t, input, string(result))
@@ -107,7 +107,7 @@ func TestRemoveCustomFieldFromTools_NoTools(t *testing.T) {
 func TestSanitizeBedrockCacheControl_RemoveScope(t *testing.T) {
 	input := `{
 		"system": [{"type":"text","text":"sys","cache_control":{"type":"ephemeral","scope":"global"}}],
-		"messages": [{"role":"user","content":[{"type":"text","text":"hi","cache_control":{"type":"ephemeral","scope":"global"}}]}]
+		"messages": [{"role":"user","content":[{"type":"text","text":"time now?","cache_control":{"type":"ephemeral","scope":"global"}}]}]
 	}`
 	result := sanitizeBedrockCacheControl([]byte(input), "us.anthropic.claude-opus-4-6-v1")
 
@@ -153,7 +153,7 @@ func TestSanitizeBedrockCacheControl_TTL_Claude45_UnsupportedValue(t *testing.T)
 
 func TestSanitizeBedrockCacheControl_TTL_Claude46(t *testing.T) {
 	input := `{
-		"messages": [{"role":"user","content":[{"type":"text","text":"hi","cache_control":{"type":"ephemeral","ttl":"1h"}}]}]
+		"messages": [{"role":"user","content":[{"type":"text","text":"time now?","cache_control":{"type":"ephemeral","ttl":"1h"}}]}]
 	}`
 	result := sanitizeBedrockCacheControl([]byte(input), "us.anthropic.claude-opus-4-6-v1")
 
@@ -162,7 +162,7 @@ func TestSanitizeBedrockCacheControl_TTL_Claude46(t *testing.T) {
 }
 
 func TestSanitizeBedrockCacheControl_NoCacheControl(t *testing.T) {
-	input := `{"system":[{"type":"text","text":"sys"}],"messages":[{"role":"user","content":[{"type":"text","text":"hi"}]}]}`
+	input := `{"system":[{"type":"text","text":"sys"}],"messages":[{"role":"user","content":[{"type":"text","text":"time now?"}]}]}`
 	result := sanitizeBedrockCacheControl([]byte(input), "us.anthropic.claude-opus-4-6-v1")
 	// 无 cache_control 时不改变原始数据
 	assert.JSONEq(t, input, string(result))
@@ -256,7 +256,7 @@ func TestPrepareBedrockRequestBody_FullIntegration(t *testing.T) {
 }
 
 func TestPrepareBedrockRequestBody_BetaHeader(t *testing.T) {
-	input := `{"messages":[{"role":"user","content":"hi"}],"max_tokens":100}`
+	input := `{"messages":[{"role":"user","content":"time now?"}],"max_tokens":100}`
 
 	t.Run("empty beta header", func(t *testing.T) {
 		result, err := PrepareBedrockRequestBody([]byte(input), "us.anthropic.claude-opus-4-6-v1", "")
@@ -358,7 +358,7 @@ func TestFilterBedrockBetaTokens(t *testing.T) {
 }
 
 func TestPrepareBedrockRequestBody_BetaFiltering(t *testing.T) {
-	input := `{"messages":[{"role":"user","content":"hi"}],"max_tokens":100}`
+	input := `{"messages":[{"role":"user","content":"time now?"}],"max_tokens":100}`
 
 	t.Run("unsupported beta tokens are filtered", func(t *testing.T) {
 		result, err := PrepareBedrockRequestBody([]byte(input), "us.anthropic.claude-opus-4-6-v1",
@@ -385,7 +385,7 @@ func TestPrepareBedrockRequestBodyWithTokens_ContextManagementRequiresSupportedB
 
 	t.Run("strips context_management when final tokens omit context-management beta", func(t *testing.T) {
 		input := `{
-			"messages":[{"role":"user","content":"hi"}],
+			"messages":[{"role":"user","content":"time now?"}],
 			"max_tokens":100,
 			"context_management":{"edits":[{"type":"clear_thinking_20251015","keep":"all"}]}
 		}`
@@ -401,20 +401,20 @@ func TestPrepareBedrockRequestBodyWithTokens_ContextManagementRequiresSupportedB
 	})
 
 	t.Run("leaves body without context_management otherwise intact", func(t *testing.T) {
-		input := `{"messages":[{"role":"user","content":"hi"}],"max_tokens":100}`
+		input := `{"messages":[{"role":"user","content":"time now?"}],"max_tokens":100}`
 
 		result, err := PrepareBedrockRequestBodyWithTokens([]byte(input), modelID, nil, false)
 		require.NoError(t, err)
 
 		assert.False(t, gjson.GetBytes(result, "context_management").Exists())
 		assert.False(t, gjson.GetBytes(result, "anthropic_beta").Exists())
-		assert.Equal(t, "hi", gjson.GetBytes(result, "messages.0.content").String())
+		assert.Equal(t, "time now?", gjson.GetBytes(result, "messages.0.content").String())
 		assert.Equal(t, int64(100), gjson.GetBytes(result, "max_tokens").Int())
 	})
 
 	t.Run("keeps supported context-management beta and retains field", func(t *testing.T) {
 		input := `{
-			"messages":[{"role":"user","content":"hi"}],
+			"messages":[{"role":"user","content":"time now?"}],
 			"max_tokens":100,
 			"context_management":{"edits":[{"type":"clear_thinking_20251015","keep":"all"}]}
 		}`
@@ -589,38 +589,38 @@ func TestResolveBedrockModelID(t *testing.T) {
 
 func TestAutoInjectBedrockBetaTokens(t *testing.T) {
 	t.Run("no auto-inject for thinking (interleaved-thinking not supported)", func(t *testing.T) {
-		body := []byte(`{"thinking":{"type":"enabled","budget_tokens":10000},"messages":[{"role":"user","content":"hi"}]}`)
+		body := []byte(`{"thinking":{"type":"enabled","budget_tokens":10000},"messages":[{"role":"user","content":"time now?"}]}`)
 		result := autoInjectBedrockBetaTokens(nil, body, "us.anthropic.claude-opus-4-6-v1")
 		// interleaved-thinking-2025-05-14 已从白名单移除，不应自动注入
 		assert.Empty(t, result)
 	})
 
 	t.Run("no duplicate when already present", func(t *testing.T) {
-		body := []byte(`{"thinking":{"type":"enabled","budget_tokens":10000},"messages":[{"role":"user","content":"hi"}]}`)
+		body := []byte(`{"thinking":{"type":"enabled","budget_tokens":10000},"messages":[{"role":"user","content":"time now?"}]}`)
 		result := autoInjectBedrockBetaTokens([]string{"context-1m-2025-08-07"}, body, "us.anthropic.claude-opus-4-6-v1")
 		assert.Equal(t, []string{"context-1m-2025-08-07"}, result)
 	})
 
 	t.Run("inject computer-use when computer tool present", func(t *testing.T) {
-		body := []byte(`{"tools":[{"type":"computer_20250124","name":"computer","display_width_px":1024}],"messages":[{"role":"user","content":"hi"}]}`)
+		body := []byte(`{"tools":[{"type":"computer_20250124","name":"computer","display_width_px":1024}],"messages":[{"role":"user","content":"time now?"}]}`)
 		result := autoInjectBedrockBetaTokens(nil, body, "us.anthropic.claude-opus-4-6-v1")
 		assert.Contains(t, result, "computer-use-2025-11-24")
 	})
 
 	t.Run("inject advanced-tool-use for programmatic tool calling", func(t *testing.T) {
-		body := []byte(`{"tools":[{"name":"bash","allowed_callers":["code_execution_20250825"]}],"messages":[{"role":"user","content":"hi"}]}`)
+		body := []byte(`{"tools":[{"name":"bash","allowed_callers":["code_execution_20250825"]}],"messages":[{"role":"user","content":"time now?"}]}`)
 		result := autoInjectBedrockBetaTokens(nil, body, "us.anthropic.claude-opus-4-6-v1")
 		assert.Contains(t, result, "advanced-tool-use-2025-11-20")
 	})
 
 	t.Run("inject advanced-tool-use for input examples", func(t *testing.T) {
-		body := []byte(`{"tools":[{"name":"bash","input_examples":[{"cmd":"ls"}]}],"messages":[{"role":"user","content":"hi"}]}`)
+		body := []byte(`{"tools":[{"name":"bash","input_examples":[{"cmd":"ls"}]}],"messages":[{"role":"user","content":"time now?"}]}`)
 		result := autoInjectBedrockBetaTokens(nil, body, "us.anthropic.claude-opus-4-6-v1")
 		assert.Contains(t, result, "advanced-tool-use-2025-11-20")
 	})
 
 	t.Run("inject tool-search-tool directly for pure tool search (no programmatic/inputExamples)", func(t *testing.T) {
-		body := []byte(`{"tools":[{"type":"tool_search_tool_regex_20251119","name":"search"}],"messages":[{"role":"user","content":"hi"}]}`)
+		body := []byte(`{"tools":[{"type":"tool_search_tool_regex_20251119","name":"search"}],"messages":[{"role":"user","content":"time now?"}]}`)
 		result := autoInjectBedrockBetaTokens(nil, body, "us.anthropic.claude-sonnet-4-6")
 		// 纯 tool search 场景直接注入 Bedrock 特定头，不走 advanced-tool-use 转换
 		assert.Contains(t, result, "tool-search-tool-2025-10-19")
@@ -628,33 +628,33 @@ func TestAutoInjectBedrockBetaTokens(t *testing.T) {
 	})
 
 	t.Run("inject advanced-tool-use when tool search combined with programmatic calling", func(t *testing.T) {
-		body := []byte(`{"tools":[{"type":"tool_search_tool_regex_20251119","name":"search"},{"name":"bash","allowed_callers":["code_execution_20250825"]}],"messages":[{"role":"user","content":"hi"}]}`)
+		body := []byte(`{"tools":[{"type":"tool_search_tool_regex_20251119","name":"search"},{"name":"bash","allowed_callers":["code_execution_20250825"]}],"messages":[{"role":"user","content":"time now?"}]}`)
 		result := autoInjectBedrockBetaTokens(nil, body, "us.anthropic.claude-sonnet-4-6")
 		// 混合场景使用 advanced-tool-use（后续由 filter 转换为 tool-search-tool）
 		assert.Contains(t, result, "advanced-tool-use-2025-11-20")
 	})
 
 	t.Run("do not inject tool-search beta for unsupported models", func(t *testing.T) {
-		body := []byte(`{"tools":[{"type":"tool_search_tool_regex_20251119","name":"search"}],"messages":[{"role":"user","content":"hi"}]}`)
+		body := []byte(`{"tools":[{"type":"tool_search_tool_regex_20251119","name":"search"}],"messages":[{"role":"user","content":"time now?"}]}`)
 		result := autoInjectBedrockBetaTokens(nil, body, "anthropic.claude-3-5-sonnet-20241022-v2:0")
 		assert.NotContains(t, result, "advanced-tool-use-2025-11-20")
 		assert.NotContains(t, result, "tool-search-tool-2025-10-19")
 	})
 
 	t.Run("no injection for regular tools", func(t *testing.T) {
-		body := []byte(`{"tools":[{"name":"bash","description":"run bash","input_schema":{"type":"object"}}],"messages":[{"role":"user","content":"hi"}]}`)
+		body := []byte(`{"tools":[{"name":"bash","description":"run bash","input_schema":{"type":"object"}}],"messages":[{"role":"user","content":"time now?"}]}`)
 		result := autoInjectBedrockBetaTokens(nil, body, "us.anthropic.claude-opus-4-6-v1")
 		assert.Empty(t, result)
 	})
 
 	t.Run("no injection when no features detected", func(t *testing.T) {
-		body := []byte(`{"messages":[{"role":"user","content":"hi"}],"max_tokens":100}`)
+		body := []byte(`{"messages":[{"role":"user","content":"time now?"}],"max_tokens":100}`)
 		result := autoInjectBedrockBetaTokens(nil, body, "us.anthropic.claude-opus-4-6-v1")
 		assert.Empty(t, result)
 	})
 
 	t.Run("preserves existing tokens", func(t *testing.T) {
-		body := []byte(`{"thinking":{"type":"enabled"},"messages":[{"role":"user","content":"hi"}]}`)
+		body := []byte(`{"thinking":{"type":"enabled"},"messages":[{"role":"user","content":"time now?"}]}`)
 		existing := []string{"context-1m-2025-08-07", "compact-2026-01-12"}
 		result := autoInjectBedrockBetaTokens(existing, body, "us.anthropic.claude-opus-4-6-v1")
 		assert.Contains(t, result, "context-1m-2025-08-07")
@@ -666,14 +666,14 @@ func TestAutoInjectBedrockBetaTokens(t *testing.T) {
 
 func TestResolveBedrockBetaTokens(t *testing.T) {
 	t.Run("body-only tool features resolve to final bedrock tokens", func(t *testing.T) {
-		body := []byte(`{"tools":[{"name":"bash","allowed_callers":["code_execution_20250825"]}],"messages":[{"role":"user","content":"hi"}]}`)
+		body := []byte(`{"tools":[{"name":"bash","allowed_callers":["code_execution_20250825"]}],"messages":[{"role":"user","content":"time now?"}]}`)
 		result := ResolveBedrockBetaTokens("", body, "us.anthropic.claude-opus-4-6-v1")
 		assert.Contains(t, result, "tool-search-tool-2025-10-19")
 		assert.Contains(t, result, "tool-examples-2025-10-29")
 	})
 
 	t.Run("unsupported client beta tokens are filtered out", func(t *testing.T) {
-		body := []byte(`{"messages":[{"role":"user","content":"hi"}]}`)
+		body := []byte(`{"messages":[{"role":"user","content":"time now?"}]}`)
 		result := ResolveBedrockBetaTokens("context-1m-2025-08-07,files-api-2025-04-14", body, "us.anthropic.claude-opus-4-6-v1")
 		assert.Equal(t, []string{"context-1m-2025-08-07"}, result)
 	})
@@ -681,7 +681,7 @@ func TestResolveBedrockBetaTokens(t *testing.T) {
 
 func TestPrepareBedrockRequestBody_AutoBetaInjection(t *testing.T) {
 	t.Run("thinking in body does not auto-inject beta (not supported)", func(t *testing.T) {
-		input := `{"messages":[{"role":"user","content":"hi"}],"max_tokens":100,"thinking":{"type":"enabled","budget_tokens":10000}}`
+		input := `{"messages":[{"role":"user","content":"time now?"}],"max_tokens":100,"thinking":{"type":"enabled","budget_tokens":10000}}`
 		result, err := PrepareBedrockRequestBody([]byte(input), "us.anthropic.claude-opus-4-6-v1", "")
 		require.NoError(t, err)
 		// interleaved-thinking 已从白名单移除，不应自动注入
@@ -689,7 +689,7 @@ func TestPrepareBedrockRequestBody_AutoBetaInjection(t *testing.T) {
 	})
 
 	t.Run("header tokens preserved without auto-injection", func(t *testing.T) {
-		input := `{"messages":[{"role":"user","content":"hi"}],"max_tokens":100,"thinking":{"type":"enabled","budget_tokens":10000}}`
+		input := `{"messages":[{"role":"user","content":"time now?"}],"max_tokens":100,"thinking":{"type":"enabled","budget_tokens":10000}}`
 		result, err := PrepareBedrockRequestBody([]byte(input), "us.anthropic.claude-opus-4-6-v1", "context-1m-2025-08-07")
 		require.NoError(t, err)
 		arr := gjson.GetBytes(result, "anthropic_beta").Array()
@@ -859,7 +859,7 @@ func TestSanitizeBedrockToolUseIDs(t *testing.T) {
 	})
 
 	t.Run("no messages unchanged", func(t *testing.T) {
-		input := `{"system":[{"type":"text","text":"hi"}]}`
+		input := `{"system":[{"type":"text","text":"time now?"}]}`
 		result := sanitizeBedrockToolUseIDs([]byte(input))
 		assert.JSONEq(t, input, string(result))
 	})
