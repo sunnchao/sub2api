@@ -293,6 +293,7 @@ export default {
       },
       testConnection: 'Test Connection',
       reAuthorize: 'Re-Authorize',
+      duplicateAccount: 'Duplicate Account',
       refreshToken: 'Refresh Token',
       noAccountsYet: 'No accounts yet',
       createFirstAccount: 'Create your first account to start using AI services.',

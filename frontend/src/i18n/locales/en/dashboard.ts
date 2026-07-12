@@ -272,6 +272,8 @@ export default {
     exportCancelled: 'Export cancelled',
     exporting: 'Exporting...',
     preparingExport: 'Preparing export...',
+    account: 'Account',
+    group: 'Group',
     model: 'Model',
     requestedModel: 'Requested',
     upstreamModel: 'Upstream',

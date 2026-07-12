@@ -277,6 +277,8 @@ export default {
     exportCancelled: '导出已取消',
     exporting: '导出中...',
     preparingExport: '正在准备导出...',
+    account: '账号',
+    group: '分组',
     model: '模型',
     requestedModel: '请求',
     upstreamModel: '上游',

@@ -206,6 +206,7 @@ export default {
       },
       testConnection: '测试连接',
       reAuthorize: '重新授权',
+      duplicateAccount: '复制账号',
       refreshToken: '刷新令牌',
       noAccountsYet: '暂无账号',
       createFirstAccount: '添加 AI 平台账号以开始使用 API 网关。',
