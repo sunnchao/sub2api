@@ -53,7 +53,7 @@ type TestEvent struct {
 }
 
 const (
-	defaultGeminiTextTestPrompt  = "time now?"
+	defaultGeminiTextTestPrompt  = "hi"
 	defaultGeminiImageTestPrompt = "Generate a cute orange cat astronaut sticker on a clean pastel background."
 	defaultOpenAIImageTestPrompt = "Generate a cute orange cat astronaut sticker on a clean pastel background."
 )
@@ -147,7 +147,7 @@ func createTestPayload(modelID string) (map[string]any, error) {
 				"content": []map[string]any{
 					{
 						"type": "text",
-						"text": "time now?",
+						"text": "hi",
 						"cache_control": map[string]string{
 							"type": "ephemeral",
 						},
@@ -422,7 +422,7 @@ func (s *AccountTestService) testBedrockAccountConnection(c *gin.Context, ctx co
 				"content": []map[string]any{
 					{
 						"type": "text",
-						"text": "time now?",
+						"text": "hi",
 					},
 				},
 			},
@@ -735,11 +735,7 @@ func (s *AccountTestService) testGrokAccountConnection(c *gin.Context, account *
 	c.Writer.Header().Set("X-Accel-Buffering", "no")
 	c.Writer.Flush()
 
-	payloadBytes, err := json.Marshal(map[string]any{
-		"model":  testModelID,
-		"input":  "time now?",
-		"stream": true,
-	})
+	payloadBytes, err := buildGrokQuotaProbeBody(testModelID)
 	if err != nil {
 		return s.sendErrorAndEnd(c, "Failed to create Grok test payload")
 	}
@@ -1436,7 +1432,7 @@ func createOpenAITestPayload(modelID string, isOAuth bool) map[string]any {
 				"content": []map[string]any{
 					{
 						"type": "input_text",
-						"text": "time now?",
+						"text": "hi",
 					},
 				},
 			},
@@ -1458,7 +1454,7 @@ func createOpenAITestPayload(modelID string, isOAuth bool) map[string]any {
 func createOpenAIChatCompletionsTestPayload(modelID string, prompt string) map[string]any {
 	testPrompt := strings.TrimSpace(prompt)
 	if testPrompt == "" {
-		testPrompt = "time now?"
+		testPrompt = "hi"
 	}
 
 	return map[string]any{
