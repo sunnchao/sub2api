@@ -386,7 +386,6 @@ export default {
       createSparkShadowConfirm: 'Create a spark shadow account linked to "{name}"? It shares the parent\'s credentials and serves only spark models.',
       createSparkShadowSuccess: 'Spark shadow account created',
       createSparkShadowFailed: 'Failed to create spark shadow account',
-      duplicateAccount: 'Duplicate Account',
       duplicateSuccess: 'Account duplicated as "{name}" and paused. Review its credentials before enabling it.',
       duplicateFailed: 'Failed to duplicate account',
       resetStatus: 'Reset Status',
