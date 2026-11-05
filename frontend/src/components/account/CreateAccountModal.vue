@@ -5761,6 +5761,16 @@ const handleClose = () => {
   emit('close')
 }
 
+// 未设置 scope 的规则由后端按「401 账号级、其余模型级」处理，这里按同一规则回显，
+// 保证复制账号后保存不改变规则行为。
+function resolveTempUnschedScope(value: unknown, errorCode: number | null): TempUnschedulableScope {
+  const scope = typeof value === 'string' ? value.trim().toLowerCase() : ''
+  if (scope === 'account' || scope === 'model') {
+    return scope
+  }
+  return errorCode === 401 ? 'account' : 'model'
+}
+
 const prefillFromAccount = async (account: Account) => {
   // Base fields
   form.name = `${account.name} (Copy)`
@@ -5869,15 +5879,17 @@ const prefillFromAccount = async (account: Account) => {
   if (Array.isArray(rawRules)) {
     tempUnschedRules.value = rawRules.map((rule: any) => {
       const errorCode = Number(rule?.error_code)
+      const normalizedCode = Number.isFinite(errorCode) && errorCode > 0 ? Math.trunc(errorCode) : null
       const duration = Number(rule?.duration_minutes)
       const keywords = Array.isArray(rule?.keywords)
         ? rule.keywords.filter((k: any) => typeof k === 'string').join(', ')
         : ''
       return {
-        error_code: Number.isFinite(errorCode) && errorCode > 0 ? Math.trunc(errorCode) : null,
+        error_code: normalizedCode,
         keywords,
         duration_minutes: Number.isFinite(duration) && duration > 0 ? Math.trunc(duration) : null,
-        description: typeof rule?.description === 'string' ? rule.description : ''
+        description: typeof rule?.description === 'string' ? rule.description : '',
+        scope: resolveTempUnschedScope(rule?.scope, normalizedCode)
       }
     })
   } else {

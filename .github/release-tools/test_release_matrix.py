@@ -121,6 +121,10 @@ class ReleaseMatrixTest(unittest.TestCase):
             self.assertEqual(binary.read_bytes(), b'fixture')
             self.assertEqual(binary.stat().st_mode & 0o777, 0o755)
 
+    def test_four_component_hotfix_versions_are_supported(self):
+        self.assertEqual(release.archive_name('9.8.7.6', {'goos': 'linux', 'goarch': 'amd64'}),
+                         'sub2api_9.8.7.6_linux_amd64.tar.gz')
+
     def test_plan_requires_a_tag_for_publication(self):
         args = argparse.Namespace(ref='main', dry_run=False, simple=False)
         with patch.object(subprocess, 'check_output', return_value='a' * 40 + '\n'):
