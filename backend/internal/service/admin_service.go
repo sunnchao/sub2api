@@ -247,6 +247,8 @@ type CreateGroupInput struct {
 	DailyLimitUSD             *float64 // 日限额 (USD)
 	WeeklyLimitUSD            *float64 // 周限额 (USD)
 	MonthlyLimitUSD           *float64 // 月限额 (USD)
+	HourlyLimitUSD            *float64 // 小时限额 (USD)
+	HourlyWindowHours         *int     // 小时窗口长度，默认 5
 	LongContextPricingEnabled bool
 	ModelPricing              []ChannelModelPricing
 	// 图片生成计费配置（仅 antigravity 平台使用）
@@ -330,6 +332,8 @@ type UpdateGroupInput struct {
 	DailyLimitUSD             *float64 // 日限额 (USD)
 	WeeklyLimitUSD            *float64 // 周限额 (USD)
 	MonthlyLimitUSD           *float64 // 月限额 (USD)
+	HourlyLimitUSD            *float64 // 小时限额 (USD)
+	HourlyWindowHours         *int     // 小时窗口长度；nil 表示不修改
 	LongContextPricingEnabled *bool
 	ModelPricing              *[]ChannelModelPricing
 	// 图片生成计费配置（仅 antigravity 平台使用）

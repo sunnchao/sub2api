@@ -99,6 +99,14 @@ func (Group) Fields() []ent.Field {
 			Optional().
 			Nillable().
 			SchemaType(map[string]string{dialect.Postgres: "decimal(20,8)"}),
+		field.Float("hourly_limit_usd").
+			Optional().
+			Nillable().
+			SchemaType(map[string]string{dialect.Postgres: "decimal(20,8)"}).
+			Comment("订阅模式下按小时窗口的限额（USD），nil 表示不限"),
+		field.Int("hourly_window_hours").
+			Default(5).
+			Comment("订阅小时窗口长度（小时），例如 5 表示每 5 小时滚动一次"),
 		field.Int("default_validity_days").
 			Default(30),
 

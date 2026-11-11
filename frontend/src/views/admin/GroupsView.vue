@@ -192,10 +192,30 @@
                   v-if="
                     row.daily_limit_usd ||
                     row.weekly_limit_usd ||
-                    row.monthly_limit_usd
+                    row.monthly_limit_usd ||
+                    row.hourly_limit_usd
                   "
                   class="flex flex-wrap items-center gap-x-1 gap-y-0.5"
                 >
+                  <span v-if="row.hourly_limit_usd" class="whitespace-nowrap">
+                    <span class="text-gray-400 dark:text-gray-500">
+                      {{ formatUsd(row.hourly_limit_usd) }}/{{
+                        t("admin.groups.limitHour", {
+                          hours: row.hourly_window_hours || 5,
+                        })
+                      }}</span
+                    >
+                  </span>
+                  <span
+                    v-if="
+                      row.hourly_limit_usd &&
+                      (row.daily_limit_usd ||
+                        row.weekly_limit_usd ||
+                        row.monthly_limit_usd)
+                    "
+                    class="mx-1 text-gray-300 dark:text-gray-600"
+                    >·</span
+                  >
                   <span v-if="row.daily_limit_usd" class="whitespace-nowrap">
                     <span
                       v-if="usageLoading"
@@ -765,6 +785,43 @@
                 :placeholder="t('admin.groups.subscription.noLimit')"
               />
             </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="input-label">{{
+                  t("admin.groups.subscription.hourlyLimit")
+                }}</label>
+                <input
+                  v-model.number="createForm.hourly_limit_usd"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  class="input"
+                  :placeholder="t('admin.groups.subscription.noLimit')"
+                  data-testid="create-hourly-limit"
+                />
+              </div>
+              <div>
+                <label class="input-label">{{
+                  t("admin.groups.subscription.hourlyWindowHours")
+                }}</label>
+                <input
+                  v-model.number="createForm.hourly_window_hours"
+                  type="number"
+                  min="1"
+                  max="168"
+                  step="1"
+                  class="input"
+                  data-testid="create-hourly-window-hours"
+                />
+              </div>
+            </div>
+            <p class="input-hint">
+              {{
+                t("admin.groups.subscription.hourlyHint", {
+                  hours: createForm.hourly_window_hours || 5,
+                })
+              }}
+            </p>
           </div>
         </div>
 
@@ -2419,6 +2476,43 @@
                 :placeholder="t('admin.groups.subscription.noLimit')"
               />
             </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="input-label">{{
+                  t("admin.groups.subscription.hourlyLimit")
+                }}</label>
+                <input
+                  v-model.number="editForm.hourly_limit_usd"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  class="input"
+                  :placeholder="t('admin.groups.subscription.noLimit')"
+                  data-testid="edit-hourly-limit"
+                />
+              </div>
+              <div>
+                <label class="input-label">{{
+                  t("admin.groups.subscription.hourlyWindowHours")
+                }}</label>
+                <input
+                  v-model.number="editForm.hourly_window_hours"
+                  type="number"
+                  min="1"
+                  max="168"
+                  step="1"
+                  class="input"
+                  data-testid="edit-hourly-window-hours"
+                />
+              </div>
+            </div>
+            <p class="input-hint">
+              {{
+                t("admin.groups.subscription.hourlyHint", {
+                  hours: editForm.hourly_window_hours || 5,
+                })
+              }}
+            </p>
           </div>
         </div>
 
@@ -4983,6 +5077,8 @@ const createForm = reactive({
   daily_limit_usd: null as number | null,
   weekly_limit_usd: null as number | null,
   monthly_limit_usd: null as number | null,
+  hourly_limit_usd: null as number | null,
+  hourly_window_hours: 5,
   long_context_pricing_enabled: true,
   force_openai_fast: false,
   free_openai_fast: false,
@@ -5350,6 +5446,8 @@ const editForm = reactive({
   daily_limit_usd: null as number | null,
   weekly_limit_usd: null as number | null,
   monthly_limit_usd: null as number | null,
+  hourly_limit_usd: null as number | null,
+  hourly_window_hours: 5,
   long_context_pricing_enabled: true,
   force_openai_fast: false,
   free_openai_fast: false,
@@ -5826,6 +5924,8 @@ const closeCreateModal = () => {
   createForm.daily_limit_usd = null;
   createForm.weekly_limit_usd = null;
   createForm.monthly_limit_usd = null;
+  createForm.hourly_limit_usd = null;
+  createForm.hourly_window_hours = 5;
   createForm.allow_image_generation = false;
   createForm.allow_batch_image_generation = false;
   createForm.image_count_billing = false;
@@ -5987,6 +6087,10 @@ const handleCreateGroup = async () => {
       monthly_limit_usd: normalizeOptionalLimit(
         createForm.monthly_limit_usd as number | string | null,
       ),
+      hourly_limit_usd: normalizeOptionalLimit(
+        createForm.hourly_limit_usd as number | string | null,
+      ),
+      hourly_window_hours: Number(createForm.hourly_window_hours) || 5,
       ...(Object.keys(videoModelPrices).length > 0
         ? { video_model_prices: videoModelPrices }
         : {}),
@@ -6029,6 +6133,7 @@ const handleCreateGroup = async () => {
     requestData.daily_limit_usd = emptyToNull(requestData.daily_limit_usd);
     requestData.weekly_limit_usd = emptyToNull(requestData.weekly_limit_usd);
     requestData.monthly_limit_usd = emptyToNull(requestData.monthly_limit_usd);
+    requestData.hourly_limit_usd = emptyToNull(requestData.hourly_limit_usd);
     requestData.image_rate_multiplier = normalizeRateMultiplier(
       requestData.image_rate_multiplier,
     );
@@ -6116,6 +6221,8 @@ const handleEdit = async (group: AdminGroup) => {
   editForm.daily_limit_usd = group.daily_limit_usd;
   editForm.weekly_limit_usd = group.weekly_limit_usd;
   editForm.monthly_limit_usd = group.monthly_limit_usd;
+  editForm.hourly_limit_usd = group.hourly_limit_usd ?? null;
+  editForm.hourly_window_hours = group.hourly_window_hours || 5;
   editForm.long_context_pricing_enabled =
     group.long_context_pricing_enabled ?? true;
   editForm.force_openai_fast = group.force_openai_fast ?? false;
@@ -6331,6 +6438,10 @@ const handleUpdateGroup = async () => {
       monthly_limit_usd: normalizeOptionalLimit(
         editForm.monthly_limit_usd as number | string | null,
       ),
+      hourly_limit_usd: normalizeOptionalLimit(
+        editForm.hourly_limit_usd as number | string | null,
+      ),
+      hourly_window_hours: Number(editForm.hourly_window_hours) || 5,
       video_model_prices: serializeVideoModelPrices(
         editForm.video_model_prices,
       ),
@@ -6386,6 +6497,7 @@ const handleUpdateGroup = async () => {
     payload.daily_limit_usd = emptyToNull(payload.daily_limit_usd);
     payload.weekly_limit_usd = emptyToNull(payload.weekly_limit_usd);
     payload.monthly_limit_usd = emptyToNull(payload.monthly_limit_usd);
+    payload.hourly_limit_usd = emptyToNull(payload.hourly_limit_usd);
     payload.image_rate_multiplier = normalizeRateMultiplier(
       payload.image_rate_multiplier,
     );

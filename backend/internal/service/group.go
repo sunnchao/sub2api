@@ -39,6 +39,8 @@ type Group struct {
 	DailyLimitUSD       *float64
 	WeeklyLimitUSD      *float64
 	MonthlyLimitUSD     *float64
+	HourlyLimitUSD      *float64
+	HourlyWindowHours   int
 	DefaultValidityDays int
 
 	// 图片生成计费配置（antigravity 和 gemini 平台使用）
@@ -167,6 +169,10 @@ func (g *Group) HasWeeklyLimit() bool {
 
 func (g *Group) HasMonthlyLimit() bool {
 	return g.MonthlyLimitUSD != nil && *g.MonthlyLimitUSD > 0
+}
+
+func (g *Group) HasHourlyLimit() bool {
+	return g.HourlyLimitUSD != nil && *g.HourlyLimitUSD > 0
 }
 
 // GetImagePrice 根据 image_size 返回对应的图片生成价格

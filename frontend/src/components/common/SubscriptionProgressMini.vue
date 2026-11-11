@@ -72,6 +72,34 @@
 
               <!-- Progress bars for limited subscriptions -->
               <template v-else>
+                <div v-if="subscription.group?.hourly_limit_usd" class="flex items-center gap-2">
+                  <span class="w-8 flex-shrink-0 text-[10px] text-gray-500">
+                    {{ t('subscriptionProgress.hourly', { hours: subscription.group?.hourly_window_hours || 5 }) }}
+                  </span>
+                  <div class="h-1.5 min-w-0 flex-1 rounded-full bg-gray-200 dark:bg-dark-600">
+                    <div
+                      class="h-1.5 rounded-full transition-all"
+                      :class="
+                        getProgressBarClass(
+                          subscription.hourly_usage_usd,
+                          subscription.group?.hourly_limit_usd
+                        )
+                      "
+                      :style="{
+                        width: getProgressWidth(
+                          subscription.hourly_usage_usd,
+                          subscription.group?.hourly_limit_usd
+                        )
+                      }"
+                    ></div>
+                  </div>
+                  <span class="w-24 flex-shrink-0 text-right text-[10px] text-gray-500">
+                    {{
+                      formatUsage(subscription.hourly_usage_usd, subscription.group?.hourly_limit_usd)
+                    }}
+                  </span>
+                </div>
+
                 <div v-if="subscription.group?.daily_limit_usd" class="flex items-center gap-2">
                   <span class="w-8 flex-shrink-0 text-[10px] text-gray-500">{{
                     t('subscriptionProgress.daily')
@@ -210,6 +238,9 @@ const displaySubscriptions = computed(() => {
 
 function getMaxUsagePercentage(sub: UserSubscription): number {
   const percentages: number[] = []
+  if (sub.group?.hourly_limit_usd) {
+    percentages.push(((sub.hourly_usage_usd || 0) / sub.group.hourly_limit_usd) * 100)
+  }
   if (sub.group?.daily_limit_usd) {
     percentages.push(((sub.daily_usage_usd || 0) / sub.group.daily_limit_usd) * 100)
   }
@@ -224,6 +255,7 @@ function getMaxUsagePercentage(sub: UserSubscription): number {
 
 function isUnlimited(sub: UserSubscription): boolean {
   return (
+    !sub.group?.hourly_limit_usd &&
     !sub.group?.daily_limit_usd &&
     !sub.group?.weekly_limit_usd &&
     !sub.group?.monthly_limit_usd

@@ -114,6 +114,8 @@ func cloneGroupForDuplicate(source *Group, operationID string) *Group {
 		DailyLimitUSD:                   cloneGroupValuePointer(source.DailyLimitUSD),
 		WeeklyLimitUSD:                  cloneGroupValuePointer(source.WeeklyLimitUSD),
 		MonthlyLimitUSD:                 cloneGroupValuePointer(source.MonthlyLimitUSD),
+		HourlyLimitUSD:                  cloneGroupValuePointer(source.HourlyLimitUSD),
+		HourlyWindowHours:               source.HourlyWindowHours,
 		DefaultValidityDays:             source.DefaultValidityDays,
 		AllowImageGeneration:            source.AllowImageGeneration,
 		AllowBatchImageGeneration:       source.AllowBatchImageGeneration,

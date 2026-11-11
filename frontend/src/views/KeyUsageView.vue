@@ -638,6 +638,11 @@ const ringItems = computed<RingItem[]>(() => {
     if (data.subscription) {
       const sub = data.subscription
       const limits = [
+        {
+          label: t('keyUsage.limitHourly', { hours: sub.hourly_window_hours || 5 }),
+          usage: sub.hourly_usage_usd,
+          limit: sub.hourly_limit_usd,
+        },
         { label: t('keyUsage.limitDaily'), usage: sub.daily_usage_usd, limit: sub.daily_limit_usd },
         { label: t('keyUsage.limitWeekly'), usage: sub.weekly_usage_usd, limit: sub.weekly_limit_usd },
         { label: t('keyUsage.limitMonthly'), usage: sub.monthly_usage_usd, limit: sub.monthly_limit_usd },
@@ -737,6 +742,13 @@ const detailRows = computed<DetailRow[]>(() => {
 
     if (data.subscription) {
       const sub = data.subscription
+      if (sub.hourly_limit_usd > 0) {
+        const pct = (sub.hourly_usage_usd / sub.hourly_limit_usd) * 100
+        rows.push({
+          iconBg: 'bg-cyan-500/10', iconColor: 'text-cyan-500', iconSvg: ICON_DOLLAR,
+          label: `${t('keyUsage.usedQuota')} (${t('keyUsage.limitHourlyShort', { hours: sub.hourly_window_hours || 5 })})`, value: `${usd(sub.hourly_usage_usd)} / ${usd(sub.hourly_limit_usd)}`, valueClass: getUsageColor(pct),
+        })
+      }
       if (sub.daily_limit_usd > 0) {
         const pct = (sub.daily_usage_usd / sub.daily_limit_usd) * 100
         rows.push({

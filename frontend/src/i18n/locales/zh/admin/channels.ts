@@ -728,6 +728,7 @@ export default {
       daily: '每日',
       weekly: '每周',
       monthly: '每月',
+      hourly: '每 {hours} 小时',
       noLimits: '未配置限额',
       unlimited: '无限制',
       resetNow: '即将重置',

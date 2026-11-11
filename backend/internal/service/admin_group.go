@@ -438,6 +438,11 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 	dailyLimit := normalizeLimit(input.DailyLimitUSD)
 	weeklyLimit := normalizeLimit(input.WeeklyLimitUSD)
 	monthlyLimit := normalizeLimit(input.MonthlyLimitUSD)
+	hourlyLimit := normalizeLimit(input.HourlyLimitUSD)
+	hourlyWindowHours, err := normalizeHourlyWindowHours(input.HourlyWindowHours, defaultHourlyWindowHours)
+	if err != nil {
+		return nil, err
+	}
 
 	// 图片价格：负数表示清除（使用默认价格），0 保留（表示免费）
 	imagePrice1K := normalizePrice(input.ImagePrice1K)
@@ -587,6 +592,8 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 		DailyLimitUSD:                   dailyLimit,
 		WeeklyLimitUSD:                  weeklyLimit,
 		MonthlyLimitUSD:                 monthlyLimit,
+		HourlyLimitUSD:                  hourlyLimit,
+		HourlyWindowHours:               hourlyWindowHours,
 		LongContextPricingEnabled:       input.LongContextPricingEnabled,
 		ModelPricing:                    modelPricing,
 		AllowImageGeneration:            allowImageGeneration,
@@ -688,6 +695,23 @@ func normalizeLimit(limit *float64) *float64 {
 		return nil
 	}
 	return limit
+}
+
+// normalizeHourlyWindowHours 校验小时窗口长度，缺省使用 fallback（新建默认 5 小时）。
+func normalizeHourlyWindowHours(hours *int, fallback int) (int, error) {
+	if fallback <= 0 {
+		fallback = defaultHourlyWindowHours
+	}
+	if hours == nil {
+		return fallback, nil
+	}
+	if *hours <= 0 || *hours > MaxHourlyWindowHours {
+		return 0, infraerrors.BadRequest(
+			"INVALID_HOURLY_WINDOW_HOURS",
+			fmt.Sprintf("hourly_window_hours must be between 1 and %d", MaxHourlyWindowHours),
+		)
+	}
+	return *hours, nil
 }
 
 // normalizePrice 将负数转换为 nil（表示使用默认价格），0 保留（表示免费）
@@ -837,6 +861,16 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 	}
 	if input.MonthlyLimitUSD != nil {
 		group.MonthlyLimitUSD = normalizeLimit(input.MonthlyLimitUSD)
+	}
+	if input.HourlyLimitUSD != nil {
+		group.HourlyLimitUSD = normalizeLimit(input.HourlyLimitUSD)
+	}
+	if input.HourlyWindowHours != nil {
+		hourlyWindowHours, err := normalizeHourlyWindowHours(input.HourlyWindowHours, group.HourlyWindowHours)
+		if err != nil {
+			return nil, err
+		}
+		group.HourlyWindowHours = hourlyWindowHours
 	}
 	// 图片生成计费配置：负数表示清除（使用默认价格）
 	if input.AllowImageGeneration != nil {

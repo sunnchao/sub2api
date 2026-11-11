@@ -1004,6 +1004,7 @@ export default {
       limitDay: 'd',
       limitWeek: 'w',
       limitMonth: 'mo',
+      limitHour: '{hours}h',
       groupCreated: 'Group created successfully',
       groupUpdated: 'Group updated successfully',
       groupDeleted: 'Group deleted successfully',
@@ -1069,6 +1070,9 @@ export default {
         dailyLimit: 'Daily Limit (USD)',
         weeklyLimit: 'Weekly Limit (USD)',
         monthlyLimit: 'Monthly Limit (USD)',
+        hourlyLimit: 'Hourly Limit (USD)',
+        hourlyWindowHours: 'Hourly Window (hours)',
+        hourlyHint: 'Resets the hourly quota every {hours} hours. Set 5 for a 5-hour billing window. Leave the limit empty for unlimited.',
         defaultValidityDays: 'Default Validity (Days)',
         validityHint: 'Number of days the subscription is valid when assigned to a user',
         noLimit: 'No limit'

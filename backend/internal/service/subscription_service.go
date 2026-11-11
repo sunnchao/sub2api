@@ -38,6 +38,7 @@ var (
 	ErrDailyLimitExceeded          = infraerrors.TooManyRequests("DAILY_LIMIT_EXCEEDED", "daily usage limit exceeded")
 	ErrWeeklyLimitExceeded         = infraerrors.TooManyRequests("WEEKLY_LIMIT_EXCEEDED", "weekly usage limit exceeded")
 	ErrMonthlyLimitExceeded        = infraerrors.TooManyRequests("MONTHLY_LIMIT_EXCEEDED", "monthly usage limit exceeded")
+	ErrHourlyLimitExceeded         = infraerrors.TooManyRequests("HOURLY_LIMIT_EXCEEDED", "hourly usage limit exceeded")
 	ErrSubscriptionNilInput        = infraerrors.BadRequest("SUBSCRIPTION_NIL_INPUT", "subscription input cannot be nil")
 	ErrAdjustWouldExpire           = infraerrors.BadRequest("ADJUST_WOULD_EXPIRE", "adjustment would result in expired subscription (remaining days must be > 0)")
 )
@@ -393,6 +394,8 @@ func renewedSubscriptionTerm(existingSub *UserSubscription, notes string, starts
 	renewed.DailyUsageUSD = 0
 	renewed.WeeklyUsageUSD = 0
 	renewed.MonthlyUsageUSD = 0
+	renewed.HourlyWindowStart = &periodicWindowStart
+	renewed.HourlyUsageUSD = 0
 	renewed.Notes = appendSubscriptionNotes(existingSub.Notes, notes)
 	return &renewed
 }
@@ -848,6 +851,12 @@ func normalizeExpiredWindowsAt(subs []UserSubscription, now time.Time) {
 			sub.MonthlyWindowStart = nil
 			sub.MonthlyUsageUSD = 0
 		}
+		// 小时窗口过期：清零展示数据
+		if sub.Group != nil && sub.Group.HasHourlyLimit() &&
+			sub.canAutomaticallyResetHourlyAt(now, hourlyWindowPeriod(sub.Group)) {
+			sub.HourlyWindowStart = nil
+			sub.HourlyUsageUSD = 0
+		}
 	}
 }
 
@@ -911,6 +920,7 @@ func (s *SubscriptionService) AdminResetQuota(ctx context.Context, subscriptionI
 
 // CheckAndResetWindows 检查并重置过期的窗口
 func (s *SubscriptionService) CheckAndResetWindows(ctx context.Context, sub *UserSubscription) error {
+	group := sub.Group
 	now := s.now()
 	needsInvalidateCache := false
 
@@ -945,6 +955,21 @@ func (s *SubscriptionService) CheckAndResetWindows(ctx context.Context, sub *Use
 		sub.MonthlyWindowStart = &windowStart
 		sub.MonthlyUsageUSD = 0
 		needsInvalidateCache = true
+	}
+
+	if group != nil && group.HasHourlyLimit() {
+		windowStart, needsReset := sub.automaticWindowStartAt(sub.HourlyWindowStart, hourlyWindowPeriod(group), now)
+		if sub.HourlyWindowStart == nil && sub.IsWindowActivated() {
+			windowStart, needsReset = now, true
+		}
+		if needsReset {
+			if err := s.userSubRepo.ResetHourlyUsage(ctx, sub.ID, sub.HourlyWindowStart, windowStart); err != nil {
+				return err
+			}
+			sub.HourlyWindowStart = &windowStart
+			sub.HourlyUsageUSD = 0
+			needsInvalidateCache = true
+		}
 	}
 
 	// 如果有窗口被重置，失效缓存以保持一致性
@@ -987,6 +1012,9 @@ func (s *SubscriptionService) EnsureWindowMaintenance(ctx context.Context, sub *
 // CheckUsageLimits 检查使用限额（返回错误如果超限）
 // 用于中间件的快速预检查，additionalCost 通常为 0
 func (s *SubscriptionService) CheckUsageLimits(ctx context.Context, sub *UserSubscription, group *Group, additionalCost float64) error {
+	if !sub.CheckHourlyLimit(group, additionalCost) {
+		return ErrHourlyLimitExceeded
+	}
 	if !sub.CheckDailyLimit(group, additionalCost) {
 		return ErrDailyLimitExceeded
 	}
@@ -1014,6 +1042,7 @@ func (s *SubscriptionService) ValidateAndCheckLimits(sub *UserSubscription, grou
 	if !sub.ExpiresAt.After(now) {
 		return false, ErrSubscriptionExpired
 	}
+	sub.Group = group
 
 	// 2. 内存中修正过期窗口的用量，确保预检查不会误拒绝用户。
 	//    调用方随后同步推进 DB 窗口，并用回读快照重新校验。
@@ -1029,11 +1058,23 @@ func (s *SubscriptionService) ValidateAndCheckLimits(sub *UserSubscription, grou
 		sub.MonthlyUsageUSD = 0
 		needsMaintenance = true
 	}
+	if group.HasHourlyLimit() {
+		if sub.canAutomaticallyResetHourlyAt(now, hourlyWindowPeriod(group)) {
+			sub.HourlyUsageUSD = 0
+			needsMaintenance = true
+		}
+		if sub.HourlyWindowStart == nil {
+			needsMaintenance = true
+		}
+	}
 	if !sub.IsWindowActivated() {
 		needsMaintenance = true
 	}
 
 	// 3. 检查用量限额
+	if !sub.CheckHourlyLimit(group, 0) {
+		return needsMaintenance, ErrHourlyLimitExceeded
+	}
 	if !sub.CheckDailyLimit(group, 0) {
 		return needsMaintenance, ErrDailyLimitExceeded
 	}
@@ -1103,6 +1144,7 @@ type SubscriptionProgress struct {
 	Daily         *UsageWindowProgress `json:"daily,omitempty"`
 	Weekly        *UsageWindowProgress `json:"weekly,omitempty"`
 	Monthly       *UsageWindowProgress `json:"monthly,omitempty"`
+	Hourly        *UsageWindowProgress `json:"hourly,omitempty"`
 }
 
 // UsageWindowProgress 使用窗口进度
@@ -1221,6 +1263,33 @@ func (s *SubscriptionService) calculateProgress(sub *UserSubscription, group *Gr
 		}
 		if progress.Monthly.ResetsInSeconds < 0 {
 			progress.Monthly.ResetsInSeconds = 0
+		}
+	}
+
+	// 小时进度
+	if group.HasHourlyLimit() && sub.HourlyWindowStart != nil {
+		limit := *group.HourlyLimitUSD
+		resetsAt := sub.HourlyWindowStart.Add(hourlyWindowPeriod(group))
+		if hourlyResetTime := sub.HourlyResetTime(group); hourlyResetTime != nil {
+			resetsAt = *hourlyResetTime
+		}
+		progress.Hourly = &UsageWindowProgress{
+			LimitUSD:        limit,
+			UsedUSD:         sub.HourlyUsageUSD,
+			RemainingUSD:    limit - sub.HourlyUsageUSD,
+			Percentage:      (sub.HourlyUsageUSD / limit) * 100,
+			WindowStart:     *sub.HourlyWindowStart,
+			ResetsAt:        resetsAt,
+			ResetsInSeconds: int64(time.Until(resetsAt).Seconds()),
+		}
+		if progress.Hourly.RemainingUSD < 0 {
+			progress.Hourly.RemainingUSD = 0
+		}
+		if progress.Hourly.Percentage > 100 {
+			progress.Hourly.Percentage = 100
+		}
+		if progress.Hourly.ResetsInSeconds < 0 {
+			progress.Hourly.ResetsInSeconds = 0
 		}
 	}
 

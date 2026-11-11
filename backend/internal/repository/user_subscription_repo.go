@@ -35,9 +35,11 @@ func (r *userSubscriptionRepository) Create(ctx context.Context, sub *service.Us
 		SetNillableDailyWindowStart(sub.DailyWindowStart).
 		SetNillableWeeklyWindowStart(sub.WeeklyWindowStart).
 		SetNillableMonthlyWindowStart(sub.MonthlyWindowStart).
+		SetNillableHourlyWindowStart(sub.HourlyWindowStart).
 		SetDailyUsageUsd(sub.DailyUsageUSD).
 		SetWeeklyUsageUsd(sub.WeeklyUsageUSD).
 		SetMonthlyUsageUsd(sub.MonthlyUsageUSD).
+		SetHourlyUsageUsd(sub.HourlyUsageUSD).
 		SetNillableAssignedBy(sub.AssignedBy)
 
 	if sub.StartsAt.IsZero() {
@@ -146,9 +148,11 @@ func (r *userSubscriptionRepository) Update(ctx context.Context, sub *service.Us
 		SetNillableDailyWindowStart(sub.DailyWindowStart).
 		SetNillableWeeklyWindowStart(sub.WeeklyWindowStart).
 		SetNillableMonthlyWindowStart(sub.MonthlyWindowStart).
+		SetNillableHourlyWindowStart(sub.HourlyWindowStart).
 		SetDailyUsageUsd(sub.DailyUsageUSD).
 		SetWeeklyUsageUsd(sub.WeeklyUsageUSD).
 		SetMonthlyUsageUsd(sub.MonthlyUsageUSD).
+		SetHourlyUsageUsd(sub.HourlyUsageUSD).
 		SetNillableAssignedBy(sub.AssignedBy).
 		SetAssignedAt(sub.AssignedAt).
 		SetNotes(sub.Notes)
@@ -380,6 +384,7 @@ func (r *userSubscriptionRepository) ActivateWindows(ctx context.Context, id int
 		SetDailyWindowStart(dailyStart).
 		SetWeeklyWindowStart(periodicStart).
 		SetMonthlyWindowStart(periodicStart).
+		SetHourlyWindowStart(periodicStart).
 		Save(ctx)
 	return r.translateConditionalWindowReset(ctx, client, id, n, err)
 }
@@ -445,6 +450,21 @@ func (r *userSubscriptionRepository) ResetMonthlyUsage(ctx context.Context, id i
 	return r.translateConditionalWindowReset(ctx, client, id, n, err)
 }
 
+func (r *userSubscriptionRepository) ResetHourlyUsage(ctx context.Context, id int64, expectedWindowStart *time.Time, newWindowStart time.Time) error {
+	client := clientFromContext(ctx, r.client)
+	query := client.UserSubscription.Update().Where(usersubscription.IDEQ(id))
+	if expectedWindowStart == nil {
+		query = query.Where(usersubscription.HourlyWindowStartIsNil())
+	} else {
+		query = query.Where(usersubscription.HourlyWindowStartEQ(*expectedWindowStart))
+	}
+	n, err := query.
+		SetHourlyUsageUsd(0).
+		SetHourlyWindowStart(newWindowStart).
+		Save(ctx)
+	return r.translateConditionalWindowReset(ctx, client, id, n, err)
+}
+
 func (r *userSubscriptionRepository) translateConditionalWindowReset(ctx context.Context, client *dbent.Client, id int64, affected int, err error) error {
 	if err != nil {
 		return translatePersistenceError(err, service.ErrSubscriptionNotFound, nil)
@@ -475,6 +495,7 @@ func (r *userSubscriptionRepository) IncrementUsage(ctx context.Context, id int6
 			daily_usage_usd = us.daily_usage_usd + $1,
 			weekly_usage_usd = us.weekly_usage_usd + $1,
 			monthly_usage_usd = us.monthly_usage_usd + $1,
+			hourly_usage_usd = us.hourly_usage_usd + $1,
 			updated_at = NOW()
 		FROM groups g
 		WHERE us.id = $2
@@ -650,9 +671,11 @@ func userSubscriptionEntityToServiceWithStatusMapping(m *dbent.UserSubscription,
 		DailyWindowStart:   m.DailyWindowStart,
 		WeeklyWindowStart:  m.WeeklyWindowStart,
 		MonthlyWindowStart: m.MonthlyWindowStart,
+		HourlyWindowStart:  m.HourlyWindowStart,
 		DailyUsageUSD:      m.DailyUsageUsd,
 		WeeklyUsageUSD:     m.WeeklyUsageUsd,
 		MonthlyUsageUSD:    m.MonthlyUsageUsd,
+		HourlyUsageUSD:     m.HourlyUsageUsd,
 		AssignedBy:         m.AssignedBy,
 		AssignedAt:         m.AssignedAt,
 		Notes:              derefString(m.Notes),

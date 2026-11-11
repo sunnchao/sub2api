@@ -6,7 +6,11 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
 )
 
-const subscriptionDayDuration = 24 * time.Hour
+const (
+	subscriptionDayDuration  = 24 * time.Hour
+	defaultHourlyWindowHours = 5
+	MaxHourlyWindowHours     = 168
+)
 
 type UserSubscription struct {
 	ID      int64
@@ -20,10 +24,12 @@ type UserSubscription struct {
 	DailyWindowStart   *time.Time
 	WeeklyWindowStart  *time.Time
 	MonthlyWindowStart *time.Time
+	HourlyWindowStart  *time.Time
 
 	DailyUsageUSD   float64
 	WeeklyUsageUSD  float64
 	MonthlyUsageUSD float64
+	HourlyUsageUSD  float64
 
 	AssignedBy *int64
 	AssignedAt time.Time
@@ -105,6 +111,14 @@ func (s *UserSubscription) NeedsMonthlyResetAt(now time.Time) bool {
 	return !now.Before(s.MonthlyWindowStart.Add(30 * 24 * time.Hour))
 }
 
+func hourlyWindowPeriod(group *Group) time.Duration {
+	hours := defaultHourlyWindowHours
+	if group != nil && group.HourlyWindowHours > 0 {
+		hours = group.HourlyWindowHours
+	}
+	return time.Duration(hours) * time.Hour
+}
+
 func (s *UserSubscription) canAutomaticallyResetDailyAt(now time.Time) bool {
 	_, ok := s.automaticDailyWindowStartAt(now)
 	return ok
@@ -135,6 +149,11 @@ func (s *UserSubscription) canAutomaticallyResetWeeklyAt(now time.Time) bool {
 
 func (s *UserSubscription) canAutomaticallyResetMonthlyAt(now time.Time) bool {
 	_, ok := s.automaticWindowStartAt(s.MonthlyWindowStart, 30*24*time.Hour, now)
+	return ok
+}
+
+func (s *UserSubscription) canAutomaticallyResetHourlyAt(now time.Time, period time.Duration) bool {
+	_, ok := s.automaticWindowStartAt(s.HourlyWindowStart, period, now)
 	return ok
 }
 
@@ -204,6 +223,14 @@ func (s *UserSubscription) MonthlyResetTime() *time.Time {
 	return &t
 }
 
+func (s *UserSubscription) HourlyResetTime(group *Group) *time.Time {
+	if s.HourlyWindowStart == nil {
+		return nil
+	}
+	t := s.windowResetAnchor(*s.HourlyWindowStart).Add(hourlyWindowPeriod(group))
+	return &t
+}
+
 func (s *UserSubscription) CheckDailyLimit(group *Group, additionalCost float64) bool {
 	if !group.HasDailyLimit() {
 		return true
@@ -223,6 +250,13 @@ func (s *UserSubscription) CheckMonthlyLimit(group *Group, additionalCost float6
 		return true
 	}
 	return s.MonthlyUsageUSD+additionalCost <= *group.MonthlyLimitUSD
+}
+
+func (s *UserSubscription) CheckHourlyLimit(group *Group, additionalCost float64) bool {
+	if !group.HasHourlyLimit() {
+		return true
+	}
+	return s.HourlyUsageUSD+additionalCost <= *group.HourlyLimitUSD
 }
 
 func (s *UserSubscription) CheckAllLimits(group *Group, additionalCost float64) (daily, weekly, monthly bool) {

@@ -247,6 +247,53 @@
 
           <template #cell-usage="{ row }">
             <div class="min-w-[280px] space-y-2">
+              <!-- Hourly Usage -->
+              <div v-if="row.group?.hourly_limit_usd" class="usage-row">
+                <div class="flex items-center gap-2">
+                  <span class="usage-label">{{
+                    t('admin.subscriptions.hourly', {
+                      hours: row.group?.hourly_window_hours || 5
+                    })
+                  }}</span>
+                  <div class="h-1.5 flex-1 rounded-full bg-gray-200 dark:bg-dark-600">
+                    <div
+                      class="h-1.5 rounded-full transition-all"
+                      :class="getProgressClass(row.hourly_usage_usd, row.group?.hourly_limit_usd)"
+                      :style="{
+                        width: getProgressWidth(row.hourly_usage_usd, row.group?.hourly_limit_usd)
+                      }"
+                    ></div>
+                  </div>
+                  <span class="usage-amount">
+                    ${{ row.hourly_usage_usd?.toFixed(2) || '0.00' }}
+                    <span class="text-gray-400">/</span>
+                    ${{ row.group?.hourly_limit_usd?.toFixed(2) }}
+                  </span>
+                </div>
+                <div class="reset-info" v-if="row.hourly_window_start">
+                  <svg
+                    class="h-3 w-3"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                  </svg>
+                  <span>{{
+                    formatResetTime(
+                      row.hourly_window_start,
+                      'hourly',
+                      row.group?.hourly_window_hours || 5
+                    )
+                  }}</span>
+                </div>
+              </div>
+
               <!-- Daily Usage -->
               <div v-if="row.group?.daily_limit_usd" class="usage-row">
                 <div class="flex items-center gap-2">
@@ -363,7 +410,8 @@
                 v-if="
                   !row.group?.daily_limit_usd &&
                   !row.group?.weekly_limit_usd &&
-                  !row.group?.monthly_limit_usd
+                  !row.group?.monthly_limit_usd &&
+                  !row.group?.hourly_limit_usd
                 "
                 class="flex items-center gap-2 rounded-lg bg-gradient-to-r from-emerald-50 to-teal-50 px-3 py-2 dark:from-emerald-900/20 dark:to-teal-900/20"
               >
@@ -1571,7 +1619,11 @@ const formatDailyUsageWindow = (subscription: UserSubscription): string => {
 }
 
 // Format reset time based on window start and period type
-const formatResetTime = (windowStart: string | null, period: 'daily' | 'weekly' | 'monthly'): string => {
+const formatResetTime = (
+  windowStart: string | null,
+  period: 'daily' | 'weekly' | 'monthly' | 'hourly',
+  windowHours = 5
+): string => {
   if (!windowStart) return t('admin.subscriptions.windowNotActive')
 
   const start = new Date(windowStart)
@@ -1588,6 +1640,9 @@ const formatResetTime = (windowStart: string | null, period: 'daily' | 'weekly' 
       break
     case 'monthly':
       resetTime = new Date(start.getTime() + 30 * 24 * 60 * 60 * 1000)
+      break
+    case 'hourly':
+      resetTime = new Date(start.getTime() + windowHours * 60 * 60 * 1000)
       break
   }
 

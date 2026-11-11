@@ -265,13 +265,15 @@ func catalogUsageFields(admin bool) map[string]any {
 func catalogGroupFields() map[string]any {
 	return map[string]any{
 		"name": catalogNonemptyText("Group name", 100), "description": catalogText("Group description", 2000),
-		"rate_multiplier":   map[string]any{"type": "number", "exclusiveMinimum": 0, "description": "Positive user billing multiplier; 1 is standard pricing"},
-		"is_exclusive":      catalogBool("Limit access to users explicitly assigned this group"),
-		"subscription_type": catalogEnum("Group billing mode", "standard", "subscription"),
-		"daily_limit_usd":   catalogNumber("Daily subscription spending limit in USD; -1 means unlimited", -1),
-		"weekly_limit_usd":  catalogNumber("Weekly subscription spending limit in USD; -1 means unlimited", -1),
-		"monthly_limit_usd": catalogNumber("Monthly subscription spending limit in USD; -1 means unlimited", -1),
-		"rpm_limit":         catalogInteger("Requests per minute; 0 means unlimited", 0, 1000000),
+		"rate_multiplier":     map[string]any{"type": "number", "exclusiveMinimum": 0, "description": "Positive user billing multiplier; 1 is standard pricing"},
+		"is_exclusive":        catalogBool("Limit access to users explicitly assigned this group"),
+		"subscription_type":   catalogEnum("Group billing mode", "standard", "subscription"),
+		"daily_limit_usd":     catalogNumber("Daily subscription spending limit in USD; -1 means unlimited", -1),
+		"weekly_limit_usd":    catalogNumber("Weekly subscription spending limit in USD; -1 means unlimited", -1),
+		"monthly_limit_usd":   catalogNumber("Monthly subscription spending limit in USD; -1 means unlimited", -1),
+		"hourly_limit_usd":    catalogNumber("Hourly subscription spending limit in USD; -1 means unlimited", -1),
+		"hourly_window_hours": catalogInteger("Hourly quota window length in hours (for example 5); 1-168", 1, 168),
+		"rpm_limit":           catalogInteger("Requests per minute; 0 means unlimited", 0, 1000000),
 		"model_allowlist": catalogObject(map[string]any{
 			"enabled": catalogBool("Enable the model allowlist; an enabled list must contain at least one model"),
 			"models":  catalogStrings("Allowed upstream model IDs or patterns containing *", 1000, 200),

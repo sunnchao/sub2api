@@ -592,6 +592,8 @@ export interface Group {
   daily_limit_usd: number | null
   weekly_limit_usd: number | null
   monthly_limit_usd: number | null
+  hourly_limit_usd: number | null
+  hourly_window_hours: number
   long_context_pricing_enabled: boolean
   // 图片生成计费配置
   allow_image_generation: boolean
@@ -816,6 +818,8 @@ export interface CreateGroupRequest {
   daily_limit_usd?: number | null
   weekly_limit_usd?: number | null
   monthly_limit_usd?: number | null
+  hourly_limit_usd?: number | null
+  hourly_window_hours?: number
   long_context_pricing_enabled?: boolean
   force_openai_fast?: boolean
   free_openai_fast?: boolean
@@ -884,6 +888,8 @@ export interface UpdateGroupRequest {
   daily_limit_usd?: number | null
   weekly_limit_usd?: number | null
   monthly_limit_usd?: number | null
+  hourly_limit_usd?: number | null
+  hourly_window_hours?: number
   long_context_pricing_enabled?: boolean
   force_openai_fast?: boolean
   free_openai_fast?: boolean
@@ -2188,9 +2194,11 @@ export interface UserSubscription {
   daily_usage_usd: number
   weekly_usage_usd: number
   monthly_usage_usd: number
+  hourly_usage_usd: number
   daily_window_start: string | null
   weekly_window_start: string | null
   monthly_window_start: string | null
+  hourly_window_start: string | null
   created_at: string
   updated_at: string
   revoked_at?: string | null
@@ -2214,6 +2222,12 @@ export interface SubscriptionProgress {
     reset_in_seconds: number | null
   } | null
   monthly: {
+    used: number
+    limit: number | null
+    percentage: number
+    reset_in_seconds: number | null
+  } | null
+  hourly: {
     used: number
     limit: number | null
     percentage: number

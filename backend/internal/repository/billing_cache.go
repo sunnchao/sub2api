@@ -55,6 +55,7 @@ const (
 	subFieldDailyUsage   = "daily_usage"
 	subFieldWeeklyUsage  = "weekly_usage"
 	subFieldMonthlyUsage = "monthly_usage"
+	subFieldHourlyUsage  = "hourly_usage"
 	subFieldVersion      = "version"
 )
 
@@ -85,7 +86,7 @@ var (
 	`)
 
 	updateSubUsageScript = redis.NewScript(`
-		local exists = redis.call('EXISTS', KEYS[1])
+		local exists = redis.call('HEXISTS', KEYS[1], 'hourly_usage')
 		if exists == 0 then
 			return 0
 		end
@@ -93,6 +94,7 @@ var (
 		redis.call('HINCRBYFLOAT', KEYS[1], 'daily_usage', cost)
 		redis.call('HINCRBYFLOAT', KEYS[1], 'weekly_usage', cost)
 		redis.call('HINCRBYFLOAT', KEYS[1], 'monthly_usage', cost)
+		redis.call('HINCRBYFLOAT', KEYS[1], 'hourly_usage', cost)
 		redis.call('EXPIRE', KEYS[1], ARGV[2])
 		return 1
 	`)
@@ -192,6 +194,9 @@ func (c *billingCache) parseSubscriptionCache(data map[string]string) (*service.
 	if result.Status == "" {
 		return nil, errors.New("invalid cache: missing status")
 	}
+	if _, ok := data[subFieldHourlyUsage]; !ok {
+		return nil, redis.Nil
+	}
 
 	if expiresStr, ok := data[subFieldExpiresAt]; ok {
 		expiresAt, err := strconv.ParseInt(expiresStr, 10, 64)
@@ -210,6 +215,10 @@ func (c *billingCache) parseSubscriptionCache(data map[string]string) (*service.
 
 	if monthlyStr, ok := data[subFieldMonthlyUsage]; ok {
 		result.MonthlyUsage, _ = strconv.ParseFloat(monthlyStr, 64)
+	}
+
+	if hourlyStr, ok := data[subFieldHourlyUsage]; ok {
+		result.HourlyUsage, _ = strconv.ParseFloat(hourlyStr, 64)
 	}
 
 	if versionStr, ok := data[subFieldVersion]; ok {
@@ -232,6 +241,7 @@ func (c *billingCache) SetSubscriptionCache(ctx context.Context, userID, groupID
 		subFieldDailyUsage:   data.DailyUsage,
 		subFieldWeeklyUsage:  data.WeeklyUsage,
 		subFieldMonthlyUsage: data.MonthlyUsage,
+		subFieldHourlyUsage:  data.HourlyUsage,
 		subFieldVersion:      data.Version,
 	}
 

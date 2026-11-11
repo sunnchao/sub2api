@@ -364,6 +364,8 @@ func TestAPIContracts(t *testing.T) {
 						"daily_limit_usd": null,
 						"weekly_limit_usd": null,
 						"monthly_limit_usd": null,
+						"hourly_limit_usd": null,
+						"hourly_window_hours": 0,
 						"long_context_pricing_enabled": false,
 						"image_price_1k": null,
 						"image_price_2k": null,
@@ -443,9 +445,11 @@ func TestAPIContracts(t *testing.T) {
 						"daily_window_start": null,
 						"weekly_window_start": null,
 						"monthly_window_start": null,
+						"hourly_window_start": null,
 						"daily_usage_usd": 1.23,
 						"weekly_usage_usd": 2.34,
 						"monthly_usage_usd": 3.45,
+						"hourly_usage_usd": 0,
 						"created_at": "2025-01-02T03:04:05Z",
 						"updated_at": "2025-01-02T03:04:05Z"
 					}
@@ -2312,6 +2316,9 @@ func (stubUserSubscriptionRepo) ResetWeeklyUsage(ctx context.Context, id int64, 
 	return errors.New("not implemented")
 }
 func (stubUserSubscriptionRepo) ResetMonthlyUsage(ctx context.Context, id int64, expectedWindowStart *time.Time, newWindowStart time.Time) error {
+	return errors.New("not implemented")
+}
+func (stubUserSubscriptionRepo) ResetHourlyUsage(ctx context.Context, id int64, expectedWindowStart *time.Time, newWindowStart time.Time) error {
 	return errors.New("not implemented")
 }
 func (stubUserSubscriptionRepo) IncrementUsage(ctx context.Context, id int64, costUSD float64) error {

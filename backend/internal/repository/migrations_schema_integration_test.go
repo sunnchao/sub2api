@@ -171,6 +171,12 @@ WHERE ns.nspname = 'public'
 
 	// user_subscriptions: deleted_at for soft delete support (migration 012)
 	requireColumn(t, tx, "user_subscriptions", "deleted_at", "timestamp with time zone", 0, true)
+	// user_subscriptions: hourly quota window (migration 251)
+	requireColumn(t, tx, "user_subscriptions", "hourly_window_start", "timestamp with time zone", 0, true)
+	requireColumn(t, tx, "user_subscriptions", "hourly_usage_usd", "numeric", 0, false)
+	// groups: configurable hourly quota window (migration 251)
+	requireColumn(t, tx, "groups", "hourly_limit_usd", "numeric", 0, true)
+	requireColumn(t, tx, "groups", "hourly_window_hours", "integer", 0, false)
 
 	// orphan_allowed_groups_audit table should exist (migration 013)
 	var orphanAuditRegclass sql.NullString

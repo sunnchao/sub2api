@@ -49,6 +49,7 @@ func cloneGroupForDuplicateTest(group *Group) *Group {
 	cloned.DailyLimitUSD = cloneGroupValuePointer(group.DailyLimitUSD)
 	cloned.WeeklyLimitUSD = cloneGroupValuePointer(group.WeeklyLimitUSD)
 	cloned.MonthlyLimitUSD = cloneGroupValuePointer(group.MonthlyLimitUSD)
+	cloned.HourlyLimitUSD = cloneGroupValuePointer(group.HourlyLimitUSD)
 	cloned.ImagePrice1K = cloneGroupValuePointer(group.ImagePrice1K)
 	cloned.ImagePrice2K = cloneGroupValuePointer(group.ImagePrice2K)
 	cloned.ImagePrice4K = cloneGroupValuePointer(group.ImagePrice4K)
@@ -137,6 +138,8 @@ func TestDuplicateGroupCopiesConfigurationDeeplyAndResetsRuntimeState(t *testing
 		DailyLimitUSD:                groupDuplicateTestPointer(11.0),
 		WeeklyLimitUSD:               groupDuplicateTestPointer(22.0),
 		MonthlyLimitUSD:              groupDuplicateTestPointer(33.0),
+		HourlyLimitUSD:               groupDuplicateTestPointer(44.0),
+		HourlyWindowHours:            5,
 		DefaultValidityDays:          91,
 		AllowImageGeneration:         true,
 		AllowBatchImageGeneration:    true,
@@ -238,6 +241,7 @@ func TestDuplicateGroupCopiesConfigurationDeeplyAndResetsRuntimeState(t *testing
 	duplicate.ModelAllowlist.Models[0] = "changed"
 	duplicate.ReasoningEffortMappings[0].To = "changed"
 	*duplicate.DailyLimitUSD = 999
+	*duplicate.HourlyLimitUSD = 999
 	require.Equal(t, int64(13), source.ModelRouting["gpt-*"][0])
 	require.Equal(t, 0.14, source.VideoModelPrices[VideoPriceFamilyGrokImagineVideo15][VideoBillingResolution720P])
 	require.Equal(t, "claude", source.SupportedModelScopes[0])
@@ -245,6 +249,8 @@ func TestDuplicateGroupCopiesConfigurationDeeplyAndResetsRuntimeState(t *testing
 	require.Equal(t, "gpt-5.4", source.ModelAllowlist.Models[0])
 	require.Equal(t, "xhigh", source.ReasoningEffortMappings[0].To)
 	require.Equal(t, 11.0, *source.DailyLimitUSD)
+	require.Equal(t, 44.0, *source.HourlyLimitUSD)
+	require.Equal(t, 5, source.HourlyWindowHours)
 }
 
 func TestDuplicateGroupRecoversSameOperationAndScopesByAdmin(t *testing.T) {

@@ -280,6 +280,34 @@ func (_c *GroupCreate) SetNillableMonthlyLimitUsd(v *float64) *GroupCreate {
 	return _c
 }
 
+// SetHourlyLimitUsd sets the "hourly_limit_usd" field.
+func (_c *GroupCreate) SetHourlyLimitUsd(v float64) *GroupCreate {
+	_c.mutation.SetHourlyLimitUsd(v)
+	return _c
+}
+
+// SetNillableHourlyLimitUsd sets the "hourly_limit_usd" field if the given value is not nil.
+func (_c *GroupCreate) SetNillableHourlyLimitUsd(v *float64) *GroupCreate {
+	if v != nil {
+		_c.SetHourlyLimitUsd(*v)
+	}
+	return _c
+}
+
+// SetHourlyWindowHours sets the "hourly_window_hours" field.
+func (_c *GroupCreate) SetHourlyWindowHours(v int) *GroupCreate {
+	_c.mutation.SetHourlyWindowHours(v)
+	return _c
+}
+
+// SetNillableHourlyWindowHours sets the "hourly_window_hours" field if the given value is not nil.
+func (_c *GroupCreate) SetNillableHourlyWindowHours(v *int) *GroupCreate {
+	if v != nil {
+		_c.SetHourlyWindowHours(*v)
+	}
+	return _c
+}
+
 // SetDefaultValidityDays sets the "default_validity_days" field.
 func (_c *GroupCreate) SetDefaultValidityDays(v int) *GroupCreate {
 	_c.mutation.SetDefaultValidityDays(v)
@@ -1107,6 +1135,10 @@ func (_c *GroupCreate) defaults() error {
 		v := group.DefaultSubscriptionType
 		_c.mutation.SetSubscriptionType(v)
 	}
+	if _, ok := _c.mutation.HourlyWindowHours(); !ok {
+		v := group.DefaultHourlyWindowHours
+		_c.mutation.SetHourlyWindowHours(v)
+	}
 	if _, ok := _c.mutation.DefaultValidityDays(); !ok {
 		v := group.DefaultDefaultValidityDays
 		_c.mutation.SetDefaultValidityDays(v)
@@ -1317,6 +1349,9 @@ func (_c *GroupCreate) check() error {
 		if err := group.SubscriptionTypeValidator(v); err != nil {
 			return &ValidationError{Name: "subscription_type", err: fmt.Errorf(`ent: validator failed for field "Group.subscription_type": %w`, err)}
 		}
+	}
+	if _, ok := _c.mutation.HourlyWindowHours(); !ok {
+		return &ValidationError{Name: "hourly_window_hours", err: errors.New(`ent: missing required field "Group.hourly_window_hours"`)}
 	}
 	if _, ok := _c.mutation.DefaultValidityDays(); !ok {
 		return &ValidationError{Name: "default_validity_days", err: errors.New(`ent: missing required field "Group.default_validity_days"`)}
@@ -1554,6 +1589,14 @@ func (_c *GroupCreate) createSpec() (*Group, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.MonthlyLimitUsd(); ok {
 		_spec.SetField(group.FieldMonthlyLimitUsd, field.TypeFloat64, value)
 		_node.MonthlyLimitUsd = &value
+	}
+	if value, ok := _c.mutation.HourlyLimitUsd(); ok {
+		_spec.SetField(group.FieldHourlyLimitUsd, field.TypeFloat64, value)
+		_node.HourlyLimitUsd = &value
+	}
+	if value, ok := _c.mutation.HourlyWindowHours(); ok {
+		_spec.SetField(group.FieldHourlyWindowHours, field.TypeInt, value)
+		_node.HourlyWindowHours = value
 	}
 	if value, ok := _c.mutation.DefaultValidityDays(); ok {
 		_spec.SetField(group.FieldDefaultValidityDays, field.TypeInt, value)
@@ -2168,6 +2211,48 @@ func (u *GroupUpsert) AddMonthlyLimitUsd(v float64) *GroupUpsert {
 // ClearMonthlyLimitUsd clears the value of the "monthly_limit_usd" field.
 func (u *GroupUpsert) ClearMonthlyLimitUsd() *GroupUpsert {
 	u.SetNull(group.FieldMonthlyLimitUsd)
+	return u
+}
+
+// SetHourlyLimitUsd sets the "hourly_limit_usd" field.
+func (u *GroupUpsert) SetHourlyLimitUsd(v float64) *GroupUpsert {
+	u.Set(group.FieldHourlyLimitUsd, v)
+	return u
+}
+
+// UpdateHourlyLimitUsd sets the "hourly_limit_usd" field to the value that was provided on create.
+func (u *GroupUpsert) UpdateHourlyLimitUsd() *GroupUpsert {
+	u.SetExcluded(group.FieldHourlyLimitUsd)
+	return u
+}
+
+// AddHourlyLimitUsd adds v to the "hourly_limit_usd" field.
+func (u *GroupUpsert) AddHourlyLimitUsd(v float64) *GroupUpsert {
+	u.Add(group.FieldHourlyLimitUsd, v)
+	return u
+}
+
+// ClearHourlyLimitUsd clears the value of the "hourly_limit_usd" field.
+func (u *GroupUpsert) ClearHourlyLimitUsd() *GroupUpsert {
+	u.SetNull(group.FieldHourlyLimitUsd)
+	return u
+}
+
+// SetHourlyWindowHours sets the "hourly_window_hours" field.
+func (u *GroupUpsert) SetHourlyWindowHours(v int) *GroupUpsert {
+	u.Set(group.FieldHourlyWindowHours, v)
+	return u
+}
+
+// UpdateHourlyWindowHours sets the "hourly_window_hours" field to the value that was provided on create.
+func (u *GroupUpsert) UpdateHourlyWindowHours() *GroupUpsert {
+	u.SetExcluded(group.FieldHourlyWindowHours)
+	return u
+}
+
+// AddHourlyWindowHours adds v to the "hourly_window_hours" field.
+func (u *GroupUpsert) AddHourlyWindowHours(v int) *GroupUpsert {
+	u.Add(group.FieldHourlyWindowHours, v)
 	return u
 }
 
@@ -3340,6 +3425,55 @@ func (u *GroupUpsertOne) UpdateMonthlyLimitUsd() *GroupUpsertOne {
 func (u *GroupUpsertOne) ClearMonthlyLimitUsd() *GroupUpsertOne {
 	return u.Update(func(s *GroupUpsert) {
 		s.ClearMonthlyLimitUsd()
+	})
+}
+
+// SetHourlyLimitUsd sets the "hourly_limit_usd" field.
+func (u *GroupUpsertOne) SetHourlyLimitUsd(v float64) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetHourlyLimitUsd(v)
+	})
+}
+
+// AddHourlyLimitUsd adds v to the "hourly_limit_usd" field.
+func (u *GroupUpsertOne) AddHourlyLimitUsd(v float64) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.AddHourlyLimitUsd(v)
+	})
+}
+
+// UpdateHourlyLimitUsd sets the "hourly_limit_usd" field to the value that was provided on create.
+func (u *GroupUpsertOne) UpdateHourlyLimitUsd() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateHourlyLimitUsd()
+	})
+}
+
+// ClearHourlyLimitUsd clears the value of the "hourly_limit_usd" field.
+func (u *GroupUpsertOne) ClearHourlyLimitUsd() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.ClearHourlyLimitUsd()
+	})
+}
+
+// SetHourlyWindowHours sets the "hourly_window_hours" field.
+func (u *GroupUpsertOne) SetHourlyWindowHours(v int) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetHourlyWindowHours(v)
+	})
+}
+
+// AddHourlyWindowHours adds v to the "hourly_window_hours" field.
+func (u *GroupUpsertOne) AddHourlyWindowHours(v int) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.AddHourlyWindowHours(v)
+	})
+}
+
+// UpdateHourlyWindowHours sets the "hourly_window_hours" field to the value that was provided on create.
+func (u *GroupUpsertOne) UpdateHourlyWindowHours() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateHourlyWindowHours()
 	})
 }
 
@@ -4814,6 +4948,55 @@ func (u *GroupUpsertBulk) UpdateMonthlyLimitUsd() *GroupUpsertBulk {
 func (u *GroupUpsertBulk) ClearMonthlyLimitUsd() *GroupUpsertBulk {
 	return u.Update(func(s *GroupUpsert) {
 		s.ClearMonthlyLimitUsd()
+	})
+}
+
+// SetHourlyLimitUsd sets the "hourly_limit_usd" field.
+func (u *GroupUpsertBulk) SetHourlyLimitUsd(v float64) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetHourlyLimitUsd(v)
+	})
+}
+
+// AddHourlyLimitUsd adds v to the "hourly_limit_usd" field.
+func (u *GroupUpsertBulk) AddHourlyLimitUsd(v float64) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.AddHourlyLimitUsd(v)
+	})
+}
+
+// UpdateHourlyLimitUsd sets the "hourly_limit_usd" field to the value that was provided on create.
+func (u *GroupUpsertBulk) UpdateHourlyLimitUsd() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateHourlyLimitUsd()
+	})
+}
+
+// ClearHourlyLimitUsd clears the value of the "hourly_limit_usd" field.
+func (u *GroupUpsertBulk) ClearHourlyLimitUsd() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.ClearHourlyLimitUsd()
+	})
+}
+
+// SetHourlyWindowHours sets the "hourly_window_hours" field.
+func (u *GroupUpsertBulk) SetHourlyWindowHours(v int) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetHourlyWindowHours(v)
+	})
+}
+
+// AddHourlyWindowHours adds v to the "hourly_window_hours" field.
+func (u *GroupUpsertBulk) AddHourlyWindowHours(v int) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.AddHourlyWindowHours(v)
+	})
+}
+
+// UpdateHourlyWindowHours sets the "hourly_window_hours" field to the value that was provided on create.
+func (u *GroupUpsertBulk) UpdateHourlyWindowHours() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateHourlyWindowHours()
 	})
 }
 

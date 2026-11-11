@@ -38,6 +38,34 @@ func TestCalculateProgress_BasicFields(t *testing.T) {
 	assert.Nil(t, progress.Daily, "无日限额时 Daily 应为 nil")
 	assert.Nil(t, progress.Weekly, "无周限额时 Weekly 应为 nil")
 	assert.Nil(t, progress.Monthly, "无月限额时 Monthly 应为 nil")
+	assert.Nil(t, progress.Hourly, "无小时限额时 Hourly 应为 nil")
+}
+
+func TestCalculateProgress_HourlyWindow(t *testing.T) {
+	svc := newTestSubscriptionService()
+	now := time.Now()
+	hourlyStart := now.Add(-2 * time.Hour)
+
+	sub := &UserSubscription{
+		ID:                1,
+		ExpiresAt:         now.Add(10 * 24 * time.Hour),
+		HourlyUsageUSD:    4.0,
+		HourlyWindowStart: ptrTime(hourlyStart),
+	}
+	group := &Group{
+		Name:              "Pro",
+		HourlyLimitUSD:    ptrFloat64(10.0),
+		HourlyWindowHours: 5,
+	}
+
+	progress := svc.calculateProgress(sub, group)
+
+	require.NotNil(t, progress.Hourly)
+	assert.Equal(t, 10.0, progress.Hourly.LimitUSD)
+	assert.Equal(t, 4.0, progress.Hourly.UsedUSD)
+	assert.Equal(t, 6.0, progress.Hourly.RemainingUSD)
+	assert.Equal(t, 40.0, progress.Hourly.Percentage)
+	assert.Equal(t, hourlyStart.Add(5*time.Hour), progress.Hourly.ResetsAt)
 }
 
 func TestCalculateProgress_DailyUsage(t *testing.T) {

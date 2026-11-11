@@ -728,6 +728,7 @@ export default {
       daily: 'Daily',
       weekly: 'Weekly',
       monthly: 'Monthly',
+      hourly: 'Every {hours}h',
       noLimits: 'No limits configured',
       unlimited: 'Unlimited',
       resetNow: 'Resetting soon',

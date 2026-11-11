@@ -22105,6 +22105,10 @@ type GroupMutation struct {
 	addweekly_limit_usd                     *float64
 	monthly_limit_usd                       *float64
 	addmonthly_limit_usd                    *float64
+	hourly_limit_usd                        *float64
+	addhourly_limit_usd                     *float64
+	hourly_window_hours                     *int
+	addhourly_window_hours                  *int
 	default_validity_days                   *int
 	adddefault_validity_days                *int
 	allow_image_generation                  *bool
@@ -23164,6 +23168,132 @@ func (m *GroupMutation) ResetMonthlyLimitUsd() {
 	m.monthly_limit_usd = nil
 	m.addmonthly_limit_usd = nil
 	delete(m.clearedFields, group.FieldMonthlyLimitUsd)
+}
+
+// SetHourlyLimitUsd sets the "hourly_limit_usd" field.
+func (m *GroupMutation) SetHourlyLimitUsd(f float64) {
+	m.hourly_limit_usd = &f
+	m.addhourly_limit_usd = nil
+}
+
+// HourlyLimitUsd returns the value of the "hourly_limit_usd" field in the mutation.
+func (m *GroupMutation) HourlyLimitUsd() (r float64, exists bool) {
+	v := m.hourly_limit_usd
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldHourlyLimitUsd returns the old "hourly_limit_usd" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldHourlyLimitUsd(ctx context.Context) (v *float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldHourlyLimitUsd is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldHourlyLimitUsd requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldHourlyLimitUsd: %w", err)
+	}
+	return oldValue.HourlyLimitUsd, nil
+}
+
+// AddHourlyLimitUsd adds f to the "hourly_limit_usd" field.
+func (m *GroupMutation) AddHourlyLimitUsd(f float64) {
+	if m.addhourly_limit_usd != nil {
+		*m.addhourly_limit_usd += f
+	} else {
+		m.addhourly_limit_usd = &f
+	}
+}
+
+// AddedHourlyLimitUsd returns the value that was added to the "hourly_limit_usd" field in this mutation.
+func (m *GroupMutation) AddedHourlyLimitUsd() (r float64, exists bool) {
+	v := m.addhourly_limit_usd
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearHourlyLimitUsd clears the value of the "hourly_limit_usd" field.
+func (m *GroupMutation) ClearHourlyLimitUsd() {
+	m.hourly_limit_usd = nil
+	m.addhourly_limit_usd = nil
+	m.clearedFields[group.FieldHourlyLimitUsd] = struct{}{}
+}
+
+// HourlyLimitUsdCleared returns if the "hourly_limit_usd" field was cleared in this mutation.
+func (m *GroupMutation) HourlyLimitUsdCleared() bool {
+	_, ok := m.clearedFields[group.FieldHourlyLimitUsd]
+	return ok
+}
+
+// ResetHourlyLimitUsd resets all changes to the "hourly_limit_usd" field.
+func (m *GroupMutation) ResetHourlyLimitUsd() {
+	m.hourly_limit_usd = nil
+	m.addhourly_limit_usd = nil
+	delete(m.clearedFields, group.FieldHourlyLimitUsd)
+}
+
+// SetHourlyWindowHours sets the "hourly_window_hours" field.
+func (m *GroupMutation) SetHourlyWindowHours(i int) {
+	m.hourly_window_hours = &i
+	m.addhourly_window_hours = nil
+}
+
+// HourlyWindowHours returns the value of the "hourly_window_hours" field in the mutation.
+func (m *GroupMutation) HourlyWindowHours() (r int, exists bool) {
+	v := m.hourly_window_hours
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldHourlyWindowHours returns the old "hourly_window_hours" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldHourlyWindowHours(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldHourlyWindowHours is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldHourlyWindowHours requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldHourlyWindowHours: %w", err)
+	}
+	return oldValue.HourlyWindowHours, nil
+}
+
+// AddHourlyWindowHours adds i to the "hourly_window_hours" field.
+func (m *GroupMutation) AddHourlyWindowHours(i int) {
+	if m.addhourly_window_hours != nil {
+		*m.addhourly_window_hours += i
+	} else {
+		m.addhourly_window_hours = &i
+	}
+}
+
+// AddedHourlyWindowHours returns the value that was added to the "hourly_window_hours" field in this mutation.
+func (m *GroupMutation) AddedHourlyWindowHours() (r int, exists bool) {
+	v := m.addhourly_window_hours
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetHourlyWindowHours resets all changes to the "hourly_window_hours" field.
+func (m *GroupMutation) ResetHourlyWindowHours() {
+	m.hourly_window_hours = nil
+	m.addhourly_window_hours = nil
 }
 
 // SetDefaultValidityDays sets the "default_validity_days" field.
@@ -25995,7 +26125,7 @@ func (m *GroupMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *GroupMutation) Fields() []string {
-	fields := make([]string, 0, 68)
+	fields := make([]string, 0, 70)
 	if m.created_at != nil {
 		fields = append(fields, group.FieldCreatedAt)
 	}
@@ -26052,6 +26182,12 @@ func (m *GroupMutation) Fields() []string {
 	}
 	if m.monthly_limit_usd != nil {
 		fields = append(fields, group.FieldMonthlyLimitUsd)
+	}
+	if m.hourly_limit_usd != nil {
+		fields = append(fields, group.FieldHourlyLimitUsd)
+	}
+	if m.hourly_window_hours != nil {
+		fields = append(fields, group.FieldHourlyWindowHours)
 	}
 	if m.default_validity_days != nil {
 		fields = append(fields, group.FieldDefaultValidityDays)
@@ -26246,6 +26382,10 @@ func (m *GroupMutation) Field(name string) (ent.Value, bool) {
 		return m.WeeklyLimitUsd()
 	case group.FieldMonthlyLimitUsd:
 		return m.MonthlyLimitUsd()
+	case group.FieldHourlyLimitUsd:
+		return m.HourlyLimitUsd()
+	case group.FieldHourlyWindowHours:
+		return m.HourlyWindowHours()
 	case group.FieldDefaultValidityDays:
 		return m.DefaultValidityDays()
 	case group.FieldAllowImageGeneration:
@@ -26391,6 +26531,10 @@ func (m *GroupMutation) OldField(ctx context.Context, name string) (ent.Value, e
 		return m.OldWeeklyLimitUsd(ctx)
 	case group.FieldMonthlyLimitUsd:
 		return m.OldMonthlyLimitUsd(ctx)
+	case group.FieldHourlyLimitUsd:
+		return m.OldHourlyLimitUsd(ctx)
+	case group.FieldHourlyWindowHours:
+		return m.OldHourlyWindowHours(ctx)
 	case group.FieldDefaultValidityDays:
 		return m.OldDefaultValidityDays(ctx)
 	case group.FieldAllowImageGeneration:
@@ -26630,6 +26774,20 @@ func (m *GroupMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetMonthlyLimitUsd(v)
+		return nil
+	case group.FieldHourlyLimitUsd:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetHourlyLimitUsd(v)
+		return nil
+	case group.FieldHourlyWindowHours:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetHourlyWindowHours(v)
 		return nil
 	case group.FieldDefaultValidityDays:
 		v, ok := value.(int)
@@ -26997,6 +27155,12 @@ func (m *GroupMutation) AddedFields() []string {
 	if m.addmonthly_limit_usd != nil {
 		fields = append(fields, group.FieldMonthlyLimitUsd)
 	}
+	if m.addhourly_limit_usd != nil {
+		fields = append(fields, group.FieldHourlyLimitUsd)
+	}
+	if m.addhourly_window_hours != nil {
+		fields = append(fields, group.FieldHourlyWindowHours)
+	}
 	if m.adddefault_validity_days != nil {
 		fields = append(fields, group.FieldDefaultValidityDays)
 	}
@@ -27081,6 +27245,10 @@ func (m *GroupMutation) AddedField(name string) (ent.Value, bool) {
 		return m.AddedWeeklyLimitUsd()
 	case group.FieldMonthlyLimitUsd:
 		return m.AddedMonthlyLimitUsd()
+	case group.FieldHourlyLimitUsd:
+		return m.AddedHourlyLimitUsd()
+	case group.FieldHourlyWindowHours:
+		return m.AddedHourlyWindowHours()
 	case group.FieldDefaultValidityDays:
 		return m.AddedDefaultValidityDays()
 	case group.FieldImageRateMultiplier:
@@ -27168,6 +27336,20 @@ func (m *GroupMutation) AddField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.AddMonthlyLimitUsd(v)
+		return nil
+	case group.FieldHourlyLimitUsd:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddHourlyLimitUsd(v)
+		return nil
+	case group.FieldHourlyWindowHours:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddHourlyWindowHours(v)
 		return nil
 	case group.FieldDefaultValidityDays:
 		v, ok := value.(int)
@@ -27349,6 +27531,9 @@ func (m *GroupMutation) ClearedFields() []string {
 	if m.FieldCleared(group.FieldMonthlyLimitUsd) {
 		fields = append(fields, group.FieldMonthlyLimitUsd)
 	}
+	if m.FieldCleared(group.FieldHourlyLimitUsd) {
+		fields = append(fields, group.FieldHourlyLimitUsd)
+	}
 	if m.FieldCleared(group.FieldImagePrice1k) {
 		fields = append(fields, group.FieldImagePrice1k)
 	}
@@ -27428,6 +27613,9 @@ func (m *GroupMutation) ClearField(name string) error {
 		return nil
 	case group.FieldMonthlyLimitUsd:
 		m.ClearMonthlyLimitUsd()
+		return nil
+	case group.FieldHourlyLimitUsd:
+		m.ClearHourlyLimitUsd()
 		return nil
 	case group.FieldImagePrice1k:
 		m.ClearImagePrice1k()
@@ -27541,6 +27729,12 @@ func (m *GroupMutation) ResetField(name string) error {
 		return nil
 	case group.FieldMonthlyLimitUsd:
 		m.ResetMonthlyLimitUsd()
+		return nil
+	case group.FieldHourlyLimitUsd:
+		m.ResetHourlyLimitUsd()
+		return nil
+	case group.FieldHourlyWindowHours:
+		m.ResetHourlyWindowHours()
 		return nil
 	case group.FieldDefaultValidityDays:
 		m.ResetDefaultValidityDays()
@@ -55746,12 +55940,15 @@ type UserSubscriptionMutation struct {
 	daily_window_start      *time.Time
 	weekly_window_start     *time.Time
 	monthly_window_start    *time.Time
+	hourly_window_start     *time.Time
 	daily_usage_usd         *float64
 	adddaily_usage_usd      *float64
 	weekly_usage_usd        *float64
 	addweekly_usage_usd     *float64
 	monthly_usage_usd       *float64
 	addmonthly_usage_usd    *float64
+	hourly_usage_usd        *float64
+	addhourly_usage_usd     *float64
 	assigned_at             *time.Time
 	notes                   *string
 	clearedFields           map[string]struct{}
@@ -56315,6 +56512,55 @@ func (m *UserSubscriptionMutation) ResetMonthlyWindowStart() {
 	delete(m.clearedFields, usersubscription.FieldMonthlyWindowStart)
 }
 
+// SetHourlyWindowStart sets the "hourly_window_start" field.
+func (m *UserSubscriptionMutation) SetHourlyWindowStart(t time.Time) {
+	m.hourly_window_start = &t
+}
+
+// HourlyWindowStart returns the value of the "hourly_window_start" field in the mutation.
+func (m *UserSubscriptionMutation) HourlyWindowStart() (r time.Time, exists bool) {
+	v := m.hourly_window_start
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldHourlyWindowStart returns the old "hourly_window_start" field's value of the UserSubscription entity.
+// If the UserSubscription object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserSubscriptionMutation) OldHourlyWindowStart(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldHourlyWindowStart is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldHourlyWindowStart requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldHourlyWindowStart: %w", err)
+	}
+	return oldValue.HourlyWindowStart, nil
+}
+
+// ClearHourlyWindowStart clears the value of the "hourly_window_start" field.
+func (m *UserSubscriptionMutation) ClearHourlyWindowStart() {
+	m.hourly_window_start = nil
+	m.clearedFields[usersubscription.FieldHourlyWindowStart] = struct{}{}
+}
+
+// HourlyWindowStartCleared returns if the "hourly_window_start" field was cleared in this mutation.
+func (m *UserSubscriptionMutation) HourlyWindowStartCleared() bool {
+	_, ok := m.clearedFields[usersubscription.FieldHourlyWindowStart]
+	return ok
+}
+
+// ResetHourlyWindowStart resets all changes to the "hourly_window_start" field.
+func (m *UserSubscriptionMutation) ResetHourlyWindowStart() {
+	m.hourly_window_start = nil
+	delete(m.clearedFields, usersubscription.FieldHourlyWindowStart)
+}
+
 // SetDailyUsageUsd sets the "daily_usage_usd" field.
 func (m *UserSubscriptionMutation) SetDailyUsageUsd(f float64) {
 	m.daily_usage_usd = &f
@@ -56481,6 +56727,62 @@ func (m *UserSubscriptionMutation) AddedMonthlyUsageUsd() (r float64, exists boo
 func (m *UserSubscriptionMutation) ResetMonthlyUsageUsd() {
 	m.monthly_usage_usd = nil
 	m.addmonthly_usage_usd = nil
+}
+
+// SetHourlyUsageUsd sets the "hourly_usage_usd" field.
+func (m *UserSubscriptionMutation) SetHourlyUsageUsd(f float64) {
+	m.hourly_usage_usd = &f
+	m.addhourly_usage_usd = nil
+}
+
+// HourlyUsageUsd returns the value of the "hourly_usage_usd" field in the mutation.
+func (m *UserSubscriptionMutation) HourlyUsageUsd() (r float64, exists bool) {
+	v := m.hourly_usage_usd
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldHourlyUsageUsd returns the old "hourly_usage_usd" field's value of the UserSubscription entity.
+// If the UserSubscription object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserSubscriptionMutation) OldHourlyUsageUsd(ctx context.Context) (v float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldHourlyUsageUsd is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldHourlyUsageUsd requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldHourlyUsageUsd: %w", err)
+	}
+	return oldValue.HourlyUsageUsd, nil
+}
+
+// AddHourlyUsageUsd adds f to the "hourly_usage_usd" field.
+func (m *UserSubscriptionMutation) AddHourlyUsageUsd(f float64) {
+	if m.addhourly_usage_usd != nil {
+		*m.addhourly_usage_usd += f
+	} else {
+		m.addhourly_usage_usd = &f
+	}
+}
+
+// AddedHourlyUsageUsd returns the value that was added to the "hourly_usage_usd" field in this mutation.
+func (m *UserSubscriptionMutation) AddedHourlyUsageUsd() (r float64, exists bool) {
+	v := m.addhourly_usage_usd
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetHourlyUsageUsd resets all changes to the "hourly_usage_usd" field.
+func (m *UserSubscriptionMutation) ResetHourlyUsageUsd() {
+	m.hourly_usage_usd = nil
+	m.addhourly_usage_usd = nil
 }
 
 // SetAssignedBy sets the "assigned_by" field.
@@ -56799,7 +57101,7 @@ func (m *UserSubscriptionMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *UserSubscriptionMutation) Fields() []string {
-	fields := make([]string, 0, 17)
+	fields := make([]string, 0, 19)
 	if m.created_at != nil {
 		fields = append(fields, usersubscription.FieldCreatedAt)
 	}
@@ -56833,6 +57135,9 @@ func (m *UserSubscriptionMutation) Fields() []string {
 	if m.monthly_window_start != nil {
 		fields = append(fields, usersubscription.FieldMonthlyWindowStart)
 	}
+	if m.hourly_window_start != nil {
+		fields = append(fields, usersubscription.FieldHourlyWindowStart)
+	}
 	if m.daily_usage_usd != nil {
 		fields = append(fields, usersubscription.FieldDailyUsageUsd)
 	}
@@ -56841,6 +57146,9 @@ func (m *UserSubscriptionMutation) Fields() []string {
 	}
 	if m.monthly_usage_usd != nil {
 		fields = append(fields, usersubscription.FieldMonthlyUsageUsd)
+	}
+	if m.hourly_usage_usd != nil {
+		fields = append(fields, usersubscription.FieldHourlyUsageUsd)
 	}
 	if m.assigned_by_user != nil {
 		fields = append(fields, usersubscription.FieldAssignedBy)
@@ -56881,12 +57189,16 @@ func (m *UserSubscriptionMutation) Field(name string) (ent.Value, bool) {
 		return m.WeeklyWindowStart()
 	case usersubscription.FieldMonthlyWindowStart:
 		return m.MonthlyWindowStart()
+	case usersubscription.FieldHourlyWindowStart:
+		return m.HourlyWindowStart()
 	case usersubscription.FieldDailyUsageUsd:
 		return m.DailyUsageUsd()
 	case usersubscription.FieldWeeklyUsageUsd:
 		return m.WeeklyUsageUsd()
 	case usersubscription.FieldMonthlyUsageUsd:
 		return m.MonthlyUsageUsd()
+	case usersubscription.FieldHourlyUsageUsd:
+		return m.HourlyUsageUsd()
 	case usersubscription.FieldAssignedBy:
 		return m.AssignedBy()
 	case usersubscription.FieldAssignedAt:
@@ -56924,12 +57236,16 @@ func (m *UserSubscriptionMutation) OldField(ctx context.Context, name string) (e
 		return m.OldWeeklyWindowStart(ctx)
 	case usersubscription.FieldMonthlyWindowStart:
 		return m.OldMonthlyWindowStart(ctx)
+	case usersubscription.FieldHourlyWindowStart:
+		return m.OldHourlyWindowStart(ctx)
 	case usersubscription.FieldDailyUsageUsd:
 		return m.OldDailyUsageUsd(ctx)
 	case usersubscription.FieldWeeklyUsageUsd:
 		return m.OldWeeklyUsageUsd(ctx)
 	case usersubscription.FieldMonthlyUsageUsd:
 		return m.OldMonthlyUsageUsd(ctx)
+	case usersubscription.FieldHourlyUsageUsd:
+		return m.OldHourlyUsageUsd(ctx)
 	case usersubscription.FieldAssignedBy:
 		return m.OldAssignedBy(ctx)
 	case usersubscription.FieldAssignedAt:
@@ -57022,6 +57338,13 @@ func (m *UserSubscriptionMutation) SetField(name string, value ent.Value) error 
 		}
 		m.SetMonthlyWindowStart(v)
 		return nil
+	case usersubscription.FieldHourlyWindowStart:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetHourlyWindowStart(v)
+		return nil
 	case usersubscription.FieldDailyUsageUsd:
 		v, ok := value.(float64)
 		if !ok {
@@ -57042,6 +57365,13 @@ func (m *UserSubscriptionMutation) SetField(name string, value ent.Value) error 
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetMonthlyUsageUsd(v)
+		return nil
+	case usersubscription.FieldHourlyUsageUsd:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetHourlyUsageUsd(v)
 		return nil
 	case usersubscription.FieldAssignedBy:
 		v, ok := value.(int64)
@@ -57081,6 +57411,9 @@ func (m *UserSubscriptionMutation) AddedFields() []string {
 	if m.addmonthly_usage_usd != nil {
 		fields = append(fields, usersubscription.FieldMonthlyUsageUsd)
 	}
+	if m.addhourly_usage_usd != nil {
+		fields = append(fields, usersubscription.FieldHourlyUsageUsd)
+	}
 	return fields
 }
 
@@ -57095,6 +57428,8 @@ func (m *UserSubscriptionMutation) AddedField(name string) (ent.Value, bool) {
 		return m.AddedWeeklyUsageUsd()
 	case usersubscription.FieldMonthlyUsageUsd:
 		return m.AddedMonthlyUsageUsd()
+	case usersubscription.FieldHourlyUsageUsd:
+		return m.AddedHourlyUsageUsd()
 	}
 	return nil, false
 }
@@ -57125,6 +57460,13 @@ func (m *UserSubscriptionMutation) AddField(name string, value ent.Value) error 
 		}
 		m.AddMonthlyUsageUsd(v)
 		return nil
+	case usersubscription.FieldHourlyUsageUsd:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddHourlyUsageUsd(v)
+		return nil
 	}
 	return fmt.Errorf("unknown UserSubscription numeric field %s", name)
 }
@@ -57144,6 +57486,9 @@ func (m *UserSubscriptionMutation) ClearedFields() []string {
 	}
 	if m.FieldCleared(usersubscription.FieldMonthlyWindowStart) {
 		fields = append(fields, usersubscription.FieldMonthlyWindowStart)
+	}
+	if m.FieldCleared(usersubscription.FieldHourlyWindowStart) {
+		fields = append(fields, usersubscription.FieldHourlyWindowStart)
 	}
 	if m.FieldCleared(usersubscription.FieldAssignedBy) {
 		fields = append(fields, usersubscription.FieldAssignedBy)
@@ -57176,6 +57521,9 @@ func (m *UserSubscriptionMutation) ClearField(name string) error {
 		return nil
 	case usersubscription.FieldMonthlyWindowStart:
 		m.ClearMonthlyWindowStart()
+		return nil
+	case usersubscription.FieldHourlyWindowStart:
+		m.ClearHourlyWindowStart()
 		return nil
 	case usersubscription.FieldAssignedBy:
 		m.ClearAssignedBy()
@@ -57224,6 +57572,9 @@ func (m *UserSubscriptionMutation) ResetField(name string) error {
 	case usersubscription.FieldMonthlyWindowStart:
 		m.ResetMonthlyWindowStart()
 		return nil
+	case usersubscription.FieldHourlyWindowStart:
+		m.ResetHourlyWindowStart()
+		return nil
 	case usersubscription.FieldDailyUsageUsd:
 		m.ResetDailyUsageUsd()
 		return nil
@@ -57232,6 +57583,9 @@ func (m *UserSubscriptionMutation) ResetField(name string) error {
 		return nil
 	case usersubscription.FieldMonthlyUsageUsd:
 		m.ResetMonthlyUsageUsd()
+		return nil
+	case usersubscription.FieldHourlyUsageUsd:
+		m.ResetHourlyUsageUsd()
 		return nil
 	case usersubscription.FieldAssignedBy:
 		m.ResetAssignedBy()

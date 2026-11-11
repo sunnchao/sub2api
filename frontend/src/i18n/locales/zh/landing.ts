@@ -151,6 +151,8 @@ export default {
     // Ring card titles
     totalQuota: '总额度',
     limit5h: '5 小时限额',
+    limitHourly: '{hours} 小时限额',
+    limitHourlyShort: '{hours}小时',
     limitDaily: '日限额',
     limit7d: '7 天限额',
     limitWeekly: '周限额',

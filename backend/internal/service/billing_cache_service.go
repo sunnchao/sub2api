@@ -46,6 +46,7 @@ type subscriptionCacheData struct {
 	DailyUsage   float64
 	WeeklyUsage  float64
 	MonthlyUsage float64
+	HourlyUsage  float64
 	Version      int64
 }
 
@@ -448,6 +449,7 @@ func (s *BillingCacheService) convertFromPortsData(data *SubscriptionCacheData) 
 		DailyUsage:   data.DailyUsage,
 		WeeklyUsage:  data.WeeklyUsage,
 		MonthlyUsage: data.MonthlyUsage,
+		HourlyUsage:  data.HourlyUsage,
 		Version:      data.Version,
 	}
 }
@@ -459,6 +461,7 @@ func (s *BillingCacheService) convertToPortsData(data *subscriptionCacheData) *S
 		DailyUsage:   data.DailyUsage,
 		WeeklyUsage:  data.WeeklyUsage,
 		MonthlyUsage: data.MonthlyUsage,
+		HourlyUsage:  data.HourlyUsage,
 		Version:      data.Version,
 	}
 }
@@ -476,6 +479,7 @@ func (s *BillingCacheService) getSubscriptionFromDB(ctx context.Context, userID,
 		DailyUsage:   sub.DailyUsageUSD,
 		WeeklyUsage:  sub.WeeklyUsageUSD,
 		MonthlyUsage: sub.MonthlyUsageUSD,
+		HourlyUsage:  sub.HourlyUsageUSD,
 		Version:      sub.UpdatedAt.Unix(),
 	}, nil
 }
@@ -819,7 +823,7 @@ func (s *BillingCacheService) ReserveFixedCharge(ctx context.Context, user *User
 		return nil, err
 	}
 	var subscriptionPending, apiKeyPending float64
-	if subscriptionBill && (group.HasDailyLimit() || group.HasWeeklyLimit() || group.HasMonthlyLimit()) {
+	if subscriptionBill && (group.HasDailyLimit() || group.HasWeeklyLimit() || group.HasMonthlyLimit() || group.HasHourlyLimit()) {
 		res, subscriptionPending = s.reserveInflightScope(ctx, res, user.ID, inflightSubscriptionScope(subscription.ID), amount)
 	}
 	if apiKey != nil && (apiKey.Quota > 0 || apiKey.HasRateLimits()) {
@@ -856,6 +860,9 @@ func (s *BillingCacheService) checkFixedChargeSubscription(ctx context.Context, 
 	}
 	if group.HasMonthlyLimit() && subData.MonthlyUsage+pending > *group.MonthlyLimitUSD {
 		return ErrMonthlyLimitExceeded
+	}
+	if group.HasHourlyLimit() && subData.HourlyUsage+pending > *group.HourlyLimitUSD {
+		return ErrHourlyLimitExceeded
 	}
 	return nil
 }
@@ -1078,6 +1085,10 @@ func (s *BillingCacheService) checkSubscriptionEligibility(ctx context.Context, 
 
 	if group.HasMonthlyLimit() && subData.MonthlyUsage >= *group.MonthlyLimitUSD {
 		return ErrMonthlyLimitExceeded
+	}
+
+	if group.HasHourlyLimit() && subData.HourlyUsage >= *group.HourlyLimitUSD {
+		return ErrHourlyLimitExceeded
 	}
 
 	return nil

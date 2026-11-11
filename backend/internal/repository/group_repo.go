@@ -106,6 +106,7 @@ func createGroupRecord(ctx context.Context, client *dbent.Client, groupIn *servi
 		SetNillableDailyLimitUsd(groupIn.DailyLimitUSD).
 		SetNillableWeeklyLimitUsd(groupIn.WeeklyLimitUSD).
 		SetNillableMonthlyLimitUsd(groupIn.MonthlyLimitUSD).
+		SetNillableHourlyLimitUsd(groupIn.HourlyLimitUSD).
 		SetAllowImageGeneration(groupIn.AllowImageGeneration).
 		SetAllowBatchImageGeneration(groupIn.AllowBatchImageGeneration).
 		SetImageCountBilling(groupIn.ImageCountBilling).
@@ -158,6 +159,9 @@ func createGroupRecord(ctx context.Context, client *dbent.Client, groupIn *servi
 		SetProfitSafetyBuffer(groupIn.ProfitSafetyBuffer)
 	if groupIn.DuplicateOperationID != "" {
 		builder = builder.SetDuplicateOperationID(groupIn.DuplicateOperationID)
+	}
+	if groupIn.HourlyWindowHours > 0 {
+		builder = builder.SetHourlyWindowHours(groupIn.HourlyWindowHours)
 	}
 
 	// 设置模型路由配置
@@ -298,6 +302,7 @@ func (r *groupRepository) Update(ctx context.Context, groupIn *service.Group) er
 		SetNillableDailyLimitUsd(groupIn.DailyLimitUSD).
 		SetNillableWeeklyLimitUsd(groupIn.WeeklyLimitUSD).
 		SetNillableMonthlyLimitUsd(groupIn.MonthlyLimitUSD).
+		SetNillableHourlyLimitUsd(groupIn.HourlyLimitUSD).
 		SetAllowImageGeneration(groupIn.AllowImageGeneration).
 		SetAllowBatchImageGeneration(groupIn.AllowBatchImageGeneration).
 		SetImageCountBilling(groupIn.ImageCountBilling).
@@ -357,6 +362,14 @@ func (r *groupRepository) Update(ctx context.Context, groupIn *service.Group) er
 		builder = builder.SetMonthlyLimitUsd(*groupIn.MonthlyLimitUSD)
 	} else {
 		builder = builder.ClearMonthlyLimitUsd()
+	}
+	if groupIn.HourlyLimitUSD != nil {
+		builder = builder.SetHourlyLimitUsd(*groupIn.HourlyLimitUSD)
+	} else {
+		builder = builder.ClearHourlyLimitUsd()
+	}
+	if groupIn.HourlyWindowHours > 0 {
+		builder = builder.SetHourlyWindowHours(groupIn.HourlyWindowHours)
 	}
 	if groupIn.ImagePrice1K != nil {
 		builder = builder.SetImagePrice1k(*groupIn.ImagePrice1K)

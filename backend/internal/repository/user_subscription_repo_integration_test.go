@@ -484,6 +484,8 @@ func (s *UserSubscriptionRepoSuite) TestActivateWindows_StaleActivationPreserves
 	s.Require().WithinDuration(manualDailyStart, *got.DailyWindowStart, time.Microsecond)
 	s.Require().WithinDuration(manualResetAt, *got.WeeklyWindowStart, time.Microsecond)
 	s.Require().WithinDuration(manualResetAt, *got.MonthlyWindowStart, time.Microsecond)
+	s.Require().NotNil(got.HourlyWindowStart)
+	s.Require().WithinDuration(activatedAt, *got.HourlyWindowStart, time.Microsecond)
 }
 
 func (s *UserSubscriptionRepoSuite) TestResetDailyUsage() {

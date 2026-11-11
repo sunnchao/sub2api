@@ -172,6 +172,7 @@ func (s *BillingCacheSuite) TestSubscriptionCache() {
 					DailyUsage:   1.0,
 					WeeklyUsage:  2.0,
 					MonthlyUsage: 3.0,
+					HourlyUsage:  4.0,
 					Version:      7,
 				}
 				require.NoError(s.T(), cache.SetSubscriptionCache(ctx, userID, groupID, data), "SetSubscriptionCache")
@@ -181,6 +182,7 @@ func (s *BillingCacheSuite) TestSubscriptionCache() {
 				require.Equal(s.T(), "active", gotSub.Status)
 				require.Equal(s.T(), int64(7), gotSub.Version)
 				require.Equal(s.T(), 1.0, gotSub.DailyUsage)
+				require.Equal(s.T(), 4.0, gotSub.HourlyUsage)
 
 				ttl, err := rdb.TTL(ctx, subKey).Result()
 				require.NoError(s.T(), err, "TTL subKey")
@@ -199,6 +201,7 @@ func (s *BillingCacheSuite) TestSubscriptionCache() {
 					DailyUsage:   1.0,
 					WeeklyUsage:  2.0,
 					MonthlyUsage: 3.0,
+					HourlyUsage:  4.0,
 					Version:      1,
 				}
 				require.NoError(s.T(), cache.SetSubscriptionCache(ctx, userID, groupID, data), "SetSubscriptionCache")
@@ -210,6 +213,7 @@ func (s *BillingCacheSuite) TestSubscriptionCache() {
 				require.Equal(s.T(), 1.5, gotSub.DailyUsage)
 				require.Equal(s.T(), 2.5, gotSub.WeeklyUsage)
 				require.Equal(s.T(), 3.5, gotSub.MonthlyUsage)
+				require.Equal(s.T(), 4.5, gotSub.HourlyUsage)
 			},
 		},
 		{

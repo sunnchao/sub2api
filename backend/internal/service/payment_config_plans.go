@@ -85,6 +85,8 @@ type PlanGroupInfo struct {
 	DailyLimitUSD      *float64 `json:"daily_limit_usd"`
 	WeeklyLimitUSD     *float64 `json:"weekly_limit_usd"`
 	MonthlyLimitUSD    *float64 `json:"monthly_limit_usd"`
+	HourlyLimitUSD     *float64 `json:"hourly_limit_usd"`
+	HourlyWindowHours  int      `json:"hourly_window_hours"`
 	ModelScopes        []string `json:"supported_model_scopes"`
 
 	// 不对外输出；handler 按请求语言用它换出 Name 的译文。
@@ -121,6 +123,8 @@ func (s *PaymentConfigService) GetGroupInfoMap(ctx context.Context, plans []*dbe
 			DailyLimitUSD:      g.DailyLimitUsd,
 			WeeklyLimitUSD:     g.WeeklyLimitUsd,
 			MonthlyLimitUSD:    g.MonthlyLimitUsd,
+			HourlyLimitUSD:     g.HourlyLimitUsd,
+			HourlyWindowHours:  g.HourlyWindowHours,
 			ModelScopes:        g.SupportedModelScopes,
 			I18n:               g.I18n,
 		}
