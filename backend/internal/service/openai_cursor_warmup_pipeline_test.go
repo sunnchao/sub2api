@@ -168,7 +168,8 @@ func TestCursorMixedShape_StripsUnsupportedFields(t *testing.T) {
 		"safety_identifier": "cursor-user-xyz",
 		"metadata": {"trace_id":"abc","caller":"cursor"},
 		"stream_options": {"include_usage": true},
-		"input": [{"role":"user","content":"time now?"}]
+		"stop": ["STOP_HERE"],
+		"input": [{"role":"user","content":"hi"}]
 	}`)
 
 	// Sanity: the test fixture contains every field the production code strips.
