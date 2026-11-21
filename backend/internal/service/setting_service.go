@@ -394,6 +394,14 @@ func (s *SettingService) SetOnUpdateCallback(callback func()) {
 	s.onUpdate = callback
 }
 
+// NotifySettingsUpdated triggers the registered settings update callback so
+// side-channel settings writers (such as NewAPIMigrationService) invalidate SSR caches.
+func (s *SettingService) NotifySettingsUpdated() {
+	if s != nil && s.onUpdate != nil {
+		s.onUpdate()
+	}
+}
+
 // SubscribeChannelMonitorRuntime registers a listener that is invoked after
 // settings are successfully persisted (and process caches refreshed).
 // Used by ChannelMonitorRunner / ChannelMonitorV2Aggregator for immediate

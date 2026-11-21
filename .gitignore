@@ -34,7 +34,9 @@ backend/.gocache/
 # ===================
 node_modules/
 frontend/node_modules/
+frontend-antd/node_modules/
 frontend/dist/
+frontend-antd/dist/
 *.local
 *.tsbuildinfo
 vite.config.d.ts
@@ -92,6 +94,7 @@ temp/
 # 构建产物
 # ===================
 dist/
+dist-antd/
 build/
 release/
 
@@ -147,6 +150,7 @@ docs/*
 !docs/PLUGIN_DEVELOPMENT.md
 !docs/channel-monitor-v2-safe-defaults.md
 !docs/FRONTEND_REPLACEMENT.md
+!docs/FRONTEND_ANTD_MIGRATION_PLAN.md
 !docs/codex-credits.md
 !docs/legal/
 !docs/legal/*.md
@@ -175,3 +179,4 @@ config.yaml
 /plugins/
 
 .workbuddy/
+frontend-antd/

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/Wei-Shaw/sub2api/internal/domain"
 )
 
 // PlazaOfficialPricing 模型广场展示用的官方参考价（USD per token），与计费同源：
@@ -64,37 +66,49 @@ type PlazaGroup struct {
 
 // ModelPlazaService 聚合模型广场数据。
 //
-// 模型枚举来自渠道配置；token 模型的展示单价与阶梯由 BillingService 的阶梯表
-// 查询给出（与扣费走同一条解析链与计费函数），图片/按次模型沿用渠道/分组档位价。
+// 模型枚举来自渠道配置，并按分组的实际访问权限收敛（分组模型白名单 + 分组内活跃
+// 可调度账号实际支持的平台与模型；当分组暂无活跃可调度账号时回退为渠道配置 +
+// 分组模型白名单）；token 模型的展示单价与阶梯由 BillingService 的阶梯表查询给出
+// （与扣费走同一条解析链与计费函数），图片/按次模型沿用渠道/分组档位价。
 type ModelPlazaService struct {
-	channelRepo    ChannelRepository
-	groupRepo      GroupRepository
-	pricingService *PricingService
-	billingService *BillingService
-	resolver       *ModelPricingResolver
+	channelRepo        ChannelRepository
+	groupRepo          GroupRepository
+	accountRepo        AccountRepository
+	compositeRouteRepo CompositeModelRouteRepository
+	pricingService     *PricingService
+	billingService     *BillingService
+	resolver           *ModelPricingResolver
 }
 
 // NewModelPlazaService 创建模型广场服务。
 func NewModelPlazaService(
 	channelRepo ChannelRepository,
 	groupRepo GroupRepository,
+	accountRepo AccountRepository,
+	compositeRouteRepo CompositeModelRouteRepository,
 	pricingService *PricingService,
 	billingService *BillingService,
 	resolver *ModelPricingResolver,
 ) *ModelPlazaService {
 	return &ModelPlazaService{
-		channelRepo:    channelRepo,
-		groupRepo:      groupRepo,
-		pricingService: pricingService,
-		billingService: billingService,
-		resolver:       resolver,
+		channelRepo:        channelRepo,
+		groupRepo:          groupRepo,
+		accountRepo:        accountRepo,
+		compositeRouteRepo: compositeRouteRepo,
+		pricingService:     pricingService,
+		billingService:     billingService,
+		resolver:           resolver,
 	}
 }
 
-// ListGroups 返回模型广场数据：每个活跃分组附带其可用模型与定价。
+// ListGroups 返回模型广场数据：每个活跃分组附带其有权限访问的可用模型与定价。
 //
-// 模型枚举口径与 ListAvailable 一致（Active 渠道、SupportedModels ∪ 全局定价回落、
-// 平台隔离），仅把顶层从渠道换成分组：
+// 模型枚举在渠道配置（Active 渠道、SupportedModels ∪ 全局定价回落、平台隔离）基础上，
+// 按分组权限收敛：
+//   - 若分组启用了模型白名单（ModelAllowlist），仅保留命中白名单的模型；
+//   - 若分组绑定了活跃且持久可调度的账号，仅保留能被至少一个合格账号服务的平台与模型
+//     （Composite 分组结合显式路由与实际账号平台；anthropic/gemini 兼容混合调度 Antigravity）；
+//   - 若分组暂无活跃可调度账号，回退为渠道配置 + 分组模型白名单展示（保留价格橱窗）；
 //   - 渠道按 lower(name) 排序后遍历，保证同名模型去重结果确定；
 //   - 同分组同名模型「先见者胜」，仅当已存条目无定价而新条目有定价时升级替换；
 //   - token 模型的单价与阶梯按实收口径合成（见 ResolveContextPricingSchedule），
@@ -146,6 +160,30 @@ func (s *ModelPlazaService) ListGroups(ctx context.Context) ([]PlazaGroup, error
 		order = append(order, g.ID)
 	}
 
+	activeChannelGroups := make(map[int64]*Group, len(groups))
+	for i := range channels {
+		if channels[i].Status != StatusActive {
+			continue
+		}
+		for _, gid := range channels[i].GroupIDs {
+			if g, ok := groupEnt[gid]; ok {
+				activeChannelGroups[gid] = g
+			}
+		}
+	}
+	if len(activeChannelGroups) == 0 {
+		return []PlazaGroup{}, nil
+	}
+
+	accountsByGroup, err := s.loadGroupAvailabilityAccounts(ctx, activeChannelGroups)
+	if err != nil {
+		return nil, err
+	}
+	compositeRoutesByGroup, err := s.loadCompositeRoutesByGroup(ctx, order, activeChannelGroups, accountsByGroup)
+	if err != nil {
+		return nil, err
+	}
+
 	type modelKey struct {
 		platform string
 		name     string
@@ -166,6 +204,7 @@ func (s *ModelPlazaService) ListGroups(ctx context.Context) ([]PlazaGroup, error
 			if !ok {
 				continue
 			}
+			g := groupEnt[gid]
 			idx := modelIdx[gid]
 			if idx == nil {
 				idx = make(map[modelKey]int, len(supported))
@@ -178,6 +217,9 @@ func (s *ModelPlazaService) ListGroups(ctx context.Context) ([]PlazaGroup, error
 						continue
 					}
 				} else if m.Platform != pg.Platform {
+					continue
+				}
+				if !isModelAccessibleForGroup(g, ch, m, accountsByGroup[gid], compositeRoutesByGroup[gid]) {
 					continue
 				}
 				key := modelKey{platform: m.Platform, name: m.Name}
@@ -383,4 +425,301 @@ func (s *ModelPlazaService) lookupOfficialPricing(ctx context.Context, modelName
 	}
 	memo[modelName] = result
 	return result
+}
+
+// loadGroupAvailabilityAccounts 一次性拉取所有活跃且持久可调度的账号，并按分组归类。
+// 复用 ListModelAvailabilityCandidates：只看持久化配置（status=active, schedulable=true），
+// 忽略限流/过载/临时不可调度等瞬态，避免账号短暂 429 导致模型广场展示抖动。
+// accountRepo 为 nil（单测未注入账号仓储）时返回 nil，调用方跳过账号维度过滤。
+func (s *ModelPlazaService) loadGroupAvailabilityAccounts(
+	ctx context.Context,
+	groups map[int64]*Group,
+) (map[int64][]Account, error) {
+	if s.accountRepo == nil || len(groups) == 0 {
+		return nil, nil
+	}
+	accounts, err := s.accountRepo.ListModelAvailabilityCandidates(ctx, nil, domain.ConcretePlatformIDs(), true)
+	if err != nil {
+		return nil, fmt.Errorf("list availability accounts: %w", err)
+	}
+	byGroup := make(map[int64][]Account, len(groups))
+	for i := range accounts {
+		acc := accounts[i]
+		if !acc.IsActive() || !acc.Schedulable {
+			continue
+		}
+		for _, gid := range accountAssignedGroupIDs(&acc) {
+			g, ok := groups[gid]
+			if !ok {
+				continue
+			}
+			if !plazaAccountBelongsToGroup(g, &acc) {
+				continue
+			}
+			byGroup[gid] = append(byGroup[gid], acc)
+		}
+	}
+	return byGroup, nil
+}
+
+// loadCompositeRoutesByGroup 加载参与模型广场展示且存在活跃可调度账号的 Composite 分组已启用显式路由。
+// compositeRouteRepo 为 nil 或分组无活跃可调度账号（回退模式）时跳过查询。
+func (s *ModelPlazaService) loadCompositeRoutesByGroup(
+	ctx context.Context,
+	order []int64,
+	activeChannelGroups map[int64]*Group,
+	accountsByGroup map[int64][]Account,
+) (map[int64][]CompositeModelRoute, error) {
+	if s.compositeRouteRepo == nil || len(activeChannelGroups) == 0 {
+		return nil, nil
+	}
+	var out map[int64][]CompositeModelRoute
+	for _, gid := range order {
+		g, ok := activeChannelGroups[gid]
+		if !ok || g.Platform != PlatformComposite || len(accountsByGroup[gid]) == 0 {
+			continue
+		}
+		routes, err := s.compositeRouteRepo.ListByGroup(ctx, gid, false)
+		if err != nil {
+			return nil, fmt.Errorf("list composite routes for group %d: %w", gid, err)
+		}
+		if len(routes) == 0 {
+			continue
+		}
+		if out == nil {
+			out = make(map[int64][]CompositeModelRoute)
+		}
+		out[gid] = routes
+	}
+	return out, nil
+}
+
+func accountAssignedGroupIDs(acc *Account) []int64 {
+	if acc == nil {
+		return nil
+	}
+	if len(acc.GroupIDs) > 0 {
+		return acc.GroupIDs
+	}
+	if len(acc.AccountGroups) == 0 {
+		return nil
+	}
+	ids := make([]int64, 0, len(acc.AccountGroups))
+	for i := range acc.AccountGroups {
+		ids = append(ids, acc.AccountGroups[i].GroupID)
+	}
+	return ids
+}
+
+func plazaAccountEligibleForPlatform(acc *Account, targetPlatform string) bool {
+	if acc == nil || targetPlatform == "" {
+		return false
+	}
+	if acc.Platform == targetPlatform {
+		return true
+	}
+	useMixed := targetPlatform == PlatformAnthropic || targetPlatform == PlatformGemini
+	return useMixed && acc.Platform == PlatformAntigravity && acc.IsMixedSchedulingEnabled()
+}
+
+func plazaAccountBelongsToGroup(g *Group, acc *Account) bool {
+	if g == nil || acc == nil {
+		return false
+	}
+	if g.Platform == PlatformComposite {
+		return isConcreteRequestPlatform(acc.Platform)
+	}
+	return plazaAccountEligibleForPlatform(acc, g.Platform)
+}
+
+// isModelAccessibleForGroup 判断渠道中的候选模型 m 是否对分组 g 有权访问：
+//  1. 分组模型白名单：开启时必须命中 g.ModelAllowlist.Allows(m.Name)；
+//  2. 分组账号池：当分组存在活跃且持久可调度的合格账号时，仅保留能被至少一个账号
+//     服务的平台与模型；当分组暂无活跃可调度账号（或未注入 accountRepo）时，回退为
+//     按渠道配置 + 分组模型白名单展示（保留价格橱窗）。
+func isModelAccessibleForGroup(
+	g *Group,
+	ch *Channel,
+	m SupportedModel,
+	groupAccounts []Account,
+	compositeRoutes []CompositeModelRoute,
+) bool {
+	if g == nil {
+		return false
+	}
+	if g.ModelAllowlistEnabled() && !g.ModelAllowlist.Allows(m.Name) {
+		return false
+	}
+	if len(groupAccounts) == 0 {
+		return true
+	}
+
+	candidates := []string{m.Name}
+	if g.Platform == PlatformComposite && len(compositeRoutes) > 0 {
+		candidates = compositePlazaCandidateModels(compositeRoutes, m.Name, m.Platform)
+		if len(candidates) == 0 {
+			return false
+		}
+	}
+
+	for _, candidate := range candidates {
+		if plazaAccountsSupportModel(groupAccounts, ch, m.Platform, candidate) {
+			return true
+		}
+	}
+	return false
+}
+
+// compositePlazaCandidateModels 计算 Composite 分组中模型 model 经显式路由后
+// 能落到 targetPlatform 的候选上游模型名集合。
+//   - 若存在任意 endpoint 的显式路由命中且目标为 targetPlatform，收集对应的上游模型名；
+//   - 若无 any 端点路由拦截（未配置显式路由的端点仍走默认解析），保留 model 本身；
+//   - 若 any 端点路由把 model 重定向到其他平台且无特定端点路由指向 targetPlatform，返回空切片。
+func compositePlazaCandidateModels(routes []CompositeModelRoute, model, targetPlatform string) []string {
+	enabledRoutes := make([]CompositeModelRoute, 0, len(routes))
+	endpoints := make([]string, 0, len(routes))
+	seenEndpoint := make(map[string]struct{}, len(routes))
+	for _, r := range routes {
+		if !r.Enabled {
+			continue
+		}
+		enabledRoutes = append(enabledRoutes, r)
+		ep := normalizeCompositeRouteEndpoint(r.Endpoint)
+		if ep != CompositeRouteEndpointAny {
+			if _, ok := seenEndpoint[ep]; !ok {
+				seenEndpoint[ep] = struct{}{}
+				endpoints = append(endpoints, ep)
+			}
+		}
+	}
+	if len(enabledRoutes) == 0 {
+		return []string{model}
+	}
+
+	seenModel := make(map[string]struct{}, 2)
+	candidates := make([]string, 0, 2)
+	addCandidate := func(name string) {
+		name = strings.TrimSpace(name)
+		if name == "" {
+			return
+		}
+		if _, ok := seenModel[name]; ok {
+			return
+		}
+		seenModel[name] = struct{}{}
+		candidates = append(candidates, name)
+	}
+
+	if route, matched := matchCompositeRoute(enabledRoutes, model, CompositeRouteEndpointAny); matched {
+		if route.TargetPlatform == targetPlatform {
+			upstream := strings.TrimSpace(route.UpstreamModel)
+			if upstream == "" {
+				upstream = model
+			}
+			addCandidate(upstream)
+		}
+	} else {
+		addCandidate(model)
+	}
+
+	for _, ep := range endpoints {
+		route, matched := matchCompositeRoute(enabledRoutes, model, ep)
+		if !matched || route.TargetPlatform != targetPlatform {
+			continue
+		}
+		upstream := strings.TrimSpace(route.UpstreamModel)
+		if upstream == "" {
+			upstream = model
+		}
+		addCandidate(upstream)
+	}
+	return candidates
+}
+
+// plazaAccountsSupportModel 判断 accounts 中是否有至少一个合格账号能够服务 (targetPlatform, model)。
+// 与运行时网关保持一致：
+//   - OpenAI 网关族平台在选号前已应用渠道映射，按映射后的模型名校验；
+//   - Gemini 原生端点按渠道映射后的模型名选号，Messages 兼容端点按原始模型名选号，两者任一命中即可；
+//   - Anthropic / Antigravity / TypeSafe 在选号阶段按原始模型名校验。
+func plazaAccountsSupportModel(accounts []Account, ch *Channel, targetPlatform, model string) bool {
+	mappedModel, mapped := resolveChannelMappedModelForPlatform(ch, targetPlatform, model)
+	usesOpenAIGateway := domain.UsesOpenAIGateway(targetPlatform)
+
+	for i := range accounts {
+		acc := &accounts[i]
+		if !plazaAccountEligibleForPlatform(acc, targetPlatform) {
+			continue
+		}
+		if usesOpenAIGateway {
+			if acc.IsModelSupported(mappedModel) {
+				return true
+			}
+			continue
+		}
+		if targetPlatform == PlatformGemini {
+			if isAccountModelSupported(acc, mappedModel) || (mapped && mappedModel != model && isAccountModelSupported(acc, model)) {
+				return true
+			}
+			continue
+		}
+		if isAccountModelSupported(acc, model) {
+			return true
+		}
+	}
+	return false
+}
+
+// resolveChannelMappedModelForPlatform 按指定平台解析渠道级模型映射（精确优先、最长前缀次之）。
+// 目标为空或仍带尾部通配符时视作未改写，原样返回。
+func resolveChannelMappedModelForPlatform(ch *Channel, platform, model string) (string, bool) {
+	if ch == nil || len(ch.ModelMapping) == 0 {
+		return model, false
+	}
+	mapping := ch.ModelMapping[platform]
+	if len(mapping) == 0 {
+		return model, false
+	}
+	modelLower := strings.ToLower(model)
+
+	var exactSrc, exactDst string
+	for src, dst := range mapping {
+		if strings.HasSuffix(src, wildcardSuffix) {
+			continue
+		}
+		if strings.ToLower(src) == modelLower {
+			if exactSrc == "" || src < exactSrc {
+				exactSrc = src
+				exactDst = dst
+			}
+		}
+	}
+	if exactSrc != "" {
+		if exactDst != "" && !strings.HasSuffix(exactDst, wildcardSuffix) {
+			return exactDst, true
+		}
+		return model, false
+	}
+
+	bestLen := -1
+	bestSrc := ""
+	bestDst := ""
+	for src, dst := range mapping {
+		prefix, isWild := splitWildcardSuffix(src)
+		if !isWild || dst == "" || strings.HasSuffix(dst, wildcardSuffix) {
+			continue
+		}
+		prefixLower := strings.ToLower(prefix)
+		if !strings.HasPrefix(modelLower, prefixLower) {
+			continue
+		}
+		if len(prefixLower) > bestLen || (len(prefixLower) == bestLen && src < bestSrc) {
+			bestLen = len(prefixLower)
+			bestSrc = src
+			bestDst = dst
+		}
+	}
+	if bestLen >= 0 {
+		return bestDst, true
+	}
+	return model, false
 }

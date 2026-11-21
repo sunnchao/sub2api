@@ -253,6 +253,18 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/new-api-migration',
+    name: 'NewApiMigration',
+    component: () => import('@/views/user/NewApiMigrationView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Balance Migration',
+      titleKey: 'newApiMigration.title',
+      descriptionKey: 'newApiMigration.description'
+    }
+  },
+  {
     path: '/affiliate',
     name: 'Affiliate',
     component: () => import('@/views/user/AffiliateView.vue'),
@@ -594,6 +606,18 @@ const routes: RouteRecordRaw[] = [
       title: 'Redeem Code Management',
       titleKey: 'admin.redeem.title',
       descriptionKey: 'admin.redeem.description'
+    }
+  },
+  {
+    path: '/admin/new-api-migration',
+    name: 'AdminNewApiMigration',
+    component: () => import('@/views/admin/NewApiMigrationView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'New API Quota Migration',
+      titleKey: 'newApiMigration.adminTitle',
+      descriptionKey: 'newApiMigration.adminDescription'
     }
   },
   {

@@ -130,6 +130,9 @@ func RegisterAdminRoutes(
 		// 邀请返利（专属用户管理）
 		registerAffiliateRoutes(admin, h)
 
+		// New API 额度迁移配置与审计流水
+		registerNewAPIMigrationRoutes(admin, h)
+
 		// 操作审计日志
 		registerAuditLogRoutes(admin, h, stepUpAuth)
 	}
@@ -158,6 +161,20 @@ func registerAuditLogRoutes(admin *gin.RouterGroup, h *handler.Handlers, _ middl
 		auditLogs.GET("/:id", h.Admin.AuditLog.Get)
 		// 清空需现场 TOTP 校验（在 handler 内强制），不复用 step-up sudo 窗口
 		auditLogs.POST("/clear", h.Admin.AuditLog.Clear)
+	}
+}
+
+func registerNewAPIMigrationRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	if h.Admin == nil || h.Admin.NewAPIMigration == nil {
+		return
+	}
+	migration := admin.Group("/new-api-migration")
+	{
+		migration.GET("/config", h.Admin.NewAPIMigration.GetConfig)
+		migration.PUT("/config", h.Admin.NewAPIMigration.UpdateConfig)
+		migration.POST("/test-connection", h.Admin.NewAPIMigration.TestConnection)
+		migration.GET("/records", h.Admin.NewAPIMigration.ListRecords)
+		migration.GET("/stats", h.Admin.NewAPIMigration.GetStats)
 	}
 }
 

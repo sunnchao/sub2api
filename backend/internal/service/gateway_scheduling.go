@@ -2657,6 +2657,15 @@ func (s *GatewayService) isModelSupportedByAccountWithContext(ctx context.Contex
 
 // isModelSupportedByAccount 根据账户平台检查模型支持（无 context，用于非 Antigravity 平台）
 func (s *GatewayService) isModelSupportedByAccount(account *Account, requestedModel string) bool {
+	return isAccountModelSupported(account, requestedModel)
+}
+
+// isAccountModelSupported 根据账户平台检查模型支持（无请求级 context 依赖）。
+// GatewayService 调度与 ModelPlazaService 可访问模型过滤共用，确保模型广场与网关准入同源。
+func isAccountModelSupported(account *Account, requestedModel string) bool {
+	if account == nil {
+		return false
+	}
 	if account.Platform == PlatformAntigravity {
 		if strings.TrimSpace(requestedModel) == "" {
 			return true

@@ -416,6 +416,9 @@ type PublicSettings struct {
 	// Affiliate (邀请返利) feature toggle
 	AffiliateEnabled bool `json:"affiliate_enabled"`
 
+	// New API quota migration feature toggle
+	NewAPIMigrationEnabled bool `json:"new_api_migration_enabled"`
+
 	// 风控中心功能开关
 	RiskControlEnabled bool `json:"risk_control_enabled"`
 

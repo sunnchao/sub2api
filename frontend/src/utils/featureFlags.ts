@@ -134,6 +134,11 @@ export const FeatureFlags = {
     mode: 'opt-in',
     label: 'Affiliate',
   }),
+  newApiMigration: defineFlag({
+    key: 'new_api_migration_enabled',
+    mode: 'opt-in',
+    label: 'New API Migration',
+  }),
   // Read-only: enabled by the deployment's MCP_PUBLIC_URL, not an admin toggle.
   mcp: defineFlag({
     key: 'mcp_enabled',

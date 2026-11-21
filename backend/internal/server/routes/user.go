@@ -133,6 +133,17 @@ func RegisterUserRoutes(
 			redeem.GET("/history", h.Redeem.GetHistory)
 		}
 
+		// New API 额度迁移
+		if h.NewAPIMigration != nil {
+			migration := authenticated.Group("/new-api-migration")
+			{
+				migration.GET("/info", h.NewAPIMigration.GetInfo)
+				migration.POST("/preview", panelRateLimiter.Heavy(), h.NewAPIMigration.Preview)
+				migration.POST("/execute", panelRateLimiter.Heavy(), h.NewAPIMigration.Execute)
+				migration.GET("/records", h.NewAPIMigration.ListRecords)
+			}
+		}
+
 		// 用户订阅
 		subscriptions := authenticated.Group("/subscriptions")
 		{

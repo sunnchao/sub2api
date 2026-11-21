@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/stretchr/testify/require"
@@ -16,7 +17,7 @@ func newPlazaService(channels []Channel, groups []Group, pricing *PricingService
 	repo := &mockChannelRepository{
 		listAllFn: func(ctx context.Context) ([]Channel, error) { return channels, nil },
 	}
-	return NewModelPlazaService(repo, &stubGroupRepoForAvailable{activeGroups: groups}, pricing, nil, nil)
+	return NewModelPlazaService(repo, &stubGroupRepoForAvailable{activeGroups: groups}, nil, nil, pricing, nil, nil)
 }
 
 func plazaPricedChannel(id int64, name string, groupIDs []int64, platform string, models ...string) Channel {
@@ -403,7 +404,7 @@ func TestListPlazaGroups_RepoErrorsPropagate(t *testing.T) {
 	repo := &mockChannelRepository{
 		listAllFn: func(ctx context.Context) ([]Channel, error) { return nil, sentinel },
 	}
-	svc := NewModelPlazaService(repo, &stubGroupRepoForAvailable{}, nil, nil, nil)
+	svc := NewModelPlazaService(repo, &stubGroupRepoForAvailable{}, nil, nil, nil, nil, nil)
 	out, err := svc.ListGroups(context.Background())
 	require.Nil(t, out)
 	require.ErrorIs(t, err, sentinel)
@@ -411,11 +412,36 @@ func TestListPlazaGroups_RepoErrorsPropagate(t *testing.T) {
 	svc2 := NewModelPlazaService(
 		&mockChannelRepository{listAllFn: func(ctx context.Context) ([]Channel, error) { return nil, nil }},
 		&stubGroupRepoForAvailable{listActiveErr: sentinel},
-		nil, nil, nil,
+		nil, nil, nil, nil, nil,
 	)
 	out2, err2 := svc2.ListGroups(context.Background())
 	require.Nil(t, out2)
 	require.ErrorIs(t, err2, sentinel)
+
+	ch := plazaPricedChannel(1, "ch", []int64{10}, PlatformAnthropic, "claude-sonnet")
+	grp := []Group{{ID: 10, Name: "g", Platform: PlatformAnthropic, RateMultiplier: 1}}
+	svc3 := NewModelPlazaService(
+		&mockChannelRepository{listAllFn: func(ctx context.Context) ([]Channel, error) { return []Channel{ch}, nil }},
+		&stubGroupRepoForAvailable{activeGroups: grp},
+		&plazaAccountRepoStub{err: sentinel},
+		nil, nil, nil, nil,
+	)
+	out3, err3 := svc3.ListGroups(context.Background())
+	require.Nil(t, out3)
+	require.ErrorIs(t, err3, sentinel)
+
+	compGrp := []Group{{ID: 10, Name: "comp", Platform: PlatformComposite, RateMultiplier: 1}}
+	compAcc := Account{ID: 1, Platform: PlatformAnthropic, Status: StatusActive, Schedulable: true, GroupIDs: []int64{10}}
+	svc4 := NewModelPlazaService(
+		&mockChannelRepository{listAllFn: func(ctx context.Context) ([]Channel, error) { return []Channel{ch}, nil }},
+		&stubGroupRepoForAvailable{activeGroups: compGrp},
+		&plazaAccountRepoStub{accounts: []Account{compAcc}},
+		&plazaCompositeRouteRepoStub{err: sentinel},
+		nil, nil, nil,
+	)
+	out4, err4 := svc4.ListGroups(context.Background())
+	require.Nil(t, out4)
+	require.ErrorIs(t, err4, sentinel)
 }
 
 // newPlazaServiceWithBilling 构造接入计费服务与解析器的广场服务：解析器的渠道服务与广场共用同一份渠道数据。
@@ -428,7 +454,7 @@ func newPlazaServiceWithBilling(channels []Channel, groups []Group, groupPlatfor
 	}
 	cs := NewChannelService(repo, nil, nil, nil, nil)
 	bs := NewBillingService(&config.Config{}, catalog)
-	return NewModelPlazaService(repo, &stubGroupRepoForAvailable{activeGroups: groups}, catalog, bs, NewModelPricingResolver(cs, bs))
+	return NewModelPlazaService(repo, &stubGroupRepoForAvailable{activeGroups: groups}, nil, nil, catalog, bs, NewModelPricingResolver(cs, bs))
 }
 
 func plazaModelsByName(models []PlazaModel) map[string]PlazaModel {
@@ -581,4 +607,411 @@ func TestListGroups_TimePricingPassthrough(t *testing.T) {
 	require.InDelta(t, 0.5, m.TimePricing.Periods[0].Multiplier, 1e-12)
 	// 展示单价为标准时段价
 	require.InDelta(t, 0.28e-6, *m.Pricing.InputPrice, 1e-15)
+}
+
+type plazaAccountRepoStub struct {
+	AccountRepository
+	accounts []Account
+	err      error
+}
+
+func (s *plazaAccountRepoStub) ListModelAvailabilityCandidates(
+	_ context.Context,
+	_ *int64,
+	_ []string,
+	_ bool,
+) ([]Account, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	return s.accounts, nil
+}
+
+type plazaCompositeRouteRepoStub struct {
+	CompositeModelRouteRepository
+	byGroup map[int64][]CompositeModelRoute
+	err     error
+}
+
+func (s *plazaCompositeRouteRepoStub) ListByGroup(
+	_ context.Context,
+	groupID int64,
+	includeDisabled bool,
+) ([]CompositeModelRoute, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	routes := s.byGroup[groupID]
+	if includeDisabled {
+		return routes, nil
+	}
+	out := make([]CompositeModelRoute, 0, len(routes))
+	for _, r := range routes {
+		if r.Enabled {
+			out = append(out, r)
+		}
+	}
+	return out, nil
+}
+
+func newPlazaServiceWithAccess(
+	channels []Channel,
+	groups []Group,
+	accounts []Account,
+	routes map[int64][]CompositeModelRoute,
+) *ModelPlazaService {
+	repo := &mockChannelRepository{
+		listAllFn: func(ctx context.Context) ([]Channel, error) { return channels, nil },
+	}
+	var routeRepo CompositeModelRouteRepository
+	if routes != nil {
+		routeRepo = &plazaCompositeRouteRepoStub{byGroup: routes}
+	}
+	return NewModelPlazaService(
+		repo,
+		&stubGroupRepoForAvailable{activeGroups: groups},
+		&plazaAccountRepoStub{accounts: accounts},
+		routeRepo,
+		nil, nil, nil,
+	)
+}
+
+func plazaModelNames(models []PlazaModel) []string {
+	names := make([]string, 0, len(models))
+	for _, m := range models {
+		names = append(names, m.Name)
+	}
+	return names
+}
+
+func TestListPlazaGroups_GroupModelAllowlistFiltersModels(t *testing.T) {
+	channels := []Channel{{
+		ID: 1, Name: "ch", Status: StatusActive, GroupIDs: []int64{10, 20, 30},
+		ModelPricing: []ChannelModelPricing{
+			{
+				Platform: PlatformOpenAI,
+				Models:   []string{"gpt-5.4", "gpt-5.3-codex", "gpt-5.2-codex", "o3"},
+			},
+		},
+	}}
+	groups := []Group{
+		{
+			ID: 10, Name: "allowlisted", Platform: PlatformOpenAI, RateMultiplier: 1,
+			ModelAllowlist: GroupModelAllowlist{Enabled: true, Models: []string{"gpt-*-codex", "o3"}},
+		},
+		{
+			ID: 20, Name: "disabled-with-stale-list", Platform: PlatformOpenAI, RateMultiplier: 2,
+			ModelAllowlist: GroupModelAllowlist{Enabled: false, Models: []string{"o3"}},
+		},
+		{
+			ID: 30, Name: "enabled-empty", Platform: PlatformOpenAI, RateMultiplier: 3,
+			ModelAllowlist: GroupModelAllowlist{Enabled: true, Models: nil},
+		},
+	}
+
+	out, err := newPlazaService(channels, groups, nil).ListGroups(context.Background())
+	require.NoError(t, err)
+	require.Len(t, out, 2, "启用空白名单的分组过滤后无模型，应被省略")
+	require.Equal(t, "allowlisted", out[0].Name)
+	require.Equal(t, []string{"gpt-5.2-codex", "gpt-5.3-codex", "o3"}, plazaModelNames(out[0].Models))
+	require.Equal(t, "disabled-with-stale-list", out[1].Name)
+	require.Equal(t, []string{"gpt-5.2-codex", "gpt-5.3-codex", "gpt-5.4", "o3"}, plazaModelNames(out[1].Models))
+}
+
+func TestListPlazaGroups_FiltersByGroupAccountSupportedModelsAndAllowlistIntersection(t *testing.T) {
+	channels := []Channel{
+		plazaPricedChannel(1, "ch", []int64{10, 20}, PlatformAnthropic, "claude-opus-4-6", "claude-sonnet-4-6", "claude-haiku-4-5"),
+	}
+	groups := []Group{
+		{
+			ID: 10, Name: "g-accounts-only", Platform: PlatformAnthropic, RateMultiplier: 1,
+		},
+		{
+			ID: 20, Name: "g-allowlist-and-accounts", Platform: PlatformAnthropic, RateMultiplier: 2,
+			ModelAllowlist: GroupModelAllowlist{Enabled: true, Models: []string{"claude-sonnet-4-6", "claude-opus-4-6"}},
+		},
+	}
+	accounts := []Account{
+		{
+			ID: 1, Platform: PlatformAnthropic, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true,
+			GroupIDs:    []int64{10, 20},
+			Credentials: map[string]any{"model_mapping": map[string]any{"claude-sonnet-4-6": "claude-sonnet-4-6"}},
+		},
+		{
+			ID: 2, Platform: PlatformAnthropic, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true,
+			GroupIDs:    []int64{10},
+			Credentials: map[string]any{"model_mapping": map[string]any{"claude-haiku-4-5": "claude-haiku-4-5"}},
+		},
+	}
+
+	out, err := newPlazaServiceWithAccess(channels, groups, accounts, nil).ListGroups(context.Background())
+	require.NoError(t, err)
+	require.Len(t, out, 2)
+	// 分组 10：账号 1 + 账号 2 并集，排除 claude-opus-4-6
+	require.Equal(t, []string{"claude-haiku-4-5", "claude-sonnet-4-6"}, plazaModelNames(out[0].Models))
+	// 分组 20：白名单允许 sonnet/opus，但账号 1 只支持 sonnet，交集仅剩 sonnet
+	require.Equal(t, []string{"claude-sonnet-4-6"}, plazaModelNames(out[1].Models))
+}
+
+func TestListPlazaGroups_FallsBackToChannelAndAllowlistWhenNoActiveSchedulableAccounts(t *testing.T) {
+	channels := []Channel{
+		plazaPricedChannel(1, "ch", []int64{10, 20}, PlatformOpenAI, "gpt-5.4", "gpt-5.3"),
+	}
+	groups := []Group{
+		{
+			ID: 10, Name: "no-accounts-plain", Platform: PlatformOpenAI, RateMultiplier: 1,
+		},
+		{
+			ID: 20, Name: "paused-account-with-allowlist", Platform: PlatformOpenAI, RateMultiplier: 2,
+			ModelAllowlist: GroupModelAllowlist{Enabled: true, Models: []string{"gpt-5.4"}},
+		},
+	}
+	// 仅存在已停用或不可调度的账号，应视为无活跃可调度账号并回退
+	accounts := []Account{
+		{
+			ID: 1, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusDisabled, Schedulable: true,
+			GroupIDs:    []int64{10, 20},
+			Credentials: map[string]any{"model_mapping": map[string]any{"gpt-5.3": "gpt-5.3"}},
+		},
+		{
+			ID: 2, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: false,
+			GroupIDs:    []int64{10, 20},
+			Credentials: map[string]any{"model_mapping": map[string]any{"gpt-5.3": "gpt-5.3"}},
+		},
+	}
+
+	out, err := newPlazaServiceWithAccess(channels, groups, accounts, nil).ListGroups(context.Background())
+	require.NoError(t, err)
+	require.Len(t, out, 2)
+	require.Equal(t, []string{"gpt-5.3", "gpt-5.4"}, plazaModelNames(out[0].Models), "无活跃可调度账号时回退保留渠道全量模型")
+	require.Equal(t, []string{"gpt-5.4"}, plazaModelNames(out[1].Models), "无活跃可调度账号回退时仍应遵循分组白名单")
+}
+
+func TestListPlazaGroups_TransientRateLimitedAccountStillParticipatesInAvailability(t *testing.T) {
+	future := time.Now().Add(10 * time.Minute)
+	channels := []Channel{
+		plazaPricedChannel(1, "ch", []int64{10}, PlatformAnthropic, "claude-opus-4-6", "claude-sonnet-4-6"),
+	}
+	groups := []Group{{ID: 10, Name: "g", Platform: PlatformAnthropic, RateMultiplier: 1}}
+	accounts := []Account{{
+		ID: 1, Platform: PlatformAnthropic, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true,
+		RateLimitResetAt: &future,
+		GroupIDs:         []int64{10},
+		Credentials:      map[string]any{"model_mapping": map[string]any{"claude-sonnet-4-6": "claude-sonnet-4-6"}},
+	}}
+
+	out, err := newPlazaServiceWithAccess(channels, groups, accounts, nil).ListGroups(context.Background())
+	require.NoError(t, err)
+	require.Len(t, out, 1)
+	require.Equal(t, []string{"claude-sonnet-4-6"}, plazaModelNames(out[0].Models), "短暂限流不应触发回退把不支持的模型放出来")
+}
+
+func TestListPlazaGroups_CompositeGroupFiltersByAccountPlatformsAndModels(t *testing.T) {
+	channels := []Channel{{
+		ID: 1, Name: "multi", Status: StatusActive, GroupIDs: []int64{10, 20},
+		ModelPricing: []ChannelModelPricing{
+			{Platform: PlatformAnthropic, Models: []string{"claude-sonnet-4-6", "claude-opus-4-6"}, InputPrice: testPtrFloat64(3e-6)},
+			{Platform: PlatformOpenAI, Models: []string{"gpt-5.4", "gpt-5.3"}, InputPrice: testPtrFloat64(2e-6)},
+			{Platform: PlatformGemini, Models: []string{"gemini-2.5-pro"}, InputPrice: testPtrFloat64(1.25e-6)},
+			{Platform: PlatformGrok, Models: []string{"grok-4"}, InputPrice: testPtrFloat64(3e-6)},
+		},
+	}}
+	groups := []Group{
+		{ID: 10, Name: "comp-partial", Platform: PlatformComposite, RateMultiplier: 1},
+		{
+			ID: 20, Name: "comp-empty-fallback", Platform: PlatformComposite, RateMultiplier: 2,
+			ModelAllowlist: GroupModelAllowlist{Enabled: true, Models: []string{"gpt-5.4", "gemini-2.5-pro"}},
+		},
+	}
+	accounts := []Account{
+		{
+			ID: 1, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true,
+			GroupIDs:    []int64{10},
+			Credentials: map[string]any{"model_mapping": map[string]any{"gpt-5.4": "gpt-5.4"}},
+		},
+		{
+			ID: 2, Platform: PlatformAnthropic, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true,
+			GroupIDs: []int64{10}, // 空 mapping = 允许全部 anthropic 模型
+		},
+	}
+
+	out, err := newPlazaServiceWithAccess(channels, groups, accounts, nil).ListGroups(context.Background())
+	require.NoError(t, err)
+	require.Len(t, out, 2)
+
+	// comp-partial 只绑定了 openai(仅 gpt-5.4) 和 anthropic(全量)，不展示 gemini/grok 与 gpt-5.3
+	require.Equal(t, "comp-partial", out[0].Name)
+	require.Equal(t, []string{"claude-opus-4-6", "claude-sonnet-4-6", "gpt-5.4"}, plazaModelNames(out[0].Models))
+
+	// comp-empty-fallback 无活跃可调度账号：回退为渠道配置 + 分组白名单
+	require.Equal(t, "comp-empty-fallback", out[1].Name)
+	require.Equal(t, []string{"gemini-2.5-pro", "gpt-5.4"}, plazaModelNames(out[1].Models))
+}
+
+func TestListPlazaGroups_CompositeRoutesHonorTargetPlatformAndUpstreamModel(t *testing.T) {
+	channels := []Channel{{
+		ID: 1, Name: "multi", Status: StatusActive, GroupIDs: []int64{10},
+		ModelPricing: []ChannelModelPricing{
+			{Platform: PlatformOpenAI, Models: []string{"my-fast", "gpt-5.4"}, InputPrice: testPtrFloat64(2e-6)},
+			{Platform: PlatformAnthropic, Models: []string{"my-fast", "claude-sonnet-4-6"}, InputPrice: testPtrFloat64(3e-6)},
+		},
+	}}
+	groups := []Group{{ID: 10, Name: "comp", Platform: PlatformComposite, RateMultiplier: 1}}
+	accounts := []Account{
+		{
+			ID: 1, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true,
+			GroupIDs:    []int64{10},
+			Credentials: map[string]any{"model_mapping": map[string]any{"gpt-5.4": "gpt-5.4"}},
+		},
+		{
+			ID: 2, Platform: PlatformAnthropic, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true,
+			GroupIDs: []int64{10},
+		},
+	}
+	routes := map[int64][]CompositeModelRoute{
+		10: {
+			{
+				ID: 1, GroupID: 10, PublicModel: "my-fast", MatchType: CompositeRouteMatchExact,
+				TargetPlatform: PlatformOpenAI, UpstreamModel: "gpt-5.4", Endpoint: CompositeRouteEndpointAny, Enabled: true,
+			},
+			{
+				ID: 2, GroupID: 10, PublicModel: "claude-sonnet-4-6", MatchType: CompositeRouteMatchExact,
+				TargetPlatform: PlatformOpenAI, UpstreamModel: "gpt-5.3", Endpoint: CompositeRouteEndpointAny, Enabled: false,
+			},
+		},
+	}
+
+	out, err := newPlazaServiceWithAccess(channels, groups, accounts, routes).ListGroups(context.Background())
+	require.NoError(t, err)
+	require.Len(t, out, 1)
+
+	got := make([]string, 0, len(out[0].Models))
+	for _, m := range out[0].Models {
+		got = append(got, m.Platform+":"+m.Name)
+	}
+	// my-fast 被 any 端点路由固定指向 openai(gpt-5.4)，应仅以 openai 展示，不再保留不可达的 anthropic:my-fast；
+	// 禁用的 route #2 不应生效，anthropic:claude-sonnet-4-6 正常保留。
+	require.Equal(t, []string{
+		"anthropic:claude-sonnet-4-6",
+		"openai:gpt-5.4",
+		"openai:my-fast",
+	}, got)
+}
+
+func TestListPlazaGroups_MixedAntigravityAccountServesAnthropicAndGemini(t *testing.T) {
+	channels := []Channel{{
+		ID: 1, Name: "ch", Status: StatusActive, GroupIDs: []int64{10, 20},
+		ModelPricing: []ChannelModelPricing{
+			{Platform: PlatformAnthropic, Models: []string{"claude-sonnet-4-6", "claude-opus-4-6"}, InputPrice: testPtrFloat64(3e-6)},
+			{Platform: PlatformGemini, Models: []string{"gemini-2.5-pro", "gemini-2.5-flash"}, InputPrice: testPtrFloat64(1.25e-6)},
+		},
+	}}
+	groups := []Group{
+		{ID: 10, Name: "g-anthropic", Platform: PlatformAnthropic, RateMultiplier: 1},
+		{ID: 20, Name: "g-gemini-unmixed", Platform: PlatformGemini, RateMultiplier: 2},
+	}
+	accounts := []Account{
+		{
+			ID: 1, Platform: PlatformAntigravity, Type: AccountTypeOAuth, Status: StatusActive, Schedulable: true,
+			GroupIDs:    []int64{10},
+			Extra:       map[string]any{"mixed_scheduling": true},
+			Credentials: map[string]any{"model_mapping": map[string]any{"claude-sonnet-4-6": "claude-sonnet-4-6"}},
+		},
+		{
+			ID: 2, Platform: PlatformAntigravity, Type: AccountTypeOAuth, Status: StatusActive, Schedulable: true,
+			GroupIDs:    []int64{20},
+			Extra:       map[string]any{"mixed_scheduling": false},
+			Credentials: map[string]any{"model_mapping": map[string]any{"gemini-2.5-pro": "gemini-2.5-pro"}},
+		},
+	}
+
+	out, err := newPlazaServiceWithAccess(channels, groups, accounts, nil).ListGroups(context.Background())
+	require.NoError(t, err)
+	require.Len(t, out, 2)
+	// 分组 10 启用了混合调度的 Antigravity 账号，按该账号支持的模型收敛
+	require.Equal(t, []string{"claude-sonnet-4-6"}, plazaModelNames(out[0].Models))
+	// 分组 20 的 Antigravity 未启用混合调度，不构成有效 gemini 账号 → 回退为渠道全量模型
+	require.Equal(t, []string{"gemini-2.5-flash", "gemini-2.5-pro"}, plazaModelNames(out[1].Models))
+}
+
+func TestListPlazaGroups_ChannelMappingCheckedBeforeOpenAIAccountSupport(t *testing.T) {
+	channels := []Channel{{
+		ID: 1, Name: "ch", Status: StatusActive, GroupIDs: []int64{10},
+		ModelMapping: map[string]map[string]string{
+			PlatformOpenAI: {
+				"alias-ok":   "gpt-5.4",
+				"alias-miss": "gpt-5.3",
+			},
+		},
+		ModelPricing: []ChannelModelPricing{
+			{Platform: PlatformOpenAI, Models: []string{"gpt-5.4", "gpt-5.3"}, InputPrice: testPtrFloat64(2e-6)},
+		},
+	}}
+	groups := []Group{{ID: 10, Name: "g-openai", Platform: PlatformOpenAI, RateMultiplier: 1}}
+	accounts := []Account{{
+		ID: 1, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true,
+		GroupIDs:    []int64{10},
+		Credentials: map[string]any{"model_mapping": map[string]any{"gpt-5.4": "gpt-5.4"}},
+	}}
+
+	out, err := newPlazaServiceWithAccess(channels, groups, accounts, nil).ListGroups(context.Background())
+	require.NoError(t, err)
+	require.Len(t, out, 1)
+	require.Equal(t, []string{"alias-ok", "gpt-5.4"}, plazaModelNames(out[0].Models))
+}
+
+func TestListPlazaGroups_OpenAIOAuthRetiredAndPassthroughFilter(t *testing.T) {
+	channels := []Channel{
+		plazaPricedChannel(1, "ch", []int64{10, 20, 30}, PlatformOpenAI, "gpt-5.4", "gpt-5.5", "deepseek-chat"),
+	}
+	groups := []Group{
+		{ID: 10, Name: "g-oauth", Platform: PlatformOpenAI, RateMultiplier: 1},
+		{ID: 20, Name: "g-passthrough-unfiltered", Platform: PlatformOpenAI, RateMultiplier: 2},
+		{ID: 30, Name: "g-passthrough-filtered", Platform: PlatformOpenAI, RateMultiplier: 3},
+	}
+	accounts := []Account{
+		{
+			ID: 1, Platform: PlatformOpenAI, Type: AccountTypeOAuth, Status: StatusActive, Schedulable: true,
+			GroupIDs: []int64{10},
+		},
+		{
+			ID: 2, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true,
+			GroupIDs:    []int64{20},
+			Extra:       map[string]any{"openai_passthrough": true},
+			Credentials: map[string]any{"model_mapping": map[string]any{"gpt-5.4": "gpt-5.4"}},
+		},
+		{
+			ID: 3, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true,
+			GroupIDs:    []int64{30},
+			Extra:       map[string]any{"openai_passthrough": true, "openai_passthrough_model_filter": true},
+			Credentials: map[string]any{"model_mapping": map[string]any{"gpt-5.4": "gpt-5.4"}},
+		},
+	}
+
+	out, err := newPlazaServiceWithAccess(channels, groups, accounts, nil).ListGroups(context.Background())
+	require.NoError(t, err)
+	require.Len(t, out, 3)
+	// OpenAI OAuth 排除已下线的 gpt-5.5 与非 OpenAI 家族模型 deepseek-chat
+	require.Equal(t, []string{"gpt-5.4"}, plazaModelNames(out[0].Models))
+	// 透传未开过滤忽略残留 model_mapping
+	require.Equal(t, []string{"deepseek-chat", "gpt-5.4", "gpt-5.5"}, plazaModelNames(out[1].Models))
+	// 透传开启过滤时按 model_mapping 源模型筛选
+	require.Equal(t, []string{"gpt-5.4"}, plazaModelNames(out[2].Models))
+}
+
+func TestListPlazaGroups_AnthropicBedrockFiltersUnsupportedModels(t *testing.T) {
+	channels := []Channel{
+		plazaPricedChannel(1, "ch", []int64{10}, PlatformAnthropic, "claude-sonnet-4-5", "claude-3-5-sonnet-20241022"),
+	}
+	groups := []Group{{ID: 10, Name: "g-bedrock", Platform: PlatformAnthropic, RateMultiplier: 1}}
+	accounts := []Account{{
+		ID: 1, Platform: PlatformAnthropic, Type: AccountTypeBedrock, Status: StatusActive, Schedulable: true,
+		GroupIDs:    []int64{10},
+		Credentials: map[string]any{"aws_region": "us-east-1"},
+	}}
+
+	out, err := newPlazaServiceWithAccess(channels, groups, accounts, nil).ListGroups(context.Background())
+	require.NoError(t, err)
+	require.Len(t, out, 1)
+	require.Equal(t, []string{"claude-sonnet-4-5"}, plazaModelNames(out[0].Models))
 }

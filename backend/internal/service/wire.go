@@ -982,6 +982,7 @@ var ProviderSet = wire.NewSet(
 	NewModelPlazaService,
 	NewContentModerationService,
 	NewAffiliateService,
+	ProvideNewAPIMigrationService,
 	ProvidePaymentConfigService,
 	ProvidePaymentService,
 	ProvidePaymentOrderExpiryService,
@@ -1099,4 +1100,30 @@ func ProvideClaudeResetCreditService(accounts AccountRepository, tokens *ClaudeT
 	s := NewClaudeResetCreditService(accounts, tokens, proxies, settings)
 	s.ConfigureRedemption(idem, locks)
 	return s
+}
+
+// ProvideNewAPIMigrationService creates NewAPIMigrationService with the shared HTTP client and AES-256-GCM encryptor.
+func ProvideNewAPIMigrationService(
+	repo NewAPIMigrationRepository,
+	settingRepo SettingRepository,
+	settingService *SettingService,
+	userRepo UserRepository,
+	redeemCodeRepo RedeemCodeRepository,
+	billingCacheService *BillingCacheService,
+	authCacheInvalidator APIKeyAuthCacheInvalidator,
+	encryptor SecretEncryptor,
+	cfg *config.Config,
+) *NewAPIMigrationService {
+	return NewNewAPIMigrationService(
+		repo,
+		settingRepo,
+		settingService,
+		userRepo,
+		redeemCodeRepo,
+		billingCacheService,
+		authCacheInvalidator,
+		encryptor,
+		NewNewAPIHTTPClient(),
+		cfg,
+	)
 }
