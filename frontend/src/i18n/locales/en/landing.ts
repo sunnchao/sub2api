@@ -14,14 +14,58 @@ export default {
     login: 'Login',
     getStarted: 'Get Started',
     goToDashboard: 'Go to Dashboard',
+    nav: {
+      home: 'Home',
+      keyUsage: 'Key Usage',
+      menu: 'Menu'
+    },
+    hero: {
+      badge: 'AI API Gateway Platform',
+      titleLead: 'A unified API gateway for',
+      titleAccent: 'leading AI models',
+      description: 'Connect Claude, GPT, Gemini and more through standard, unified protocols. Account scheduling, usage-based billing, quotas and concurrency control in one place.',
+      viewModels: 'View Models & Pricing',
+      viewUsage: 'Check Key Usage'
+    },
+    apps: {
+      title: 'Works with your tools',
+      description: 'Compatible with Claude Code, Codex, Gemini CLI and other popular tools. Just change the Base URL.',
+      more: 'More'
+    },
+    demo: {
+      request: 'Request',
+      response: 'Response',
+      tokens: 'tokens',
+      cost: 'cost',
+      stream: 'stream · SSE'
+    },
+    stats: {
+      platforms: 'Upstream platforms',
+      protocols: 'API protocols',
+      payments: 'Payment channels',
+      concurrency: 'User & account concurrency tiers'
+    },
+    workflow: {
+      eyebrow: 'How It Works',
+      title: 'Up and running in three steps',
+      steps: {
+        configure: {
+          title: 'Configure',
+          desc: 'Add upstream accounts, create groups and set up billing and access.'
+        },
+        connect: {
+          title: 'Connect',
+          desc: 'Hand out API keys; clients connect over OpenAI, Claude or Gemini protocols by changing the Base URL.'
+        },
+        monitor: {
+          title: 'Monitor',
+          desc: 'Track usage, cost and account health in real time from the admin console.'
+        }
+      }
+    },
     // User-focused value proposition
     heroSubtitle: 'One Key, All AI Models',
     heroDescription: 'No need to manage multiple subscriptions. Access Claude, GPT, Gemini and more with a single API key',
-    tags: {
-      subscriptionToApi: 'Subscription to API',
-      stickySession: 'Session Persistence',
-      realtimeBilling: 'Pay As You Go'
-    },
     // Pain points section
     painPoints: {
       title: 'Sound Familiar?',
@@ -50,12 +94,42 @@ export default {
       subtitle: 'Three simple steps to stress-free AI access'
     },
     features: {
-      unifiedGateway: 'One-Click Access',
-      unifiedGatewayDesc: 'Get a single API key to call all connected AI models. No separate applications needed.',
-      multiAccount: 'Always Reliable',
-      multiAccountDesc: 'Smart routing across multiple upstream accounts with automatic failover. Say goodbye to errors.',
-      balanceQuota: 'Pay What You Use',
-      balanceQuotaDesc: 'Usage-based billing with quota limits. Full visibility into team consumption.'
+      eyebrow: 'Core Features',
+      title: 'Built for developers, designed for scale',
+      items: {
+        protocols: {
+          title: 'Multi-Protocol Compatible',
+          desc: 'Native OpenAI Chat / Responses, Claude Messages and Gemini endpoints. Existing SDKs and CLIs only need a new Base URL.'
+        },
+        scheduling: {
+          title: 'Smart Scheduling',
+          desc: 'Multi-account upstream pools with sticky sessions and automatic failover. One API key can bind multiple groups in order with retry scheduling.'
+        },
+        billing: {
+          title: 'Precise Billing',
+          desc: 'Token-level usage tracking and cost calculation, with every request itemized.'
+        },
+        keys: {
+          title: 'API Key Distribution',
+          desc: 'Issue and manage keys for users and teams, with per-group model access, quotas and expiry.'
+        },
+        limits: {
+          title: 'Concurrency & Rate Limits',
+          desc: 'User-level and account-level concurrency caps, plus configurable request and token rate limits.'
+        },
+        payment: {
+          title: 'Built-in Payments',
+          desc: 'EasyPay, Alipay, WeChat Pay and Stripe for self-service top-ups, with no separate payment service to deploy.'
+        },
+        admin: {
+          title: 'Admin Dashboard',
+          desc: 'Monitor accounts, users and usage from one web console.'
+        },
+        selfHost: {
+          title: 'Open Source & Self-Hosted',
+          desc: 'Install with a script or Docker Compose and keep your data and keys under your control.'
+        }
+      }
     },
     // Comparison section
     comparison: {
@@ -105,9 +179,8 @@ export default {
     },
     // CTA section
     cta: {
-      title: 'Ready to Get Started?',
-      description: 'Sign up now and get free trial credits to experience seamless AI access',
-      button: 'Sign Up Free'
+      title: 'Ready to simplify your AI integration?',
+      description: 'Deploy your own gateway and start routing requests through your configured upstream accounts.'
     },
     footer: {
       allRightsReserved: 'All rights reserved.'

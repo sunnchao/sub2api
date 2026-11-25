@@ -14,14 +14,58 @@ export default {
     login: '登录',
     getStarted: '立即开始',
     goToDashboard: '进入控制台',
+    nav: {
+      home: '主页',
+      keyUsage: '用量查询',
+      menu: '菜单'
+    },
+    hero: {
+      badge: 'AI API 网关平台',
+      titleLead: '统一 API 网关，服务于',
+      titleAccent: '主流 AI 模型',
+      description: '通过统一、标准的接口协议接入 Claude、GPT、Gemini 等主流模型。账号调度、按量计费、配额与并发控制，一站式完成。',
+      viewModels: '查看模型与定价',
+      viewUsage: '查询 Key 用量'
+    },
+    apps: {
+      title: '常用应用支持',
+      description: '兼容 Claude Code、Codex、Gemini CLI 等主流工具，修改 Base URL 即可接入',
+      more: '更多'
+    },
+    demo: {
+      request: '请求',
+      response: '响应',
+      tokens: 'tokens',
+      cost: '费用',
+      stream: '流式 · SSE'
+    },
+    stats: {
+      platforms: '上游平台适配',
+      protocols: '兼容 API 协议',
+      payments: '内置支付渠道',
+      concurrency: '用户 / 账号双层并发限制'
+    },
+    workflow: {
+      eyebrow: '工作流程',
+      title: '三步快速上手',
+      steps: {
+        configure: {
+          title: '配置',
+          desc: '添加上游账号，创建分组并设置计费与访问权限'
+        },
+        connect: {
+          title: '连接',
+          desc: '为用户分发 API Key，客户端修改 Base URL 即可通过 OpenAI、Claude、Gemini 协议接入'
+        },
+        monitor: {
+          title: '监控',
+          desc: '在管理后台实时跟踪用量、成本与账号状态'
+        }
+      }
+    },
     // 新增：面向用户的价值主张
     heroSubtitle: '一个密钥，畅用多个 AI 模型',
     heroDescription: '无需管理多个订阅账号，一站式接入 Claude、GPT、Gemini 等主流 AI 服务',
-    tags: {
-      subscriptionToApi: '订阅转 API',
-      stickySession: '会话保持',
-      realtimeBilling: '按量计费'
-    },
     // 用户痛点区块
     painPoints: {
       title: '你是否也遇到这些问题？',
@@ -50,12 +94,42 @@ export default {
       subtitle: '简单三步，开始省心使用 AI'
     },
     features: {
-      unifiedGateway: '一键接入',
-      unifiedGatewayDesc: '获取一个 API 密钥，即可调用所有已接入的 AI 模型，无需分别申请。',
-      multiAccount: '稳定可靠',
-      multiAccountDesc: '智能调度多个上游账号，自动切换和负载均衡，告别频繁报错。',
-      balanceQuota: '用多少付多少',
-      balanceQuotaDesc: '按实际使用量计费，支持设置配额上限，团队用量一目了然。'
+      eyebrow: '核心功能',
+      title: '为开发者打造，为规模而设计',
+      items: {
+        protocols: {
+          title: '多协议兼容',
+          desc: '同时提供 OpenAI Chat / Responses、Claude Messages 与 Gemini 原生接口，现有 SDK 与 CLI 只需修改 Base URL。'
+        },
+        scheduling: {
+          title: '智能调度',
+          desc: '多上游账号池，支持粘性会话与自动故障切换；API Key 可按顺序绑定多个分组并重试调度。'
+        },
+        billing: {
+          title: '精确计费',
+          desc: 'Token 级用量追踪与成本计算，每次请求的费用与明细清晰可查。'
+        },
+        keys: {
+          title: 'API Key 分发',
+          desc: '为用户与团队生成并管理密钥，按分组控制可用模型、配额与有效期。'
+        },
+        limits: {
+          title: '并发与速率限制',
+          desc: '用户级与账号级并发限制，可配置请求与 Token 速率上限。'
+        },
+        payment: {
+          title: '内置支付',
+          desc: '支持易支付、支付宝、微信与 Stripe，用户自助充值，无需独立部署支付服务。'
+        },
+        admin: {
+          title: '管理后台',
+          desc: '在 Web 界面中监控账号、用户与用量，集中完成运营管理。'
+        },
+        selfHost: {
+          title: '开源可自托管',
+          desc: '脚本安装或 Docker Compose 一键部署，数据与密钥掌握在自己手里。'
+        }
+      }
     },
     // 优势对比
     comparison: {
@@ -105,9 +179,8 @@ export default {
     },
     // CTA 区块
     cta: {
-      title: '准备好开始了吗？',
-      description: '注册即可获得免费试用额度，体验一站式 AI 服务',
-      button: '免费注册'
+      title: '准备好简化你的 AI 集成了吗？',
+      description: '部署你自己的网关，通过已配置的上游账号开始转发请求。'
     },
     footer: {
       allRightsReserved: '保留所有权利。'
