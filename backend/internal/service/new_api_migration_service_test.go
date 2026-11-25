@@ -89,9 +89,9 @@ func (stubMigrationEncryptor) Decrypt(ciphertext string) (string, error) {
 
 type stubMigrationUserRepo struct {
 	UserRepository
-	user         *User
-	adjustErr    error
-	adjustCalls  []float64
+	user        *User
+	adjustErr   error
+	adjustCalls []float64
 }
 
 func (r *stubMigrationUserRepo) GetByID(_ context.Context, id int64) (*User, error) {
@@ -254,15 +254,15 @@ func (r *inMemoryMigrationRepo) GetStats(_ context.Context) (*NewAPIMigrationSta
 }
 
 type fakeNewAPIClient struct {
-	status           *NewAPIStatus
-	statusErr        error
-	selfByToken      map[string]*NewAPIUserInfo
-	selfErrByToken   map[string]error
-	adminUsers       map[int64]*NewAPIUserInfo
-	adminUserErr     error
-	adminReadErr     error
-	adjustHook       func(userID int64, mode string, quota int64) error
-	adjustCalls      []struct {
+	status         *NewAPIStatus
+	statusErr      error
+	selfByToken    map[string]*NewAPIUserInfo
+	selfErrByToken map[string]error
+	adminUsers     map[int64]*NewAPIUserInfo
+	adminUserErr   error
+	adminReadErr   error
+	adjustHook     func(userID int64, mode string, quota int64) error
+	adjustCalls    []struct {
 		userID int64
 		mode   string
 		quota  int64
@@ -317,9 +317,10 @@ func (f *fakeNewAPIClient) AdjustUserQuota(_ context.Context, _, _ string, userI
 		return f.adjustHook(userID, mode, quota)
 	}
 	if u, ok := f.adminUsers[userID]; ok {
-		if mode == "subtract" {
+		switch mode {
+		case "subtract":
 			u.RegularQuota -= quota
-		} else if mode == "add" {
+		case "add":
 			u.RegularQuota += quota
 		}
 	}

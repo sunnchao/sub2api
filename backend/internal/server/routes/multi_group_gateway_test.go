@@ -256,7 +256,7 @@ func TestMultiGroupGatewayResponsesWebSocketSelectsFromFirstFrame(t *testing.T) 
 			defer cancel()
 			conn, _, err := coderws.Dial(ctx, server.URL+"/v1/responses", &coderws.DialOptions{HTTPHeader: http.Header{"Authorization": {"Bearer " + key.Key}}})
 			require.NoError(t, err)
-			defer conn.CloseNow()
+			defer func() { _ = conn.CloseNow() }()
 			frame := `{"type":"response.create","model":` + strconv.Quote(scenario.model) + `,"input":"hello"}`
 			require.NoError(t, conn.Write(ctx, coderws.MessageText, []byte(frame)))
 			_, payload, err := conn.Read(ctx)

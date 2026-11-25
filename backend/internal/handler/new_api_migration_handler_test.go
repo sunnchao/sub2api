@@ -101,7 +101,7 @@ func TestNewAPIMigrationHandler_GetInfoAndListRecordsSanitizesClientIP(t *testin
 	router.ServeHTTP(w, req)
 	require.Equal(t, http.StatusOK, w.Code)
 	var infoResp struct {
-		Code int                            `json:"code"`
+		Code int                             `json:"code"`
 		Data service.NewAPIMigrationUserInfo `json:"data"`
 	}
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &infoResp))

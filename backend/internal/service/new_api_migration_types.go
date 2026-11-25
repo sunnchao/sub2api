@@ -57,18 +57,18 @@ var (
 
 // NewAPIMigrationConfig 是面向管理后台与业务逻辑的配置结构（明文令牌仅用于写入，读取时脱敏）。
 type NewAPIMigrationConfig struct {
-	Enabled                   bool    `json:"enabled"`
-	BaseURL                   string  `json:"base_url"`
-	SiteName                  string  `json:"site_name"`
-	AdminAccessToken          string  `json:"admin_access_token,omitempty"`
-	AdminAccessTokenSet       bool    `json:"admin_access_token_configured"`
-	ClearAdminAccessToken     bool    `json:"clear_admin_access_token,omitempty"`
-	QuotaPerUnit              float64 `json:"quota_per_unit"`
-	AutoDetectQuotaPerUnit    bool    `json:"auto_detect_quota_per_unit"`
-	ExchangeRate              float64 `json:"exchange_rate"`
-	MigrateFromEnabled        bool    `json:"migrate_from_enabled"`
-	MigrateToEnabled          bool    `json:"migrate_to_enabled"`
-	AllowInsecureHTTP         bool    `json:"allow_insecure_http"`
+	Enabled                bool    `json:"enabled"`
+	BaseURL                string  `json:"base_url"`
+	SiteName               string  `json:"site_name"`
+	AdminAccessToken       string  `json:"admin_access_token,omitempty"`
+	AdminAccessTokenSet    bool    `json:"admin_access_token_configured"`
+	ClearAdminAccessToken  bool    `json:"clear_admin_access_token,omitempty"`
+	QuotaPerUnit           float64 `json:"quota_per_unit"`
+	AutoDetectQuotaPerUnit bool    `json:"auto_detect_quota_per_unit"`
+	ExchangeRate           float64 `json:"exchange_rate"`
+	MigrateFromEnabled     bool    `json:"migrate_from_enabled"`
+	MigrateToEnabled       bool    `json:"migrate_to_enabled"`
+	AllowInsecureHTTP      bool    `json:"allow_insecure_http"`
 }
 
 // storedNewAPIMigrationConfig 为持久化在 settings 表中的 JSON 结构（管理员令牌密文存储）。
