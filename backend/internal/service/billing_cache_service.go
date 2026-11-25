@@ -995,21 +995,36 @@ func (s *BillingCacheService) checkRPM(ctx context.Context, user *User, group *G
 	}
 
 	// ── 第二层：用户级全局硬上限（始终生效） ──
-	if user.RPMLimit > 0 {
-		count, err := s.userRPMCache.IncrementUserRPM(ctx, user.ID)
-		if err != nil {
-			logger.LegacyPrintf(
-				"service.billing_cache",
-				"Warning: rpm increment (user) failed for user=%d: %v",
-				user.ID, err,
-			)
-			return nil // fail-open
-		}
-		if count > user.RPMLimit {
-			return ErrUserRPMExceeded
-		}
+	if user.RPMLimit <= 0 {
+		return nil
 	}
+	if check, _ := ctx.Value(multiGroupUserRPMKey{}).(*multiGroupUserRPM); check != nil {
+		check.once.Do(func() { check.err = s.checkUserRPM(ctx, user) })
+		return check.err
+	}
+	return s.checkUserRPM(ctx, user)
+}
 
+type multiGroupUserRPMKey struct{}
+
+type multiGroupUserRPM struct {
+	once sync.Once
+	err  error
+}
+
+func WithMultiGroupUserRPM(ctx context.Context) context.Context {
+	return context.WithValue(ctx, multiGroupUserRPMKey{}, &multiGroupUserRPM{})
+}
+
+func (s *BillingCacheService) checkUserRPM(ctx context.Context, user *User) error {
+	count, err := s.userRPMCache.IncrementUserRPM(ctx, user.ID)
+	if err != nil {
+		logger.LegacyPrintf("service.billing_cache", "Warning: rpm increment (user) failed for user=%d: %v", user.ID, err)
+		return nil
+	}
+	if count > user.RPMLimit {
+		return ErrUserRPMExceeded
+	}
 	return nil
 }
 

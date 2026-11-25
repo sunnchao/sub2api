@@ -439,7 +439,7 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 	// 2) billing eligibility check (after wait)
 	if err := h.billingCacheService.CheckBillingEligibility(c.Request.Context(), apiKey.User, apiKey, apiKey.Group, subscription, service.QuotaPlatform(c.Request.Context(), apiKey)); err != nil {
 		reqLog.Info("gemini.billing_eligibility_check_failed", zap.Error(err))
-		status, code, message, retryAfter := billingErrorDetails(err)
+		status, code, message, retryAfter := billingErrorDetails(c, err)
 		if retryAfter > 0 {
 			c.Header("Retry-After", strconv.Itoa(retryAfter))
 		}
@@ -451,7 +451,7 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 	inflightRelease, err := reserveInflightBalance(c, h.billingCacheService, h.gatewayService, apiKey, subscription, tokenInflightEstimate(modelName, body))
 	if err != nil {
 		reqLog.Info("gemini.inflight_reservation_rejected", zap.Error(err))
-		status, code, message, retryAfter := billingErrorDetails(err)
+		status, code, message, retryAfter := billingErrorDetails(c, err)
 		if retryAfter > 0 {
 			c.Header("Retry-After", strconv.Itoa(retryAfter))
 		}
@@ -985,7 +985,7 @@ func googleClientErrorType(status int) string {
 // googleConcurrencyError 以 Google 错误格式回写并发槽获取失败，状态码与文案
 // 沿用 concurrencyErrorResponse 的统一映射（客户端断开为 499）。
 func googleConcurrencyError(c *gin.Context, err error, slotType string) {
-	status, errType, code, message := concurrencyErrorResponse(err, slotType)
+	status, errType, code, message := concurrencyErrorResponse(c, err, slotType)
 	googleErrorWithType(c, status, errType, code, message)
 }
 

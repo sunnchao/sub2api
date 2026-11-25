@@ -30,62 +30,72 @@ import (
 //     local_model_configuration 与 ingress 拒绝原因 model_not_allowed。
 func GroupModelAllowlist() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		apiKey, ok := GetAPIKeyFromContext(c)
-		if !ok || apiKey == nil || apiKey.Group == nil || !apiKey.Group.ModelAllowlistEnabled() {
+		if GroupAdmissionDeferred(c) {
 			c.Next()
 			return
 		}
-		allowlist := apiKey.Group.ModelAllowlist
-		if c.Request == nil {
-			c.Next()
+		if !CheckGroupModelAllowlist(c) {
+			c.Abort()
 			return
 		}
-
-		if isResponsesWebSocketRoute(c) {
-			// Responses WS 长连接由 ResponsesWebSocket 校验首帧与每个 response.create。
-			c.Next()
-			return
-		}
-		// models 收集该请求全部可被下游解析器绑定到的模型值（路径参数/查询参数
-		// 单值；请求体候选集含重复键与大小写变体），逐一校验，任一未命中即拒绝。
-		var models []string
-		if model := groupModelAllowlistModelFromParams(c); model != "" {
-			models = []string{model}
-		} else {
-			switch c.Request.Method {
-			case http.MethodPost, http.MethodPut, http.MethodPatch:
-				candidates, done := groupModelAllowlistModelsFromBody(c)
-				if !done {
-					// 请求体读取失败（如超限 413）已写出响应。
-					return
-				}
-				models = candidates
-			}
-			if len(models) == 0 {
-				// Grok Realtime 升级请求把模型固定在查询参数里。
-				if model := strings.TrimSpace(c.Query("model")); model != "" {
-					models = []string{model}
-				}
-			}
-		}
-
-		blocked := ""
-		for _, candidate := range models {
-			if !allowlist.Allows(candidate) {
-				blocked = candidate
-				break
-			}
-		}
-		if blocked == "" {
-			c.Next()
-			return
-		}
-
-		service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalModelConfiguration)
-		MarkIngressRejected(c, IngressRejectModelNotAllowed)
-		groupModelAllowlistErrorWriter(c)(c, http.StatusNotFound, fmt.Sprintf("Model %q is not available for this group", blocked))
-		c.Abort()
+		c.Next()
 	}
+}
+
+// CheckGroupModelAllowlist enforces the active group's model allowlist without
+// calling c.Abort(), making it reusable inside multi-group retry loops.
+func CheckGroupModelAllowlist(c *gin.Context) bool {
+	apiKey, ok := GetAPIKeyFromContext(c)
+	if !ok || apiKey == nil || apiKey.Group == nil || !apiKey.Group.ModelAllowlistEnabled() {
+		return true
+	}
+	allowlist := apiKey.Group.ModelAllowlist
+	if c.Request == nil {
+		return true
+	}
+
+	if isResponsesWebSocketRoute(c) {
+		// Responses WS 长连接由 ResponsesWebSocket 校验首帧与每个 response.create。
+		return true
+	}
+	// models 收集该请求全部可被下游解析器绑定到的模型值（路径参数/查询参数
+	// 单值；请求体候选集含重复键与大小写变体），逐一校验，任一未命中即拒绝。
+	var models []string
+	if model := groupModelAllowlistModelFromParams(c); model != "" {
+		models = []string{model}
+	} else {
+		switch c.Request.Method {
+		case http.MethodPost, http.MethodPut, http.MethodPatch:
+			candidates, done := groupModelAllowlistModelsFromBody(c)
+			if !done {
+				// 请求体读取失败（如超限 413）已写出响应。
+				return false
+			}
+			models = candidates
+		}
+		if len(models) == 0 {
+			// Grok Realtime 升级请求把模型固定在查询参数里。
+			if model := strings.TrimSpace(c.Query("model")); model != "" {
+				models = []string{model}
+			}
+		}
+	}
+
+	blocked := ""
+	for _, candidate := range models {
+		if !allowlist.Allows(candidate) {
+			blocked = candidate
+			break
+		}
+	}
+	if blocked == "" {
+		return true
+	}
+
+	service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalModelConfiguration)
+	MarkIngressRejected(c, IngressRejectModelNotAllowed)
+	groupModelAllowlistErrorWriter(c)(c, http.StatusNotFound, fmt.Sprintf("Model %q is not available for this group", blocked))
+	return false
 }
 
 // isResponsesWebSocketRoute 判断当前请求是否命中 OpenAI Responses WebSocket

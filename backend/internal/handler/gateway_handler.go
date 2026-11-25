@@ -265,7 +265,7 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 	// 2. 【新增】Wait后二次检查余额/订阅
 	if err := h.billingCacheService.CheckBillingEligibility(c.Request.Context(), apiKey.User, apiKey, apiKey.Group, subscription, service.QuotaPlatform(c.Request.Context(), apiKey)); err != nil {
 		reqLog.Info("gateway.billing_eligibility_check_failed", zap.Error(err))
-		status, code, message, retryAfter := billingErrorDetails(err)
+		status, code, message, retryAfter := billingErrorDetails(c, err)
 		if retryAfter > 0 {
 			c.Header("Retry-After", strconv.Itoa(retryAfter))
 		}
@@ -277,7 +277,7 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 	inflightRelease, err := reserveInflightBalance(c, h.billingCacheService, h.gatewayService, apiKey, subscription, tokenInflightEstimate(reqModel, body))
 	if err != nil {
 		reqLog.Info("gateway.inflight_reservation_rejected", zap.Error(err))
-		status, code, message, retryAfter := billingErrorDetails(err)
+		status, code, message, retryAfter := billingErrorDetails(c, err)
 		if retryAfter > 0 {
 			c.Header("Retry-After", strconv.Itoa(retryAfter))
 		}
@@ -1035,7 +1035,7 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 						}
 						fallbackAPIKey := cloneAPIKeyWithGroup(apiKey, fallbackGroup)
 						if err := h.billingCacheService.CheckBillingEligibility(c.Request.Context(), fallbackAPIKey.User, fallbackAPIKey, fallbackGroup, nil, service.PlatformFromAPIKey(fallbackAPIKey)); err != nil {
-							status, code, message, retryAfter := billingErrorDetails(err)
+							status, code, message, retryAfter := billingErrorDetails(c, err)
 							if retryAfter > 0 {
 								c.Header("Retry-After", strconv.Itoa(retryAfter))
 							}
@@ -1951,7 +1951,7 @@ func (h *GatewayHandler) calculateSubscriptionRemaining(group *service.Group, su
 
 // handleConcurrencyError handles concurrency-related acquire errors.
 func (h *GatewayHandler) handleConcurrencyError(c *gin.Context, err error, slotType string, streamStarted bool) {
-	status, errType, code, message := concurrencyErrorResponse(err, slotType)
+	status, errType, code, message := concurrencyErrorResponse(c, err, slotType)
 	h.handleStreamingAwareErrorWithCode(c, status, errType, code, message, streamStarted)
 }
 
@@ -2249,7 +2249,7 @@ func (h *GatewayHandler) CountTokens(c *gin.Context) {
 	// 校验 billing eligibility（订阅/余额）
 	// 【注意】不计算并发，但需要校验订阅/余额
 	if err := h.billingCacheService.CheckBillingEligibility(c.Request.Context(), apiKey.User, apiKey, apiKey.Group, subscription, service.QuotaPlatform(c.Request.Context(), apiKey)); err != nil {
-		status, code, message, retryAfter := billingErrorDetails(err)
+		status, code, message, retryAfter := billingErrorDetails(c, err)
 		if retryAfter > 0 {
 			c.Header("Retry-After", strconv.Itoa(retryAfter))
 		}
@@ -2530,7 +2530,23 @@ func extractQuotaResetSeconds(err error) int {
 	return int(math.Ceil(secs))
 }
 
-func billingErrorDetails(err error) (status int, code, message string, retryAfter int) {
+func billingErrorDetails(c *gin.Context, err error) (status int, code, message string, retryAfter int) {
+	if middleware2.HasMultipleGroupCandidates(c) {
+		switch {
+		case errors.Is(err, service.ErrAPIKeyRateLimit5hExceeded), errors.Is(err, service.ErrAPIKeyRateLimit1dExceeded),
+			errors.Is(err, service.ErrAPIKeyRateLimit7dExceeded), errors.Is(err, service.ErrAPIKeyQuotaExhausted),
+			errors.Is(err, service.ErrUserRPMExceeded), errors.Is(err, service.ErrBillingServiceUnavailable):
+			middleware2.SetGroupRetryDecision(c, middleware2.GroupRetryStop)
+		case errors.Is(err, service.ErrInsufficientBalance):
+			middleware2.SetGroupRetryDecision(c, middleware2.GroupRetrySubscriptionOnly)
+		case errors.Is(err, service.ErrSubscriptionInvalid), errors.Is(err, service.ErrSubscriptionNotFound),
+			errors.Is(err, service.ErrSubscriptionExpired), errors.Is(err, service.ErrSubscriptionSuspended),
+			errors.Is(err, service.ErrHourlyLimitExceeded), errors.Is(err, service.ErrDailyLimitExceeded),
+			errors.Is(err, service.ErrWeeklyLimitExceeded), errors.Is(err, service.ErrMonthlyLimitExceeded),
+			errors.Is(err, service.ErrGroupRPMExceeded):
+			middleware2.SetGroupRetryDecision(c, middleware2.GroupRetryNext)
+		}
+	}
 	if errors.Is(err, service.ErrBillingServiceUnavailable) {
 		msg := pkgerrors.Message(err)
 		if msg == "" {

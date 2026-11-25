@@ -159,27 +159,58 @@
               <button
                 :ref="(el) => setGroupButtonRef(row.id, el)"
                 @click="openGroupSelector(row)"
-                class="-mx-2 -my-1 flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1 transition-all duration-200 hover:bg-gray-100 dark:hover:bg-dark-700"
-                :title="t('keys.clickToChangeGroup')"
+                class="-mx-2 -my-1 flex max-w-[320px] cursor-pointer flex-wrap items-center gap-1.5 rounded-lg px-2 py-1 text-left transition-all duration-200 hover:bg-gray-100 dark:hover:bg-dark-700"
+                :title="formatGroupOrderTitle(row)"
               >
-                <GroupBadge
-                  v-if="row.group"
-                  :name="row.group.name"
-                  :platform="row.group.platform"
-                  :subscription-type="row.group.subscription_type"
-                  :rate-multiplier="row.group.rate_multiplier"
-                  :user-rate-multiplier="userGroupRates[row.group.id]"
-                  :peak-rate-enabled="row.group.peak_rate_enabled"
-                  :peak-start="row.group.peak_start"
-                  :peak-end="row.group.peak_end"
-                  :peak-rate-multiplier="row.group.peak_rate_multiplier"
-                />
-                <span v-else class="text-sm text-gray-400 dark:text-dark-500">{{
-                  t('keys.noGroup')
-                }}</span>
-                <span class="text-xs text-gray-500 dark:text-gray-400">{{ t('keys.selectGroup') }}</span>
+                <template v-if="getKeyGroups(row).length === 1">
+                  <GroupBadge
+                    :name="getKeyGroups(row)[0].name"
+                    :platform="getKeyGroups(row)[0].platform"
+                    :subscription-type="getKeyGroups(row)[0].subscription_type"
+                    :rate-multiplier="getKeyGroups(row)[0].rate_multiplier"
+                    :user-rate-multiplier="userGroupRates[getKeyGroups(row)[0].id]"
+                    :peak-rate-enabled="getKeyGroups(row)[0].peak_rate_enabled"
+                    :peak-start="getKeyGroups(row)[0].peak_start"
+                    :peak-end="getKeyGroups(row)[0].peak_end"
+                    :peak-rate-multiplier="getKeyGroups(row)[0].peak_rate_multiplier"
+                  />
+                </template>
+                <template v-else-if="getKeyGroups(row).length > 1">
+                  <span
+                    v-for="(g, idx) in getKeyGroups(row).slice(0, 2)"
+                    :key="g.id"
+                    class="inline-flex items-center gap-1"
+                  >
+                    <span class="inline-flex h-4 min-w-4 items-center justify-center rounded bg-primary-100 px-1 text-[10px] font-bold tabular-nums text-primary-700 dark:bg-primary-900/40 dark:text-primary-300">
+                      {{ idx + 1 }}
+                    </span>
+                    <GroupBadge
+                      :name="g.name"
+                      :platform="g.platform"
+                      :subscription-type="g.subscription_type"
+                      :rate-multiplier="g.rate_multiplier"
+                      :user-rate-multiplier="userGroupRates[g.id]"
+                      :peak-rate-enabled="g.peak_rate_enabled"
+                      :peak-start="g.peak_start"
+                      :peak-end="g.peak_end"
+                      :peak-rate-multiplier="g.peak_rate_multiplier"
+                    />
+                  </span>
+                  <span
+                    v-if="getKeyGroups(row).length > 2"
+                    class="inline-flex items-center rounded-md bg-gray-100 px-1.5 py-0.5 text-xs font-medium text-gray-600 dark:bg-dark-700 dark:text-gray-300"
+                  >
+                    +{{ getKeyGroups(row).length - 2 }}
+                  </span>
+                </template>
+                <template v-else>
+                  <span class="text-sm text-gray-400 dark:text-dark-500">{{
+                    t('keys.noGroup')
+                  }}</span>
+                  <span class="text-xs text-gray-500 dark:text-gray-400">{{ t('keys.selectGroup') }}</span>
+                </template>
                 <svg
-                  class="h-3.5 w-3.5 text-gray-400 opacity-60 transition-opacity group-hover/dropdown:opacity-100"
+                  class="h-3.5 w-3.5 shrink-0 text-gray-400 opacity-60 transition-opacity group-hover/dropdown:opacity-100"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -494,99 +525,248 @@
           />
         </div>
 
-        <fieldset v-if="!showEditModal" data-tour="key-form-provider">
-          <legend class="input-label">{{ t('keys.providerLabel') }}</legend>
-          <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <label
-              v-for="provider in createProviderOptions"
-              :key="provider.value"
-              class="relative min-w-0"
-              :class="provider.count === 0 ? 'cursor-not-allowed' : 'cursor-pointer'"
-            >
-              <input
-                type="radio"
-                name="key-provider"
-                :value="provider.value"
-                :checked="createProvider === provider.value"
-                :disabled="provider.count === 0"
-                class="peer sr-only"
-                @change="selectCreateProvider(provider.value)"
-              />
-              <span
-                class="flex h-full flex-col items-center gap-2 rounded-xl border border-gray-200 bg-white px-2 py-3 text-center transition-colors peer-checked:border-primary-500 peer-checked:bg-primary-50/60 peer-checked:ring-1 peer-checked:ring-primary-500 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-primary-500 peer-disabled:opacity-40 dark:border-dark-600 dark:bg-dark-800 dark:peer-checked:border-primary-500 dark:peer-checked:bg-primary-500/10"
-                :class="provider.count > 0 && 'hover:border-primary-300 dark:hover:border-primary-700'"
-              >
-                <span class="flex h-8 items-center justify-center gap-1.5" aria-hidden="true">
-                  <span
-                    v-for="platform in KEY_GROUP_PROVIDER_ICONS[provider.value]"
-                    :key="platform"
-                    class="flex h-8 w-8 items-center justify-center rounded-lg"
-                    :class="platformBadgeLightClass(platform)"
-                  >
-                    <PlatformIcon :platform="platform" size="lg" />
-                  </span>
-                </span>
-                <span class="text-sm font-semibold text-gray-800 dark:text-gray-100">{{ provider.label }}</span>
-              </span>
-              <span
-                v-if="createProvider === provider.value"
-                class="absolute right-1.5 top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary-500 text-white"
-                aria-hidden="true"
-              >
-                <Icon name="check" size="xs" :stroke-width="3" />
-              </span>
-            </label>
-          </div>
-          <p class="mt-2 text-xs leading-5 text-gray-500 dark:text-gray-400" aria-live="polite">
-            {{ groups.length === 0 ? t('common.noGroupsAvailable') : t(`keys.providerHints.${createProvider}`) }}
-          </p>
-        </fieldset>
-
-        <div>
-          <label class="input-label" for="key-form-group">{{ t('keys.groupLabel') }}</label>
+        <div data-tour="key-form-provider">
+          <label class="input-label" for="key-form-provider">{{ t('keys.providerLabel') }}</label>
           <Select
-            :key="showEditModal ? 'edit' : createProvider"
-            id="key-form-group"
-            :aria-label="t('keys.groupLabel')"
-            v-model="formData.group_id"
-            :options="formGroupOptions"
-            :placeholder="t('keys.selectGroup')"
+            id="key-form-provider"
+            :aria-label="t('keys.providerLabel')"
+            :model-value="selectedProviderFilter"
+            :options="providerFilterOptions"
+            :placeholder="groups.length === 0 ? t('common.noGroupsAvailable') : t('keys.selectProvider')"
             :empty-text="t('common.noGroupsAvailable')"
-            :searchable="true"
-            :search-placeholder="t('keys.searchGroup')"
-            data-tour="key-form-group"
+            :disabled="providerFilterOptions.length === 0"
+            searchable="auto"
+            @update:model-value="selectProviderFilter"
           >
             <template #selected="{ option }">
-              <GroupBadge
-                v-if="option"
-                :name="(option as unknown as GroupOption).label"
-                :platform="(option as unknown as GroupOption).platform"
-                :subscription-type="(option as unknown as GroupOption).subscriptionType"
-                :rate-multiplier="(option as unknown as GroupOption).rate"
-                :user-rate-multiplier="(option as unknown as GroupOption).userRate"
-                :peak-rate-enabled="(option as unknown as GroupOption).peakRateEnabled"
-                :peak-start="(option as unknown as GroupOption).peakStart"
-                :peak-end="(option as unknown as GroupOption).peakEnd"
-                :peak-rate-multiplier="(option as unknown as GroupOption).peakRateMultiplier"
-              />
-              <span v-else class="text-gray-400">{{ t('keys.selectGroup') }}</span>
+              <span v-if="option" class="inline-flex min-w-0 items-center gap-2">
+                <span
+                  v-if="(option as unknown as ProviderOption).value === 'all'"
+                  class="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md bg-gray-100 text-gray-600 dark:bg-dark-700 dark:text-gray-300"
+                >
+                  <Icon name="grid" size="sm" />
+                </span>
+                <span
+                  v-else
+                  class="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md"
+                  :class="platformBadgeLightClass((option as unknown as ProviderOption).value as GroupPlatform)"
+                >
+                  <PlatformIcon :platform="(option as unknown as ProviderOption).value as GroupPlatform" size="sm" />
+                </span>
+                <span class="truncate font-medium text-gray-900 dark:text-gray-100">
+                  {{ (option as unknown as ProviderOption).label }}
+                </span>
+              </span>
+              <span v-else class="text-gray-400">
+                {{ groups.length === 0 ? t('common.noGroupsAvailable') : t('keys.selectProvider') }}
+              </span>
             </template>
             <template #option="{ option, selected }">
-              <GroupOptionItem
-                :name="(option as unknown as GroupOption).label"
-                :platform="(option as unknown as GroupOption).platform"
-                :subscription-type="(option as unknown as GroupOption).subscriptionType"
-                :rate-multiplier="(option as unknown as GroupOption).rate"
-                :user-rate-multiplier="(option as unknown as GroupOption).userRate"
-                :peak-rate-enabled="(option as unknown as GroupOption).peakRateEnabled"
-                :peak-start="(option as unknown as GroupOption).peakStart"
-                :peak-end="(option as unknown as GroupOption).peakEnd"
-                :peak-rate-multiplier="(option as unknown as GroupOption).peakRateMultiplier"
-                :description="(option as unknown as GroupOption).description"
-                :selected="selected"
-              />
+              <div class="flex min-w-0 flex-1 items-center justify-between gap-2">
+                <div class="flex min-w-0 items-center gap-2.5">
+                  <span
+                    v-if="(option as unknown as ProviderOption).value === 'all'"
+                    class="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md bg-gray-100 text-gray-600 dark:bg-dark-700 dark:text-gray-300"
+                  >
+                    <Icon name="grid" size="sm" />
+                  </span>
+                  <span
+                    v-else
+                    class="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md"
+                    :class="platformBadgeLightClass((option as unknown as ProviderOption).value as GroupPlatform)"
+                  >
+                    <PlatformIcon :platform="(option as unknown as ProviderOption).value as GroupPlatform" size="sm" />
+                  </span>
+                  <span class="truncate font-medium text-gray-800 dark:text-gray-100">
+                    {{ (option as unknown as ProviderOption).label }}
+                  </span>
+                </div>
+                <div class="flex flex-shrink-0 items-center gap-2">
+                  <span class="text-xs text-gray-400 dark:text-dark-400">
+                    {{ (option as unknown as ProviderOption).count }}
+                  </span>
+                  <Icon
+                    v-if="selected"
+                    name="check"
+                    size="sm"
+                    class="text-primary-500"
+                    :stroke-width="2"
+                  />
+                </div>
+              </div>
             </template>
           </Select>
+          <p v-if="groups.length === 0" class="mt-1.5 text-xs text-gray-500 dark:text-gray-400" aria-live="polite">
+            {{ t('common.noGroupsAvailable') }}
+          </p>
+        </div>
+
+        <div data-tour="key-form-group" class="space-y-3">
+          <div class="flex items-center justify-between">
+            <label class="input-label mb-0">{{ t('keys.groupLabel') }}</label>
+            <span v-if="formData.group_ids.length > 0" class="text-xs font-medium text-primary-600 dark:text-primary-400">
+              {{ t('keys.selectedGroupsCount', { count: formData.group_ids.length }) }}
+            </span>
+          </div>
+
+          <div class="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-dark-600 dark:bg-dark-800">
+            <div class="border-b border-gray-100 p-2 dark:border-dark-700">
+              <div class="relative">
+                <Icon name="search" size="sm" class="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  v-model="formGroupSearchQuery"
+                  type="text"
+                  data-test="form-group-search"
+                  class="w-full rounded-lg border border-gray-200 bg-gray-50 py-1.5 pl-8 pr-3 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-primary-300 focus:ring-1 focus:ring-primary-300 dark:border-dark-600 dark:bg-dark-700 dark:text-white dark:placeholder-gray-500"
+                  :placeholder="t('keys.searchGroup')"
+                />
+              </div>
+            </div>
+            <div class="max-h-56 divide-y divide-gray-100 overflow-y-auto p-1.5 dark:divide-dark-700">
+              <button
+                v-for="option in filteredFormGroupOptions"
+                :key="option.value"
+                type="button"
+                data-test="form-group-option"
+                :data-group-id="option.value"
+                @click="toggleFormGroup(option.value)"
+                :class="[
+                  'flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-left text-sm transition-colors',
+                  getFormGroupOrder(option.value) > 0
+                    ? 'bg-primary-50/80 dark:bg-primary-900/20'
+                    : 'hover:bg-gray-50 dark:hover:bg-dark-700/70'
+                ]"
+              >
+                <span
+                  :class="[
+                    'flex h-5 w-5 shrink-0 items-center justify-center rounded border text-[11px] font-bold tabular-nums transition-colors',
+                    getFormGroupOrder(option.value) > 0
+                      ? 'border-primary-600 bg-primary-600 text-white'
+                      : 'border-gray-300 bg-white text-transparent dark:border-dark-500 dark:bg-dark-700'
+                  ]"
+                >
+                  {{ getFormGroupOrder(option.value) > 0 ? getFormGroupOrder(option.value) : '' }}
+                </span>
+                <GroupOptionItem
+                  :name="option.label"
+                  :platform="option.platform"
+                  :subscription-type="option.subscriptionType"
+                  :rate-multiplier="option.rate"
+                  :user-rate-multiplier="option.userRate"
+                  :peak-rate-enabled="option.peakRateEnabled"
+                  :peak-start="option.peakStart"
+                  :peak-end="option.peakEnd"
+                  :peak-rate-multiplier="option.peakRateMultiplier"
+                  :description="option.description"
+                  :selected="getFormGroupOrder(option.value) > 0"
+                  :show-checkmark="false"
+                />
+              </button>
+              <div
+                v-if="filteredFormGroupOptions.length === 0"
+                class="py-4 text-center text-sm text-gray-400 dark:text-gray-500"
+              >
+                {{ t('common.noGroupsAvailable') }}
+              </div>
+            </div>
+          </div>
+
+          <div
+            v-if="orderedSelectedGroupOptions.length > 0"
+            data-test="selected-groups-order"
+            class="rounded-xl border border-gray-200 bg-gray-50/70 p-3 dark:border-dark-600 dark:bg-dark-800/60"
+          >
+            <div class="mb-1 flex items-center justify-between gap-2">
+              <span class="text-xs font-semibold text-gray-700 dark:text-gray-200">
+                {{ t('keys.selectedGroupsOrderTitle') }}
+              </span>
+              <button
+                type="button"
+                data-test="clear-selected-groups"
+                @click="formData.group_ids = []"
+                class="text-xs text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400"
+              >
+                {{ t('keys.clearGroups') }}
+              </button>
+            </div>
+            <p class="mb-2.5 text-xs text-gray-500 dark:text-gray-400">
+              {{ t('keys.selectedGroupsOrderHint') }}
+            </p>
+            <VueDraggable
+              v-model="orderedSelectedGroupOptions"
+              :animation="150"
+              handle="[data-drag-handle]"
+              class="space-y-1.5"
+            >
+              <div
+                v-for="(item, idx) in orderedSelectedGroupOptions"
+                :key="item.id"
+                data-test="selected-group-item"
+                :data-group-id="item.id"
+                class="flex items-center justify-between gap-2 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 dark:border-dark-600 dark:bg-dark-700"
+              >
+                <div class="flex min-w-0 items-center gap-2">
+                  <button
+                    type="button"
+                    data-drag-handle
+                    class="cursor-grab text-gray-400 hover:text-gray-600 active:cursor-grabbing dark:hover:text-gray-200"
+                    tabindex="-1"
+                  >
+                    <Icon name="arrowsUpDown" size="xs" />
+                  </button>
+                  <span class="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-primary-100 px-1.5 text-xs font-bold tabular-nums text-primary-700 dark:bg-primary-900/40 dark:text-primary-300">
+                    {{ idx + 1 }}
+                  </span>
+                  <GroupBadge
+                    v-if="item.option"
+                    :name="item.option.label"
+                    :platform="item.option.platform"
+                    :subscription-type="item.option.subscriptionType"
+                    :rate-multiplier="item.option.rate"
+                    :user-rate-multiplier="item.option.userRate"
+                    :peak-rate-enabled="item.option.peakRateEnabled"
+                    :peak-start="item.option.peakStart"
+                    :peak-end="item.option.peakEnd"
+                    :peak-rate-multiplier="item.option.peakRateMultiplier"
+                  />
+                  <span v-else class="text-xs text-gray-500 dark:text-gray-400">
+                    {{ t('keys.unavailableGroup', { id: item.id }) }}
+                  </span>
+                </div>
+                <div class="flex shrink-0 items-center gap-0.5">
+                  <button
+                    type="button"
+                    data-test="move-group-up"
+                    :disabled="idx === 0"
+                    :title="t('keys.moveUp')"
+                    @click="moveFormGroup(idx, -1)"
+                    class="rounded p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-30 dark:hover:bg-dark-600 dark:hover:text-gray-200"
+                  >
+                    <Icon name="chevronUp" size="xs" />
+                  </button>
+                  <button
+                    type="button"
+                    data-test="move-group-down"
+                    :disabled="idx === orderedSelectedGroupOptions.length - 1"
+                    :title="t('keys.moveDown')"
+                    @click="moveFormGroup(idx, 1)"
+                    class="rounded p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-30 dark:hover:bg-dark-600 dark:hover:text-gray-200"
+                  >
+                    <Icon name="chevronDown" size="xs" />
+                  </button>
+                  <button
+                    type="button"
+                    data-test="remove-selected-group"
+                    :title="t('keys.removeGroup')"
+                    @click="toggleFormGroup(item.id)"
+                    class="rounded p-1 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
+                  >
+                    <Icon name="x" size="xs" />
+                  </button>
+                </div>
+              </div>
+            </VueDraggable>
+          </div>
         </div>
 
         <!-- Custom Key Section (only for create) -->
@@ -1083,9 +1263,9 @@
       :show="showUseKeyModal"
       :api-key="selectedKey?.key || ''"
       :base-url="publicSettings?.api_base_url || ''"
-      :platform="selectedKey?.group?.platform || null"
-      :claude-code-only="selectedKey?.group?.claude_code_only || false"
-      :allow-messages-dispatch="selectedKey?.group?.allow_messages_dispatch || false"
+      :platform="selectedKeyPrimaryGroup?.platform || null"
+      :claude-code-only="selectedKeyPrimaryGroup?.claude_code_only || false"
+      :allow-messages-dispatch="selectedKeyPrimaryGroup?.allow_messages_dispatch || false"
       @close="closeUseKeyModal"
     />
 
@@ -1165,21 +1345,30 @@
           </div>
         </div>
         <!-- Group list -->
-        <div class="max-h-80 overflow-y-auto p-1.5">
+        <div class="max-h-72 overflow-y-auto p-1.5">
           <button
             v-for="option in filteredGroupOptions"
-            :key="option.value ?? 'null'"
-            @click="changeGroup(selectedKeyForGroup!, option.value)"
+            :key="option.value"
+            @click.stop="toggleInlineGroup(option.value)"
             :class="[
-              'flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm transition-colors',
+              'flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors',
               'border-b border-gray-100 last:border-0 dark:border-dark-700',
-              selectedKeyForGroup?.group_id === option.value ||
-              (!selectedKeyForGroup?.group_id && option.value === null)
+              getInlineGroupOrder(option.value) > 0
                 ? 'bg-primary-50 dark:bg-primary-900/20'
                 : 'hover:bg-gray-100 dark:hover:bg-dark-700'
             ]"
             :title="option.description || undefined"
           >
+            <span
+              :class="[
+                'flex h-5 w-5 shrink-0 items-center justify-center rounded border text-[11px] font-bold tabular-nums',
+                getInlineGroupOrder(option.value) > 0
+                  ? 'border-primary-600 bg-primary-600 text-white'
+                  : 'border-gray-300 bg-white text-transparent dark:border-dark-500 dark:bg-dark-700'
+              ]"
+            >
+              {{ getInlineGroupOrder(option.value) > 0 ? getInlineGroupOrder(option.value) : '' }}
+            </span>
             <GroupOptionItem
               :name="option.label"
               :platform="option.platform"
@@ -1191,16 +1380,27 @@
               :peak-end="option.peakEnd"
               :peak-rate-multiplier="option.peakRateMultiplier"
               :description="option.description"
-              :selected="
-                selectedKeyForGroup?.group_id === option.value ||
-                (!selectedKeyForGroup?.group_id && option.value === null)
-              "
+              :selected="getInlineGroupOrder(option.value) > 0"
+              :show-checkmark="false"
             />
           </button>
           <!-- Empty state when search has no results -->
           <div v-if="filteredGroupOptions.length === 0" class="py-4 text-center text-sm text-gray-400 dark:text-gray-500">
             {{ t('keys.noGroupFound') }}
           </div>
+        </div>
+        <div class="flex items-center justify-between gap-2 border-t border-gray-100 px-3 py-2 dark:border-dark-700">
+          <span class="text-xs text-gray-500 dark:text-gray-400">
+            {{ t('keys.selectedGroupsCount', { count: inlineGroupIds.length }) }}
+          </span>
+          <button
+            type="button"
+            data-test="inline-groups-apply"
+            @click.stop="saveInlineGroups(selectedKeyForGroup!)"
+            class="btn btn-primary btn-sm"
+          >
+            {{ t('keys.applyGroups') }}
+          </button>
         </div>
       </div>
     </Teleport>
@@ -1238,8 +1438,9 @@ import type { BatchApiKeyUsageStats } from '@/api/usage'
 import { formatDateTime } from '@/utils/format'
 import { maskApiKey } from '@/utils/maskApiKey'
 import PlatformIcon from '@/components/common/PlatformIcon.vue'
-import { platformBadgeLightClass } from '@/utils/platformColors'
-import { KEY_GROUP_PROVIDERS, KEY_GROUP_PROVIDER_ICONS, getKeyGroupProvider, type KeyGroupProvider } from '@/utils/keyGroupProviders'
+import { platformBadgeLightClass, platformLabel } from '@/utils/platformColors'
+import { GROUP_PLATFORM_OPTIONS } from '@/constants/platforms'
+import { VueDraggable } from 'vue-draggable-plus'
 import {
   CC_SWITCH_USAGE_SCRIPT,
   buildCcSwitchImportDeeplink,
@@ -1251,6 +1452,12 @@ const formatDateTimeLocal = (isoDate: string): string => {
   const date = new Date(isoDate)
   const pad = (n: number) => n.toString().padStart(2, '0')
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
+type ProviderOption = {
+  value: GroupPlatform | 'all'
+  label: string
+  count: number
 }
 
 interface GroupOption {
@@ -1441,7 +1648,7 @@ const setGroupButtonRef = (keyId: number, el: Element | ComponentPublicInstance 
 
 const formData = ref({
   name: '',
-  group_id: null as number | null,
+  group_ids: [] as number[],
   status: 'active' as 'active' | 'inactive',
   use_custom_key: false,
   custom_key: '',
@@ -1521,8 +1728,7 @@ const onStatusFilterChange = (value: string | number | boolean | null) => {
 }
 
 // Convert groups to Select options format with rate multiplier and subscription type
-const groupOptions = computed(() =>
-  groups.value.map((group) => ({
+const groupOption = (group: Group): GroupOption => ({
     value: group.id,
     label: group.name,
     description: group.description,
@@ -1534,35 +1740,128 @@ const groupOptions = computed(() =>
     peakRateMultiplier: group.peak_rate_multiplier,
     subscriptionType: group.subscription_type,
     platform: group.platform
-  }))
-)
+})
+const groupOptions = computed(() => groups.value.map(groupOption))
 
-const createProvider = ref<KeyGroupProvider>('anthropic')
-const createProviderOptions = computed(() => KEY_GROUP_PROVIDERS.map((value) => ({
-  value,
-  label: t(`keys.providers.${value}`),
-  count: groups.value.filter((group) => getKeyGroupProvider(group.platform) === value).length
-})))
+const selectedProviderFilter = ref<GroupPlatform | 'all'>('all')
+const formGroupSearchQuery = ref('')
 
-const formGroupOptions = computed(() => showEditModal.value
-  ? groupOptions.value
-  : groupOptions.value.filter((group) => getKeyGroupProvider(group.platform) === createProvider.value)
-)
+const providerFilterOptions = computed<ProviderOption[]>(() => {
+  if (groups.value.length === 0) return []
+  const counts = new Map<GroupPlatform, number>()
+  for (const group of groups.value) {
+    counts.set(group.platform, (counts.get(group.platform) ?? 0) + 1)
+  }
+  const options: ProviderOption[] = [
+    { value: 'all', label: t('keys.allProviders'), count: groups.value.length }
+  ]
+  const seen = new Set<GroupPlatform>()
+  for (const opt of GROUP_PLATFORM_OPTIONS) {
+    const count = counts.get(opt.value) ?? 0
+    if (count > 0) {
+      options.push({ value: opt.value, label: opt.label, count })
+      seen.add(opt.value)
+    }
+  }
+  for (const [platform, count] of counts) {
+    if (count > 0 && !seen.has(platform)) {
+      options.push({ value: platform, label: platformLabel(platform), count })
+    }
+  }
+  return options
+})
 
-const selectCreateProvider = (provider: KeyGroupProvider) => {
-  if (createProvider.value === provider) return
-  createProvider.value = provider
-  formData.value.group_id = null
+const filteredFormGroupOptions = computed(() => {
+  const query = formGroupSearchQuery.value.trim().toLowerCase()
+  return groupOptions.value.filter((group) => {
+    if (selectedProviderFilter.value !== 'all' && group.platform !== selectedProviderFilter.value) {
+      return false
+    }
+    if (!query) return true
+    return (
+      group.label.toLowerCase().includes(query) ||
+      Boolean(group.description && group.description.toLowerCase().includes(query))
+    )
+  })
+})
+
+const selectProviderFilter = (value: string | number | boolean | null) => {
+  if (typeof value === 'string' && value) {
+    selectedProviderFilter.value = value as GroupPlatform | 'all'
+  } else {
+    selectedProviderFilter.value = 'all'
+  }
 }
 
-// Also handles groups arriving after the create dialog has already opened.
-watch([showCreateModal, createProviderOptions], ([isOpen, providers], [wasOpen]) => {
-  if (!isOpen) return
-  if (!wasOpen || !providers.some((provider) => provider.value === createProvider.value && provider.count > 0)) {
-    selectCreateProvider(providers.find((provider) => provider.count > 0)?.value ?? 'anthropic')
+const getFormGroupOrder = (groupId: number): number => {
+  const idx = formData.value.group_ids.indexOf(groupId)
+  return idx >= 0 ? idx + 1 : 0
+}
+
+const toggleFormGroup = (groupId: number) => {
+  const idx = formData.value.group_ids.indexOf(groupId)
+  if (idx >= 0) {
+    formData.value.group_ids = formData.value.group_ids.filter((id) => id !== groupId)
+  } else {
+    formData.value.group_ids = [...formData.value.group_ids, groupId]
   }
-  if (!formGroupOptions.value.some((group) => group.value === formData.value.group_id)) {
-    formData.value.group_id = null
+}
+
+const moveFormGroup = (index: number, delta: -1 | 1) => {
+  const target = index + delta
+  const list = [...formData.value.group_ids]
+  if (target < 0 || target >= list.length) return
+  ;[list[index], list[target]] = [list[target], list[index]]
+  formData.value.group_ids = list
+}
+
+const groupOptionsById = computed(() => {
+  const map = new Map<number, GroupOption>()
+  if (showEditModal.value && selectedKey.value) {
+    for (const group of getKeyGroups(selectedKey.value)) {
+      map.set(group.id, groupOption(group))
+    }
+  }
+  for (const opt of groupOptions.value) {
+    map.set(opt.value, opt)
+  }
+  return map
+})
+
+const orderedSelectedGroupOptions = computed({
+  get: () => formData.value.group_ids.map((id) => ({ id, option: groupOptionsById.value.get(id) })),
+  set: (items) => {
+    formData.value.group_ids = items.map((item) => item.id)
+  }
+})
+
+const getKeyGroups = (row: ApiKey): Group[] => {
+  if (row.groups && row.groups.length > 0) return row.groups
+  if (row.group) return [row.group]
+  return []
+}
+
+const getKeyGroupIDs = (key: ApiKey): number[] => {
+  if (key.group_ids) return key.group_ids
+  if (key.groups?.length) return key.groups.map((group) => group.id)
+  return key.group_id ? [key.group_id] : []
+}
+
+const selectedKeyPrimaryGroup = computed<Group | null>(() =>
+  selectedKey.value ? getKeyGroups(selectedKey.value)[0] ?? null : null
+)
+
+const formatGroupOrderTitle = (row: ApiKey): string => {
+  const keyGroups = getKeyGroups(row)
+  if (keyGroups.length <= 1) return t('keys.clickToChangeGroup')
+  return keyGroups.map((g, idx) => `${idx + 1}. ${g.name}`).join(' → ')
+}
+
+watch([showCreateModal, providerFilterOptions], ([isOpen, providers], [wasOpen]) => {
+  if (!isOpen) return
+  const hasCurrent = providers.some((provider) => provider.value === selectedProviderFilter.value)
+  if (!wasOpen || !hasCurrent) {
+    selectedProviderFilter.value = 'all'
   }
 })
 
@@ -1716,9 +2015,11 @@ const editKey = (key: ApiKey) => {
   selectedKey.value = key
   const hasIPRestriction = (key.ip_whitelist?.length > 0) || (key.ip_blacklist?.length > 0)
   const hasExpiration = !!key.expires_at
+  selectedProviderFilter.value = 'all'
+  formGroupSearchQuery.value = ''
   formData.value = {
     name: key.name,
-    group_id: key.group_id,
+    group_ids: [...getKeyGroupIDs(key)],
     status: key.status === 'quota_exhausted' || key.status === 'expired' ? 'inactive' : key.status,
     use_custom_key: false,
     custom_key: '',
@@ -1751,6 +2052,8 @@ const toggleKeyStatus = async (key: ApiKey) => {
   }
 }
 
+const inlineGroupIds = ref<number[]>([])
+
 const openGroupSelector = (key: ApiKey) => {
   if (groupSelectorKeyId.value === key.id) {
     groupSelectorKeyId.value = null
@@ -1782,16 +2085,38 @@ const openGroupSelector = (key: ApiKey) => {
     }
     groupSelectorKeyId.value = key.id
     groupSearchQuery.value = ''
+    inlineGroupIds.value = [...getKeyGroupIDs(key)]
   }
 }
 
-const changeGroup = async (key: ApiKey, newGroupId: number | null) => {
+const getInlineGroupOrder = (groupId: number): number => {
+  const idx = inlineGroupIds.value.indexOf(groupId)
+  return idx >= 0 ? idx + 1 : 0
+}
+
+const toggleInlineGroup = (groupId: number) => {
+  const idx = inlineGroupIds.value.indexOf(groupId)
+  if (idx >= 0) {
+    inlineGroupIds.value = inlineGroupIds.value.filter((id) => id !== groupId)
+  } else {
+    inlineGroupIds.value = [...inlineGroupIds.value, groupId]
+  }
+}
+
+const saveInlineGroups = async (key: ApiKey) => {
+  const nextIDs = [...inlineGroupIds.value]
   groupSelectorKeyId.value = null
   dropdownPosition.value = null
-  if (key.group_id === newGroupId) return
+  const prevIDs = getKeyGroupIDs(key)
+  if (prevIDs.length === nextIDs.length && prevIDs.every((id, idx) => id === nextIDs[idx])) {
+    return
+  }
 
   try {
-    await keysAPI.update(key.id, { group_id: newGroupId })
+    await keysAPI.update(key.id, {
+      group_ids: nextIDs,
+      group_id: nextIDs[0] ?? null
+    })
     appStore.showSuccess(t('keys.groupChangedSuccess'))
     loadApiKeys()
   } catch (error) {
@@ -1817,8 +2142,7 @@ const confirmDelete = (key: ApiKey) => {
 }
 
 const handleSubmit = async () => {
-  // Validate group_id is required
-  if (formData.value.group_id === null) {
+  if (!showEditModal.value && formData.value.group_ids.length === 0) {
     appStore.showError(t('keys.groupRequired'))
     return
   }
@@ -1875,7 +2199,6 @@ const handleSubmit = async () => {
     if (showEditModal.value && selectedKey.value) {
       const updates: UpdateApiKeyRequest = {
         name: formData.value.name,
-        group_id: formData.value.group_id,
         ip_whitelist: ipWhitelist,
         ip_blacklist: ipBlacklist,
         quota: quota,
@@ -1883,6 +2206,12 @@ const handleSubmit = async () => {
         rate_limit_5h: rateLimitData.rate_limit_5h,
         rate_limit_1d: rateLimitData.rate_limit_1d,
         rate_limit_7d: rateLimitData.rate_limit_7d,
+      }
+      const previousIDs = getKeyGroupIDs(selectedKey.value)
+      const nextIDs = formData.value.group_ids
+      if (previousIDs.length !== nextIDs.length || previousIDs.some((id, idx) => id !== nextIDs[idx])) {
+        updates.group_id = nextIDs[0] ?? null
+        updates.group_ids = [...nextIDs]
       }
       if (shouldSubmitEditStatus(selectedKey.value, formData.value.status)) {
         updates.status = formData.value.status
@@ -1893,13 +2222,14 @@ const handleSubmit = async () => {
       const customKey = formData.value.use_custom_key ? formData.value.custom_key : undefined
       await keysAPI.create(
         formData.value.name,
-        formData.value.group_id,
+        formData.value.group_ids[0] ?? null,
         customKey,
         ipWhitelist,
         ipBlacklist,
         quota,
         expiresInDays,
-        rateLimitData
+        rateLimitData,
+        [...formData.value.group_ids]
       )
       appStore.showSuccess(t('keys.keyCreatedSuccess'))
       // Only advance tour if active, on submit step, and creation succeeded
@@ -1942,9 +2272,11 @@ const closeModals = () => {
   showCreateModal.value = false
   showEditModal.value = false
   selectedKey.value = null
+  selectedProviderFilter.value = 'all'
+  formGroupSearchQuery.value = ''
   formData.value = {
     name: '',
-    group_id: null,
+    group_ids: [],
     status: 'active',
     use_custom_key: false,
     custom_key: '',
@@ -2029,7 +2361,7 @@ const resetRateLimitUsage = async () => {
 }
 
 const importToCcswitch = (row: ApiKey) => {
-  const platform = row.group?.platform || 'anthropic'
+  const platform = getKeyGroups(row)[0]?.platform || 'anthropic'
 
   // For antigravity platform, show client selection dialog
   if (platform === 'antigravity') {
@@ -2044,7 +2376,7 @@ const importToCcswitch = (row: ApiKey) => {
 
 const executeCcsImport = (row: ApiKey, clientType: CcSwitchClientType) => {
   const baseUrl = publicSettings.value?.api_base_url || window.location.origin
-  const platform = row.group?.platform || 'anthropic'
+  const platform = getKeyGroups(row)[0]?.platform || 'anthropic'
 
   const usageScript = CC_SWITCH_USAGE_SCRIPT
   const providerName = (publicSettings.value?.site_name || 'sub2api').trim() || 'sub2api'

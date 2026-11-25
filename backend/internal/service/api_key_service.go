@@ -217,6 +217,7 @@ type APIKeyAuthCacheInvalidator interface {
 type CreateAPIKeyRequest struct {
 	Name        string   `json:"name"`
 	GroupID     *int64   `json:"group_id"`
+	GroupIDs    []int64  `json:"group_ids"`
 	CustomKey   *string  `json:"custom_key"`   // 可选的自定义key
 	IPWhitelist []string `json:"ip_whitelist"` // IP 白名单
 	IPBlacklist []string `json:"ip_blacklist"` // IP 黑名单
@@ -235,6 +236,7 @@ type CreateAPIKeyRequest struct {
 type UpdateAPIKeyRequest struct {
 	Name        *string   `json:"name"`
 	GroupID     *int64    `json:"group_id"`
+	GroupIDs    *[]int64  `json:"group_ids"`
 	Status      *string   `json:"status"`
 	IPWhitelist *[]string `json:"ip_whitelist"` // IP 白名单（nil 不修改，空数组清空）
 	IPBlacklist *[]string `json:"ip_blacklist"` // IP 黑名单（nil 不修改，空数组清空）
@@ -491,6 +493,52 @@ func (s *APIKeyService) canUserBindGroup(ctx context.Context, user *User, group 
 	return user.CanBindGroup(group.ID, group.IsExclusive)
 }
 
+func normalizeAPIKeyGroupIDs(groupID *int64, groupIDs []int64) ([]int64, error) {
+	if len(groupIDs) > 0 {
+		out := make([]int64, 0, len(groupIDs))
+		seen := make(map[int64]struct{}, len(groupIDs))
+		for _, id := range groupIDs {
+			if id <= 0 {
+				return nil, infraerrors.BadRequest("INVALID_GROUP_ID", "group_id must be positive")
+			}
+			if _, ok := seen[id]; ok {
+				continue
+			}
+			seen[id] = struct{}{}
+			out = append(out, id)
+		}
+		return out, nil
+	}
+	if groupID != nil {
+		if *groupID <= 0 {
+			return nil, infraerrors.BadRequest("INVALID_GROUP_ID", "group_id must be positive")
+		}
+		return []int64{*groupID}, nil
+	}
+	return nil, nil
+}
+
+func (s *APIKeyService) validateOrderedAPIKeyGroups(ctx context.Context, user *User, orderedIDs []int64) ([]*Group, error) {
+	if len(orderedIDs) == 0 {
+		return nil, nil
+	}
+	groups := make([]*Group, 0, len(orderedIDs))
+	for _, gid := range orderedIDs {
+		group, err := s.groupRepo.GetByID(ctx, gid)
+		if err != nil {
+			return nil, fmt.Errorf("get group: %w", err)
+		}
+		if !group.IsActive() {
+			return nil, infraerrors.BadRequest("GROUP_NOT_ACTIVE", "target group is not active")
+		}
+		if !s.canUserBindGroup(ctx, user, group) {
+			return nil, ErrGroupNotAllowed
+		}
+		groups = append(groups, group)
+	}
+	return groups, nil
+}
+
 // Create 创建API Key
 func (s *APIKeyService) Create(ctx context.Context, userID int64, req CreateAPIKeyRequest) (*APIKey, error) {
 	if err := validateCreateAPIKeyRequest(req); err != nil {
@@ -516,17 +564,21 @@ func (s *APIKeyService) Create(ctx context.Context, userID int64, req CreateAPIK
 		}
 	}
 
-	// 验证分组权限（如果指定了分组）
-	if req.GroupID != nil {
-		group, err := s.groupRepo.GetByID(ctx, *req.GroupID)
-		if err != nil {
-			return nil, fmt.Errorf("get group: %w", err)
-		}
-
-		// 检查用户是否可以绑定该分组
-		if !s.canUserBindGroup(ctx, user, group) {
-			return nil, ErrGroupNotAllowed
-		}
+	// 验证分组权限（支持按勾选顺序绑定多分组，并保持单分组兼容）
+	orderedGroupIDs, err := normalizeAPIKeyGroupIDs(req.GroupID, req.GroupIDs)
+	if err != nil {
+		return nil, err
+	}
+	orderedGroups, err := s.validateOrderedAPIKeyGroups(ctx, user, orderedGroupIDs)
+	if err != nil {
+		return nil, err
+	}
+	var primaryGroupID *int64
+	var primaryGroup *Group
+	if len(orderedGroupIDs) > 0 {
+		gid := orderedGroupIDs[0]
+		primaryGroupID = &gid
+		primaryGroup = orderedGroups[0]
 	}
 
 	var key string
@@ -573,7 +625,10 @@ func (s *APIKeyService) Create(ctx context.Context, userID int64, req CreateAPIK
 		UserID:      userID,
 		Key:         key,
 		Name:        html.EscapeString(req.Name),
-		GroupID:     req.GroupID,
+		GroupID:     primaryGroupID,
+		Group:       primaryGroup,
+		GroupIDs:    orderedGroupIDs,
+		Groups:      orderedGroups,
 		Status:      StatusActive,
 		IPWhitelist: req.IPWhitelist,
 		IPBlacklist: req.IPBlacklist,
@@ -833,23 +888,37 @@ func (s *APIKeyService) Update(ctx context.Context, id int64, userID int64, req 
 		fields.Name = true
 	}
 
-	if req.GroupID != nil {
-		// 验证分组权限
-		user, err := s.userRepo.GetByID(ctx, userID)
+	if req.GroupIDs != nil || req.GroupID != nil {
+		legacyGroupID := req.GroupID
+		var groupIDs []int64
+		if req.GroupIDs != nil {
+			groupIDs = *req.GroupIDs
+			legacyGroupID = nil
+		}
+		orderedGroupIDs, err := normalizeAPIKeyGroupIDs(legacyGroupID, groupIDs)
 		if err != nil {
-			return nil, fmt.Errorf("get user: %w", err)
+			return nil, err
 		}
-
-		group, err := s.groupRepo.GetByID(ctx, *req.GroupID)
-		if err != nil {
-			return nil, fmt.Errorf("get group: %w", err)
+		if len(orderedGroupIDs) == 0 {
+			apiKey.GroupID = nil
+			apiKey.Group = nil
+			apiKey.GroupIDs = nil
+			apiKey.Groups = nil
+		} else {
+			user, err := s.userRepo.GetByID(ctx, userID)
+			if err != nil {
+				return nil, fmt.Errorf("get user: %w", err)
+			}
+			orderedGroups, err := s.validateOrderedAPIKeyGroups(ctx, user, orderedGroupIDs)
+			if err != nil {
+				return nil, err
+			}
+			gid := orderedGroupIDs[0]
+			apiKey.GroupID = &gid
+			apiKey.Group = orderedGroups[0]
+			apiKey.GroupIDs = orderedGroupIDs
+			apiKey.Groups = orderedGroups
 		}
-
-		if !s.canUserBindGroup(ctx, user, group) {
-			return nil, ErrGroupNotAllowed
-		}
-
-		apiKey.GroupID = req.GroupID
 		fields.GroupID = true
 	}
 

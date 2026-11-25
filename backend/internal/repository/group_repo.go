@@ -470,7 +470,13 @@ func (r *groupRepository) Update(ctx context.Context, groupIn *service.Group) er
 }
 
 func (r *groupRepository) Delete(ctx context.Context, id int64) error {
-	_, err := r.client.Group.Delete().Where(group.IDEQ(id)).Exec(ctx)
+	err := withAPIKeyGroupTx(ctx, r.client, func(txCtx context.Context, client *dbent.Client) error {
+		if _, err := clearAPIKeyGroupsByGroupID(txCtx, client, id, true); err != nil {
+			return err
+		}
+		_, err := client.Group.Delete().Where(group.IDEQ(id)).Exec(txCtx)
+		return err
+	})
 	if err != nil {
 		return translatePersistenceError(err, service.ErrGroupNotFound, nil)
 	}
@@ -977,6 +983,9 @@ func (r *groupRepository) deleteCascade(ctx context.Context, id int64, requireEm
 
 	// 4. Soft-delete composite model routes owned by this group.
 	if _, err := exec.ExecContext(ctx, "UPDATE composite_model_routes SET deleted_at = NOW() WHERE group_id = $1 AND deleted_at IS NULL", id); err != nil {
+		return nil, err
+	}
+	if _, err := clearAPIKeyGroupsByGroupID(ctx, exec, id, true); err != nil {
 		return nil, err
 	}
 

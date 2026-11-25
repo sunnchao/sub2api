@@ -173,6 +173,9 @@ const DataTableStub = {
           <slot name="cell-id" :value="row.id" :row="row" />
         </div>
         <slot name="cell-name" :value="row.name" :row="row" />
+        <div data-test="key-group">
+          <slot name="cell-group" :row="row" />
+        </div>
         <slot name="cell-actions" :row="row" />
         <div data-test="current-concurrency">
           <slot name="cell-current_concurrency" :value="row.current_concurrency" :row="row" />
@@ -194,9 +197,32 @@ const DataTableStub = {
 
 const SelectStub = {
   name: 'Select',
-  props: ['modelValue', 'options'],
+  props: ['modelValue', 'options', 'disabled', 'placeholder'],
   emits: ['update:modelValue'],
-  template: '<select :value="modelValue" @change="$emit(\'update:modelValue\', $event.target.value)"></select>',
+  template: `
+    <div>
+      <select
+        :value="modelValue ?? ''"
+        :disabled="disabled"
+        @change="$emit('update:modelValue', $event.target.value)"
+      />
+      <div data-test="select-selected">
+        <slot
+          name="selected"
+          :option="(options || []).find((opt) => opt.value === modelValue) ?? null"
+        />
+      </div>
+      <div data-test="select-options">
+        <div
+          v-for="opt in (options || [])"
+          :key="String(opt.value)"
+          data-test="select-option"
+        >
+          <slot name="option" :option="opt" :selected="opt.value === modelValue" />
+        </div>
+      </div>
+    </div>
+  `,
 }
 
 const SearchInputStub = {
@@ -223,6 +249,12 @@ const IconStub = {
   template: '<span data-test="icon">{{ name }}</span>',
 }
 
+const PlatformIconStub = {
+  name: 'PlatformIcon',
+  props: ['platform', 'size'],
+  template: '<span data-test="platform-icon" :data-platform="platform" />',
+}
+
 const mountView = async () => {
   const wrapper = mount(KeysView, {
     global: {
@@ -236,15 +268,24 @@ const mountView = async () => {
           emits: ['close'],
           template: '<div v-if="show" role="dialog"><button data-test="close-dialog" @click="$emit(\'close\')">Close</button><slot /><slot name="footer" /></div>',
         },
+        VueDraggable: {
+          props: ['modelValue'],
+          emits: ['update:modelValue'],
+          template: '<div><slot /></div>',
+        },
         ConfirmDialog: true,
         EmptyState: true,
         Select: SelectStub,
         SearchInput: SearchInputStub,
         Icon: IconStub,
+        PlatformIcon: PlatformIconStub,
         UseKeyModal: true,
         BulkEditKeysModal: true,
         EndpointPopover: true,
-        GroupBadge: true,
+        GroupBadge: {
+          props: ['name', 'platform', 'subscriptionType', 'rateMultiplier'],
+          template: '<span data-test="group-badge" :data-platform="platform">{{ name }}</span>',
+        },
         GroupOptionItem: true,
         Teleport: true,
       },
@@ -563,7 +604,7 @@ describe('user KeysView column settings', () => {
     )
   })
 
-  describe('create provider selection', () => {
+  describe('multi-provider and multi-group ordered selection', () => {
     const platforms = ['anthropic', 'openai', 'kimi', 'zhipu', 'deepseek', 'minimax', 'gemini', 'grok', 'antigravity', 'composite', 'opencode_go', 'typesafe']
     const availableGroups = platforms.map((platform, index) => ({
       id: index + 1,
@@ -573,9 +614,19 @@ describe('user KeysView column settings', () => {
       rate_multiplier: 1,
       subscription_type: 'standard',
     }))
-    const groupSelect = (wrapper: VueWrapper) => wrapper.findComponent('[data-tour="key-form-group"]')
-    const optionIds = (wrapper: VueWrapper) => groupSelect(wrapper).props('options').map((option: { value: number }) => option.value)
-    const chooseProvider = (wrapper: VueWrapper, value: string) => wrapper.get(`input[name="key-provider"][value="${value}"]`).setValue()
+    const providerSelect = (wrapper: VueWrapper) =>
+      wrapper.get('[data-tour="key-form-provider"]').findComponent({ name: 'Select' })
+    const optionGroupIds = (wrapper: VueWrapper) =>
+      wrapper.findAll('[data-test="form-group-option"]').map((btn) => Number(btn.attributes('data-group-id')))
+    const selectedGroupIds = (wrapper: VueWrapper) =>
+      wrapper.findAll('[data-test="selected-group-item"]').map((item) => Number(item.attributes('data-group-id')))
+    const clickGroupOption = async (wrapper: VueWrapper, id: number) => {
+      await wrapper.get(`[data-test="form-group-option"][data-group-id="${id}"]`).trigger('click')
+    }
+    const chooseProvider = async (wrapper: VueWrapper, value: string) => {
+      providerSelect(wrapper).vm.$emit('update:modelValue', value)
+      await nextTick()
+    }
     const openCreate = async () => {
       const wrapper = await mountView()
       await wrapper.get('[data-tour="keys-create-btn"]').trigger('click')
@@ -586,75 +637,222 @@ describe('user KeysView column settings', () => {
       getAvailableGroups.mockResolvedValue(availableGroups)
     })
 
-    it('classifies all configured platforms and retains the complete table filter', async () => {
+    it('lists all providers plus concrete providers with icons in catalog order and filters groups', async () => {
       const wrapper = await openCreate()
-      expect(wrapper.findAll('input[name="key-provider"]')).toHaveLength(4)
-      expect(optionIds(wrapper)).toEqual([1])
+      const providerField = wrapper.get('[data-tour="key-form-provider"]')
+      const options = providerSelect(wrapper).props('options') as Array<{ value: string; label: string; count: number }>
+
+      expect(providerSelect(wrapper).props('modelValue')).toBe('all')
+      expect(options.map((opt) => opt.value)).toEqual([
+        'all',
+        'anthropic',
+        'openai',
+        'gemini',
+        'antigravity',
+        'grok',
+        'kimi',
+        'zhipu',
+        'deepseek',
+        'minimax',
+        'opencode_go',
+        'typesafe',
+        'composite',
+      ])
+      expect(options.map((opt) => opt.label)).toEqual([
+        'keys.allProviders',
+        'Anthropic',
+        'OpenAI',
+        'Gemini',
+        'Antigravity',
+        'Grok',
+        'Kimi',
+        'Zhipu GLM',
+        'DeepSeek',
+        'MiniMax',
+        'OpenCode',
+        'TypeSafe / Jev',
+        'Composite',
+      ])
+      expect(providerField.get('[data-test="select-selected"] [data-test="icon"]').text()).toBe('grid')
+      expect(
+        providerField.findAll('[data-test="select-options"] [data-test="platform-icon"]').map((icon) => icon.attributes('data-platform'))
+      ).toEqual([
+        'anthropic',
+        'openai',
+        'gemini',
+        'antigravity',
+        'grok',
+        'kimi',
+        'zhipu',
+        'deepseek',
+        'minimax',
+        'opencode_go',
+        'typesafe',
+        'composite',
+      ])
+      expect(providerField.get('[data-test="select-options"]').text()).toContain('Zhipu GLM')
+      expect(providerField.get('[data-test="select-options"]').text()).toContain('DeepSeek')
+
+      expect(optionGroupIds(wrapper)).toHaveLength(12)
       await chooseProvider(wrapper, 'openai')
-      expect(optionIds(wrapper)).toEqual([2])
-      await chooseProvider(wrapper, 'domestic')
-      expect(optionIds(wrapper)).toEqual([3, 4, 5, 6])
-      await chooseProvider(wrapper, 'other')
-      expect(optionIds(wrapper)).toEqual([7, 8, 9, 10, 11, 12])
+      expect(optionGroupIds(wrapper)).toEqual([2])
+      await chooseProvider(wrapper, 'deepseek')
+      expect(optionGroupIds(wrapper)).toEqual([5])
+      await chooseProvider(wrapper, 'gemini')
+      expect(optionGroupIds(wrapper)).toEqual([7])
+      await chooseProvider(wrapper, 'grok')
+      expect(optionGroupIds(wrapper)).toEqual([8])
+      await chooseProvider(wrapper, 'composite')
+      expect(optionGroupIds(wrapper)).toEqual([10])
+      await chooseProvider(wrapper, 'all')
+      expect(optionGroupIds(wrapper)).toHaveLength(12)
       expect(wrapper.findAllComponents({ name: 'Select' })[0].props('options')).toHaveLength(14)
     })
 
-    it('clears the previous group on provider change and submits only the newly selected group', async () => {
+    it('keeps checked groups in selection order across provider filters, supports manual reordering, and submits ordered group_ids without weights', async () => {
       const wrapper = await openCreate()
-      await wrapper.get('[data-tour="key-form-name"]').setValue('My key')
-      await groupSelect(wrapper).vm.$emit('update:modelValue', 1)
-      await chooseProvider(wrapper, 'domestic')
-      expect(groupSelect(wrapper).props('modelValue')).toBeNull()
-      await wrapper.get('#key-form').trigger('submit')
-      expect(keysAPI.create).not.toHaveBeenCalled()
-      expect(showError).toHaveBeenCalledWith('keys.groupRequired')
+      await wrapper.get('[data-tour="key-form-name"]').setValue('Multi key')
 
-      await groupSelect(wrapper).vm.$emit('update:modelValue', 5)
-      vi.mocked(keysAPI.create).mockResolvedValue({ ...createApiKey(), group_id: 5 })
+      await chooseProvider(wrapper, 'deepseek')
+      await clickGroupOption(wrapper, 5)
+      await chooseProvider(wrapper, 'openai')
+      await clickGroupOption(wrapper, 2)
+      await chooseProvider(wrapper, 'anthropic')
+      await clickGroupOption(wrapper, 1)
+
+      expect(selectedGroupIds(wrapper)).toEqual([5, 2, 1])
+
+      // Move group 2 up -> [2, 5, 1]
+      await wrapper
+        .get('[data-test="selected-group-item"][data-group-id="2"] [data-test="move-group-up"]')
+        .trigger('click')
+      expect(selectedGroupIds(wrapper)).toEqual([2, 5, 1])
+
+      // Move group 5 down -> [2, 1, 5]
+      await wrapper
+        .get('[data-test="selected-group-item"][data-group-id="5"] [data-test="move-group-down"]')
+        .trigger('click')
+      expect(selectedGroupIds(wrapper)).toEqual([2, 1, 5])
+
+      // Remove group 1 -> [2, 5]
+      await wrapper
+        .get('[data-test="selected-group-item"][data-group-id="1"] [data-test="remove-selected-group"]')
+        .trigger('click')
+      expect(selectedGroupIds(wrapper)).toEqual([2, 5])
+      expect(wrapper.find('[data-test="selected-groups-order"] input[type="number"]').exists()).toBe(false)
+
+      vi.mocked(keysAPI.create).mockResolvedValue({ ...createApiKey(), group_id: 2, group_ids: [2, 5] })
       await wrapper.get('#key-form').trigger('submit')
       await flushPromises()
       expect(keysAPI.create).toHaveBeenCalledOnce()
-      expect(vi.mocked(keysAPI.create).mock.calls[0].slice(0, 2)).toEqual(['My key', 5])
+      const args = vi.mocked(keysAPI.create).mock.calls[0]
+      expect(args[0]).toBe('Multi key')
+      expect(args[1]).toBe(2)
+      expect(args[8]).toEqual([2, 5])
     })
 
-    it('defaults to a provider with available groups and disables empty categories', async () => {
+    it('requires at least one bound group when submitting create form', async () => {
+      const wrapper = await openCreate()
+      await wrapper.get('[data-tour="key-form-name"]').setValue('My key')
+      await wrapper.get('#key-form').trigger('submit')
+      expect(keysAPI.create).not.toHaveBeenCalled()
+      expect(showError).toHaveBeenCalledWith('keys.groupRequired')
+    })
+
+    it('defaults to all providers when only one concrete provider has groups', async () => {
       getAvailableGroups.mockResolvedValue([availableGroups[5]])
       const wrapper = await openCreate()
-      expect(wrapper.get<HTMLInputElement>('input[value="domestic"]').element.checked).toBe(true)
-      expect(wrapper.get<HTMLInputElement>('input[value="anthropic"]').element.disabled).toBe(true)
-      expect(optionIds(wrapper)).toEqual([6])
+      expect(providerSelect(wrapper).props('modelValue')).toBe('all')
+      expect(providerSelect(wrapper).props('options')).toEqual([
+        { value: 'all', label: 'keys.allProviders', count: 1 },
+        { value: 'minimax', label: 'MiniMax', count: 1 },
+      ])
+      expect(optionGroupIds(wrapper)).toEqual([6])
     })
 
     it('shows the empty state when no groups are available', async () => {
       getAvailableGroups.mockResolvedValue([])
       const wrapper = await openCreate()
       expect(wrapper.get('[data-tour="key-form-provider"]').text()).toContain('common.noGroupsAvailable')
-      expect(optionIds(wrapper)).toEqual([])
-      expect(wrapper.findAll<HTMLInputElement>('input[name="key-provider"]').every((input) => input.element.disabled)).toBe(true)
+      expect(providerSelect(wrapper).props('disabled')).toBe(true)
+      expect(providerSelect(wrapper).props('options')).toEqual([])
+      expect(optionGroupIds(wrapper)).toEqual([])
     })
 
-    it('selects an available provider when groups arrive after opening', async () => {
-      let resolveGroups!: (value: typeof availableGroups) => void
-      getAvailableGroups.mockReturnValue(new Promise((resolve) => { resolveGroups = resolve }))
-      const wrapper = await openCreate()
-      resolveGroups([availableGroups[1]])
+    it('renders ordered multi-group badges in the table and hydrates ordered groups in edit modal', async () => {
+      listKeys.mockResolvedValue({
+        items: [
+          {
+            ...createApiKey(),
+            group_id: 5,
+            group: availableGroups[4],
+            group_ids: [5, 2, 1],
+            groups: [availableGroups[4], availableGroups[1], availableGroups[0]],
+          },
+        ],
+        total: 1,
+        page: 1,
+        page_size: 20,
+        pages: 1,
+      })
+
+      const wrapper = await mountView()
+      const groupCell = wrapper.get('[data-test="key-group"]')
+      expect(groupCell.text()).toContain('1Shared group 5')
+      expect(groupCell.text()).toContain('2Shared group 2')
+      expect(groupCell.text()).toContain('+1')
+      expect(
+        groupCell.findAll('[data-test="group-badge"]').map((badge) => badge.text())
+      ).toEqual(['Shared group 5', 'Shared group 2'])
+
+      await getButtonByText(wrapper, 'common.edit').trigger('click')
+      expect(wrapper.find('[data-tour="key-form-provider"]').exists()).toBe(true)
+      expect(selectedGroupIds(wrapper)).toEqual([5, 2, 1])
+
+      await wrapper
+        .get('[data-test="selected-group-item"][data-group-id="1"] [data-test="move-group-up"]')
+        .trigger('click')
+      expect(selectedGroupIds(wrapper)).toEqual([5, 1, 2])
+
+      updateKey.mockResolvedValue({ ...createApiKey(), group_id: 5, group_ids: [5, 1, 2] })
+      await wrapper.get('#key-form').trigger('submit')
       await flushPromises()
-      expect(wrapper.get<HTMLInputElement>('input[value="openai"]').element.checked).toBe(true)
-      expect(optionIds(wrapper)).toEqual([2])
+      expect(updateKey).toHaveBeenCalledWith(1, expect.objectContaining({
+        group_id: 5,
+        group_ids: [5, 1, 2],
+      }))
     })
 
-    it('resets provider and group when reopening create, and preserves edit options', async () => {
+    it('preserves unseen bindings on a metadata edit and can explicitly clear them', async () => {
+      const boundKey = { ...createApiKey(), group_id: 5, group_ids: [5, 90], groups: [availableGroups[4]] }
+      listKeys.mockResolvedValue({ items: [boundKey], total: 1, page: 1, page_size: 20, pages: 1 })
+      updateKey.mockResolvedValue(boundKey)
+      const wrapper = await mountView()
+
+      await getButtonByText(wrapper, 'common.edit').trigger('click')
+      expect(selectedGroupIds(wrapper)).toEqual([5, 90])
+      await wrapper.get('#key-form').trigger('submit')
+      await flushPromises()
+      expect(updateKey.mock.lastCall?.[1]).not.toHaveProperty('group_ids')
+
+      await getButtonByText(wrapper, 'common.edit').trigger('click')
+      await wrapper.get('[data-test="clear-selected-groups"]').trigger('click')
+      updateKey.mockResolvedValue({ ...boundKey, group_id: null, group_ids: [], groups: [] })
+      await wrapper.get('#key-form').trigger('submit')
+      await flushPromises()
+      expect(updateKey).toHaveBeenLastCalledWith(1, expect.objectContaining({ group_id: null, group_ids: [] }))
+    })
+
+    it('resets provider filter and selected groups when reopening create', async () => {
       const wrapper = await openCreate()
-      await chooseProvider(wrapper, 'domestic')
-      await groupSelect(wrapper).vm.$emit('update:modelValue', 5)
+      await chooseProvider(wrapper, 'deepseek')
+      await clickGroupOption(wrapper, 5)
+      expect(selectedGroupIds(wrapper)).toEqual([5])
       await wrapper.get('[data-test="close-dialog"]').trigger('click')
       await wrapper.get('[data-tour="keys-create-btn"]').trigger('click')
-      expect(optionIds(wrapper)).toEqual([1])
-      expect(groupSelect(wrapper).props('modelValue')).toBeNull()
-      await wrapper.get('[data-test="close-dialog"]').trigger('click')
-      await getButtonByText(wrapper, 'common.edit').trigger('click')
-      expect(wrapper.find('[data-tour="key-form-provider"]').exists()).toBe(false)
-      expect(optionIds(wrapper)).toHaveLength(12)
+      expect(providerSelect(wrapper).props('modelValue')).toBe('all')
+      expect(selectedGroupIds(wrapper)).toEqual([])
+      expect(optionGroupIds(wrapper)).toHaveLength(12)
     })
   })
 

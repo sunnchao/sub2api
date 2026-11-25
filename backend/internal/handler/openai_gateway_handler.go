@@ -339,11 +339,8 @@ func openAICompatibleTextTargetAllowed(c *gin.Context, apiKey *service.APIKey, m
 		})...)
 }
 
-// isResponsesWebSocketCompositePlatform 限定 composite 分组在 Responses WebSocket
-// 上可服务的目标平台。CN 供应商（kimi/zhipu/deepseek）刻意排除：其账号无法通过
-// WSv2 ingress 的 transport 过滤，且 WS HTTP 桥没有面向 CN 的 Responses 转换，
-// 放行只会把明确的策略拒绝变成误导性的 "no available account"。
-func isResponsesWebSocketCompositePlatform(platform string) bool {
+// isResponsesWebSocketTargetPlatform reports whether ingress supports the platform's upstream transport.
+func isResponsesWebSocketTargetPlatform(platform string) bool {
 	switch platform {
 	case service.PlatformOpenAI, service.PlatformGrok:
 		return true
@@ -623,7 +620,7 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 	// 2. Re-check billing eligibility after wait
 	if err := h.billingCacheService.CheckBillingEligibility(c.Request.Context(), apiKey.User, apiKey, apiKey.Group, subscription, service.QuotaPlatform(c.Request.Context(), apiKey)); err != nil {
 		reqLog.Info("openai.billing_eligibility_check_failed", zap.Error(err))
-		status, code, message, retryAfter := billingErrorDetails(err)
+		status, code, message, retryAfter := billingErrorDetails(c, err)
 		if retryAfter > 0 {
 			c.Header("Retry-After", strconv.Itoa(retryAfter))
 		}
@@ -635,7 +632,7 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 	inflightRelease, err := reserveInflightBalance(c, h.billingCacheService, h.gatewayService, apiKey, subscription, tokenInflightEstimate(reqModel, body))
 	if err != nil {
 		reqLog.Info("openai.inflight_reservation_rejected", zap.Error(err))
-		status, code, message, retryAfter := billingErrorDetails(err)
+		status, code, message, retryAfter := billingErrorDetails(c, err)
 		if retryAfter > 0 {
 			c.Header("Retry-After", strconv.Itoa(retryAfter))
 		}
@@ -1292,7 +1289,7 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 
 	if err := h.billingCacheService.CheckBillingEligibility(c.Request.Context(), apiKey.User, apiKey, apiKey.Group, subscription, service.QuotaPlatform(c.Request.Context(), apiKey)); err != nil {
 		reqLog.Info("openai_messages.billing_eligibility_check_failed", zap.Error(err))
-		status, code, message, retryAfter := billingErrorDetails(err)
+		status, code, message, retryAfter := billingErrorDetails(c, err)
 		if retryAfter > 0 {
 			c.Header("Retry-After", strconv.Itoa(retryAfter))
 		}
@@ -1303,7 +1300,7 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 	// 余额模式在途预留（与计费同口径估算；计费任务扣减余额缓存后才释放）。
 	inflightDone, inflightErr := reserveInflightBalance(c, h.billingCacheService, h.gatewayService, apiKey, subscription, tokenInflightEstimate(reqModel, body))
 	if inflightErr != nil {
-		status, code, message, retryAfter := billingErrorDetails(inflightErr)
+		status, code, message, retryAfter := billingErrorDetails(c, inflightErr)
 		if retryAfter > 0 {
 			c.Header("Retry-After", strconv.Itoa(retryAfter))
 		}
@@ -2410,7 +2407,7 @@ func (h *OpenAIGatewayHandler) acquireOpenAIAccountSlot(
 	)
 	if err != nil {
 		reqLog.Warn("openai.account_slot_quick_acquire_failed", zap.Int64("account_id", account.ID), zap.Error(err))
-		status, errType, code, message := concurrencyErrorResponse(err, "account")
+		status, errType, code, message := concurrencyErrorResponse(c, err, "account")
 		writeError(status, errType, code, message)
 		return nil, openAISlotAcquireFailed
 	}
@@ -2464,7 +2461,7 @@ func (h *OpenAIGatewayHandler) acquireOpenAIAccountSlot(
 	)
 	if err != nil {
 		reqLog.Warn("openai.account_slot_acquire_failed", zap.Int64("account_id", account.ID), zap.Error(err))
-		status, errType, code, message := concurrencyErrorResponse(err, "account")
+		status, errType, code, message := concurrencyErrorResponse(c, err, "account")
 		writeError(status, errType, code, message)
 		return nil, openAISlotAcquireFailed
 	}
@@ -2514,7 +2511,6 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 		"handler.openai_gateway.responses_ws",
 		zap.Int64("user_id", subject.UserID),
 		zap.Int64("api_key_id", apiKey.ID),
-		zap.Any("group_id", apiKey.GroupID),
 		zap.Bool("openai_ws_mode", true),
 	)
 	if !h.ensureResponsesDependencies(c, reqLog) {
@@ -2611,12 +2607,53 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 	// 与 HTTP 准入一致：帧内重复 model 键/大小写变体可能被上游按末值绑定，
 	// 全部候选值逐一校验，任一未命中即拒绝。
 	firstModelCandidates := requestmodel.FromBodyCandidates("", "application/json", firstMessage)
-	if blocked := blockedModelAllowlistCandidate(apiKey.Group, firstModelCandidates); blocked != "" {
+	var blocked string
+	var compositeRoute *service.CompositeRouteDecision
+	var compositeResolveErr error
+	if candidates, ok := middleware2.GetGroupCandidatesFromContext(c); ok && len(candidates) > 1 {
+		var selected middleware2.GroupCandidate
+		for _, candidate := range candidates {
+			if candidate.Group == nil || (!isResponsesWebSocketTargetPlatform(candidate.Group.Platform) && candidate.Group.Platform != service.PlatformComposite) {
+				continue
+			}
+			if model := blockedModelAllowlistCandidate(candidate.Group, firstModelCandidates); model != "" {
+				if blocked == "" {
+					blocked = model
+				}
+				continue
+			}
+			if candidate.Group.Platform == service.PlatformComposite {
+				decision, resolveErr := h.compositeResolver.Resolve(c.Request.Context(), candidate.Group.ID, reqModel, service.CompositeRouteEndpointResponses)
+				if resolveErr != nil || !decision.Matched || !isResponsesWebSocketTargetPlatform(decision.TargetPlatform) {
+					if selected.Group == nil {
+						selected = candidate
+						compositeRoute, compositeResolveErr = &decision, resolveErr
+					}
+					continue
+				}
+				compositeRoute, compositeResolveErr = &decision, nil
+			}
+			selected = candidate
+			break
+		}
+		if selected.Group != nil {
+			middleware2.SetActiveGroupCandidate(c, apiKey, selected)
+			apiKey, _ = middleware2.GetAPIKeyFromContext(c)
+			blocked = ""
+		} else if blocked == "" {
+			closeOpenAIClientWS(wsConn, coderws.StatusPolicyViolation, "Responses WebSocket API requires an OpenAI-compatible group")
+			return
+		}
+	} else {
+		blocked = blockedModelAllowlistCandidate(apiKey.Group, firstModelCandidates)
+	}
+	if blocked != "" {
 		service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalModelConfiguration)
 		middleware2.MarkIngressRejected(c, middleware2.IngressRejectModelNotAllowed)
 		closeOpenAIClientWS(wsConn, coderws.StatusPolicyViolation, fmt.Sprintf("Model %q is not available for this group", blocked))
 		return
 	}
+	reqLog = reqLog.With(zap.Any("group_id", apiKey.GroupID))
 	// 帧内重复字段（model、service_tier、reasoning.effort 等，含大小写变体与
 	// 嵌套对象）会让计费/策略读到的首个值与上游实际绑定的值分叉；取值相同也不
 	// 放行，因为网关的 sjson 改写只动首个（GHSA-p3r4-jcm3-2hph）。与 HTTP 入口
@@ -2631,26 +2668,29 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 	// Apply the resolved upstream model through MapRequestModel on every turn.
 	wsRouteModel := reqModel
 	if apiKey.Group != nil && apiKey.Group.Platform == service.PlatformComposite {
-		decision, resolveErr := h.compositeResolver.Resolve(c.Request.Context(), apiKey.Group.ID, reqModel, service.CompositeRouteEndpointResponses)
-		if resolveErr != nil {
-			reqLog.Error("openai.websocket_composite_route_failed", zap.Error(resolveErr))
+		if compositeRoute == nil {
+			decision, resolveErr := h.compositeResolver.Resolve(c.Request.Context(), apiKey.Group.ID, reqModel, service.CompositeRouteEndpointResponses)
+			compositeRoute, compositeResolveErr = &decision, resolveErr
+		}
+		if compositeResolveErr != nil {
+			reqLog.Error("openai.websocket_composite_route_failed", zap.Error(compositeResolveErr))
 			closeOpenAIClientWS(wsConn, coderws.StatusInternalError, "Failed to resolve composite model route")
 			return
 		}
-		if decision.OAuthAmbiguous() {
+		if compositeRoute.OAuthAmbiguous() {
 			service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalModelConfiguration)
-			closeOpenAIClientWS(wsConn, coderws.StatusPolicyViolation, decision.AmbiguousMessage())
+			closeOpenAIClientWS(wsConn, coderws.StatusPolicyViolation, compositeRoute.AmbiguousMessage())
 			return
 		}
-		if decision.Matched {
-			c.Request = c.Request.WithContext(service.WithCompositeRouteDecision(c.Request.Context(), decision))
-			wsRouteModel = decision.UpstreamModel
+		if compositeRoute.Matched {
+			c.Request = c.Request.WithContext(service.WithCompositeRouteDecision(c.Request.Context(), *compositeRoute))
+			wsRouteModel = compositeRoute.UpstreamModel
 		}
 	}
 	ctx = c.Request.Context()
 	if apiKey.Group != nil && apiKey.Group.Platform == service.PlatformComposite {
 		platform, ok := service.ResolvedTargetPlatformFromContext(ctx)
-		if !ok || !isResponsesWebSocketCompositePlatform(platform) {
+		if !ok || !isResponsesWebSocketTargetPlatform(platform) {
 			closeOpenAIClientWS(wsConn, coderws.StatusPolicyViolation, "Responses WebSocket API only supports OpenAI-compatible models for composite groups")
 			return
 		}
@@ -3631,7 +3671,7 @@ func (h *OpenAIGatewayHandler) acquireImageGenerationSlot(c *gin.Context, stream
 
 // handleConcurrencyError handles concurrency-related acquire errors.
 func (h *OpenAIGatewayHandler) handleConcurrencyError(c *gin.Context, err error, slotType string, streamStarted bool) {
-	status, errType, code, message := concurrencyErrorResponse(err, slotType)
+	status, errType, code, message := concurrencyErrorResponse(c, err, slotType)
 	h.handleStreamingAwareErrorWithCode(c, status, errType, code, message, streamStarted, false)
 }
 

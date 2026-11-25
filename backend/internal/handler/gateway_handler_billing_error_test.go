@@ -11,7 +11,7 @@ import (
 )
 
 func TestBillingErrorDetails_MapsGroupRPMExceededToTooManyRequests(t *testing.T) {
-	status, code, msg, retryAfter := billingErrorDetails(service.ErrGroupRPMExceeded)
+	status, code, msg, retryAfter := billingErrorDetails(nil, service.ErrGroupRPMExceeded)
 	require.Equal(t, http.StatusTooManyRequests, status)
 	require.Equal(t, "rate_limit_exceeded", code)
 	require.NotEmpty(t, msg)
@@ -20,7 +20,7 @@ func TestBillingErrorDetails_MapsGroupRPMExceededToTooManyRequests(t *testing.T)
 }
 
 func TestBillingErrorDetails_MapsUserRPMExceededToTooManyRequests(t *testing.T) {
-	status, code, msg, retryAfter := billingErrorDetails(service.ErrUserRPMExceeded)
+	status, code, msg, retryAfter := billingErrorDetails(nil, service.ErrUserRPMExceeded)
 	require.Equal(t, http.StatusTooManyRequests, status)
 	require.Equal(t, "rate_limit_exceeded", code)
 	require.NotEmpty(t, msg)
@@ -35,21 +35,21 @@ func TestBillingErrorDetails_APIKeyRateLimitStillMaps(t *testing.T) {
 		service.ErrAPIKeyRateLimit1dExceeded,
 		service.ErrAPIKeyRateLimit7dExceeded,
 	} {
-		status, code, _, _ := billingErrorDetails(err)
+		status, code, _, _ := billingErrorDetails(nil, err)
 		require.Equal(t, http.StatusTooManyRequests, status, "status for %v", err)
 		require.Equal(t, "rate_limit_exceeded", code)
 	}
 }
 
 func TestBillingErrorDetails_BillingServiceUnavailableMapsTo503(t *testing.T) {
-	status, code, _, retryAfter := billingErrorDetails(service.ErrBillingServiceUnavailable)
+	status, code, _, retryAfter := billingErrorDetails(nil, service.ErrBillingServiceUnavailable)
 	require.Equal(t, http.StatusServiceUnavailable, status)
 	require.Equal(t, "billing_service_error", code)
 	require.Equal(t, 0, retryAfter, "non-RPM errors should not set Retry-After")
 }
 
 func TestBillingErrorDetails_UnknownErrorFallsBackTo403(t *testing.T) {
-	status, code, msg, _ := billingErrorDetails(service.ErrInsufficientBalance)
+	status, code, msg, _ := billingErrorDetails(nil, service.ErrInsufficientBalance)
 	require.Equal(t, http.StatusForbidden, status)
 	require.Equal(t, "billing_error", code)
 	require.NotEmpty(t, msg)
@@ -113,7 +113,7 @@ func TestBillingErrorDetails_T10_QuotaExhaustedReturns429WithRetryAfter(t *testi
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			status, code, _, retryAfter := billingErrorDetails(tc.err)
+			status, code, _, retryAfter := billingErrorDetails(nil, tc.err)
 			if status != http.StatusTooManyRequests {
 				t.Errorf("status = %d, want 429", status)
 			}

@@ -45,6 +45,8 @@ type APIKey struct {
 	UpdatedAt           time.Time
 	User                *User
 	Group               *Group
+	GroupIDs            []int64
+	Groups              []*Group
 	CurrentConcurrency  int
 
 	// Quota fields
@@ -66,6 +68,57 @@ type APIKey struct {
 
 func (k *APIKey) IsActive() bool {
 	return k.Status == StatusActive
+}
+
+// BoundGroups returns the ordered groups bound to the API key, falling back to
+// the single primary Group when multi-group bindings are not populated.
+func (k *APIKey) BoundGroups() []*Group {
+	if k == nil {
+		return nil
+	}
+	if len(k.Groups) > 0 {
+		return k.Groups
+	}
+	if k.Group != nil {
+		return []*Group{k.Group}
+	}
+	return nil
+}
+
+// BoundGroupIDs returns the ordered group IDs bound to the API key, falling back
+// to the single primary GroupID when GroupIDs is empty.
+func (k *APIKey) BoundGroupIDs() []int64 {
+	if k == nil {
+		return nil
+	}
+	if len(k.GroupIDs) > 0 {
+		return k.GroupIDs
+	}
+	if k.GroupID != nil && *k.GroupID > 0 {
+		return []int64{*k.GroupID}
+	}
+	return nil
+}
+
+// HasMultipleGroups reports whether the API key binds more than one ordered group.
+func (k *APIKey) HasMultipleGroups() bool {
+	if k == nil {
+		return false
+	}
+	return len(k.Groups) > 1 || len(k.GroupIDs) > 1
+}
+
+// CloneWithGroup returns a shallow copy whose active primary Group and GroupID
+// point to group while keeping multi-group metadata intact.
+func (k *APIKey) CloneWithGroup(group *Group) *APIKey {
+	if k == nil || group == nil {
+		return k
+	}
+	cloned := *k
+	groupID := group.ID
+	cloned.GroupID = &groupID
+	cloned.Group = group
+	return &cloned
 }
 
 // HasRateLimits returns true if any rate limit window is configured

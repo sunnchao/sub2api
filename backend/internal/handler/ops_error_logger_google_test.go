@@ -72,7 +72,7 @@ func TestOpsErrorLoggerMiddleware_GoogleServerErrorsNotTypedByStatus(t *testing.
 
 func TestOpsErrorLoggerMiddleware_GoogleBillingErrorMatchesClaudeFormat(t *testing.T) {
 	entry := recordGoogleFormatOpsError(t, func(c *gin.Context) {
-		status, code, message, _ := billingErrorDetails(service.ErrInsufficientBalance)
+		status, code, message, _ := billingErrorDetails(c, service.ErrInsufficientBalance)
 		googleErrorWithType(c, status, code, "", message)
 	})
 	require.Equal(t, "billing_error", entry.ErrorType)

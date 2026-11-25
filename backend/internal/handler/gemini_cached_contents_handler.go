@@ -83,7 +83,7 @@ func readGeminiCachedContentBody(c *gin.Context) ([]byte, bool) {
 func (h *GatewayHandler) checkGeminiCachedContentBilling(c *gin.Context, reqLog *zap.Logger, apiKey *service.APIKey, subscription *service.UserSubscription) bool {
 	if err := h.billingCacheService.CheckBillingEligibility(c.Request.Context(), apiKey.User, apiKey, apiKey.Group, subscription, service.QuotaPlatform(c.Request.Context(), apiKey)); err != nil {
 		reqLog.Info("gemini.cached_content.billing_eligibility_check_failed", zap.Error(err))
-		status, code, message, retryAfter := billingErrorDetails(err)
+		status, code, message, retryAfter := billingErrorDetails(c, err)
 		if retryAfter > 0 {
 			c.Header("Retry-After", strconv.Itoa(retryAfter))
 		}
@@ -150,7 +150,7 @@ func (h *GatewayHandler) GeminiCachedContentsCreate(c *gin.Context) {
 	inflightRelease, err := reserveInflightBalance(c, h.billingCacheService, h.gatewayService, apiKey, subscription, tokenInflightEstimate(modelName, body))
 	if err != nil {
 		reqLog.Info("gemini.cached_content.inflight_reservation_rejected", zap.Error(err))
-		status, code, message, retryAfter := billingErrorDetails(err)
+		status, code, message, retryAfter := billingErrorDetails(c, err)
 		if retryAfter > 0 {
 			c.Header("Retry-After", strconv.Itoa(retryAfter))
 		}
@@ -762,7 +762,7 @@ func writeGeminiCachedContentMutationConflict(c *gin.Context) {
 }
 
 func writeGeminiCachedContentBillingError(c *gin.Context, err error) {
-	status, code, message, retryAfter := billingErrorDetails(err)
+	status, code, message, retryAfter := billingErrorDetails(c, err)
 	if retryAfter > 0 {
 		c.Header("Retry-After", strconv.Itoa(retryAfter))
 	}

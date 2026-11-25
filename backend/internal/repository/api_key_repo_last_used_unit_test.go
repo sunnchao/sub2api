@@ -32,6 +32,19 @@ func newAPIKeyRepoSQLite(t *testing.T) (*apiKeyRepository, *dbent.Client) {
 	client := enttest.NewClient(t, enttest.WithOptions(dbent.Driver(drv)))
 	t.Cleanup(func() { _ = client.Close() })
 
+	_, err = db.Exec(`
+		CREATE TABLE IF NOT EXISTS api_key_groups (
+			api_key_id INTEGER NOT NULL REFERENCES api_keys(id) ON DELETE CASCADE,
+			group_id   INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+			priority   INTEGER NOT NULL DEFAULT 0,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY (api_key_id, group_id)
+		);
+		CREATE INDEX IF NOT EXISTS idx_api_key_groups_api_key_priority ON api_key_groups (api_key_id, priority ASC, group_id ASC);
+		CREATE INDEX IF NOT EXISTS idx_api_key_groups_group_id ON api_key_groups (group_id);
+	`)
+	require.NoError(t, err)
+
 	return &apiKeyRepository{client: client, sql: db}, client
 }
 

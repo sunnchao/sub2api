@@ -86,8 +86,10 @@ type APIKey struct {
 	Reset1dAt     *time.Time `json:"reset_1d_at,omitempty"`
 	Reset7dAt     *time.Time `json:"reset_7d_at,omitempty"`
 
-	User  *User  `json:"user,omitempty"`
-	Group *Group `json:"group,omitempty"`
+	User     *User   `json:"user,omitempty"`
+	Group    *Group  `json:"group,omitempty"`
+	GroupIDs []int64 `json:"group_ids,omitempty"`
+	Groups   []Group `json:"groups,omitempty"`
 }
 
 type Group struct {
@@ -531,8 +533,10 @@ type RedeemCode struct {
 	// so users can see why they were charged or credited
 	Notes *string `json:"notes,omitempty"`
 
-	User  *User  `json:"user,omitempty"`
-	Group *Group `json:"group,omitempty"`
+	User     *User   `json:"user,omitempty"`
+	Group    *Group  `json:"group,omitempty"`
+	GroupIDs []int64 `json:"group_ids,omitempty"`
+	Groups   []Group `json:"groups,omitempty"`
 }
 
 // AdminRedeemCode 是管理员接口使用的 redeem code DTO（包含 notes 等字段）。
@@ -783,8 +787,10 @@ type UserSubscription struct {
 	UpdatedAt time.Time  `json:"updated_at"`
 	RevokedAt *time.Time `json:"revoked_at,omitempty"`
 
-	User  *User  `json:"user,omitempty"`
-	Group *Group `json:"group,omitempty"`
+	User     *User   `json:"user,omitempty"`
+	Group    *Group  `json:"group,omitempty"`
+	GroupIDs []int64 `json:"group_ids,omitempty"`
+	Groups   []Group `json:"groups,omitempty"`
 }
 
 // AdminUserSubscription 是管理员接口使用的订阅 DTO（包含分配信息/备注等字段）。

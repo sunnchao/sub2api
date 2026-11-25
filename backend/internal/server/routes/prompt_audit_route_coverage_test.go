@@ -20,7 +20,7 @@ import (
 func TestEveryGatewayPOSTRouteIsClassifiedForPromptAuditCoverage(t *testing.T) {
 	routeSource, err := os.ReadFile("gateway.go")
 	require.NoError(t, err)
-	pattern := regexp.MustCompile(`(?:gateway|gemini|r|codexDirect|antigravityV1|antigravityV1Beta)\.POST\("([^"]+)"`)
+	pattern := regexp.MustCompile(`\b(?:gateway(?:Primary)?|gemini|r|codexDirect|antigravityV1|antigravityV1Beta)\.POST\("([^"]+)"`)
 	matches := pattern.FindAllStringSubmatch(string(routeSource), -1)
 	actual := map[string]struct{}{}
 	for _, match := range matches {

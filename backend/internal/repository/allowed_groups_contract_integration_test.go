@@ -118,6 +118,11 @@ func TestGroupRepository_DeleteCascade_PreservesApiKeyGroupID(t *testing.T) {
 		Status:  service.StatusActive,
 	}
 	require.NoError(t, apiKeyRepo.Create(ctx, key))
+	multiKey := &service.APIKey{
+		UserID: u.ID, Key: uniqueTestValue(t, "sk-test-delete-cascade-multi"), Name: "multi-group key",
+		GroupIDs: []int64{targetGroup.ID, otherGroup.ID}, Status: service.StatusActive,
+	}
+	require.NoError(t, apiKeyRepo.Create(ctx, multiKey))
 
 	_, err = groupRepo.DeleteCascade(ctx, targetGroup.ID)
 	require.NoError(t, err)
@@ -144,4 +149,12 @@ func TestGroupRepository_DeleteCascade_PreservesApiKeyGroupID(t *testing.T) {
 	require.NotNil(t, keyAfter.GroupID)
 	require.Equal(t, targetGroup.ID, *keyAfter.GroupID)
 	require.Nil(t, keyAfter.Group)
+
+	promoted, err := apiKeyRepo.GetByKeyForAuth(ctx, multiKey.Key)
+	require.NoError(t, err)
+	require.Equal(t, &otherGroup.ID, promoted.GroupID)
+	require.Equal(t, []int64{otherGroup.ID}, promoted.GroupIDs)
+	bindings, err := apiKeyRepo.listAPIKeyIDsByGroupID(ctx, entClient, targetGroup.ID)
+	require.NoError(t, err)
+	require.Empty(t, bindings)
 }
