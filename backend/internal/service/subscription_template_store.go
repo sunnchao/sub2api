@@ -474,9 +474,9 @@ func querySingleCount(ctx context.Context, client *dbent.Client, dialectName, qu
 
 func scanSubscriptionTemplate(rows interface{ Scan(dest ...any) error }) (*SubscriptionTemplate, error) {
 	var (
-		tpl                           SubscriptionTemplate
-		daily, weekly, monthly, hour  sql.NullFloat64
-		deletedAt                     sql.NullTime
+		tpl                          SubscriptionTemplate
+		daily, weekly, monthly, hour sql.NullFloat64
+		deletedAt                    sql.NullTime
 	)
 	if err := rows.Scan(
 		&tpl.ID, &tpl.Name, &tpl.Description, &tpl.GroupID,

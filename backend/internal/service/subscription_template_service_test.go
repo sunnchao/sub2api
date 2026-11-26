@@ -13,10 +13,10 @@ import (
 )
 
 type fakeSubTemplateRepo struct {
-	nextID        int64
-	templates     map[int64]*SubscriptionTemplate
-	forSalePlans  map[int64]int64
-	activeOrders  map[int64]int64
+	nextID       int64
+	templates    map[int64]*SubscriptionTemplate
+	forSalePlans map[int64]int64
+	activeOrders map[int64]int64
 }
 
 func newFakeSubTemplateRepo() *fakeSubTemplateRepo {

@@ -121,14 +121,6 @@ func (s *UserSubscription) NeedsMonthlyResetAt(now time.Time) bool {
 	return !now.Before(s.MonthlyWindowStart.Add(30 * 24 * time.Hour))
 }
 
-func hourlyWindowPeriod(group *Group) time.Duration {
-	hours := defaultHourlyWindowHours
-	if group != nil && group.HourlyWindowHours > 0 {
-		hours = group.HourlyWindowHours
-	}
-	return time.Duration(hours) * time.Hour
-}
-
 func (s *UserSubscription) canAutomaticallyResetDailyAt(now time.Time) bool {
 	_, ok := s.automaticDailyWindowStartAt(now)
 	return ok

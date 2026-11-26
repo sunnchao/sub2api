@@ -50,7 +50,6 @@ type SubscriptionService struct {
 	billingCacheService *BillingCacheService
 	entClient           *dbent.Client
 	templateRepo        SubscriptionTemplateRepository
-	extRepo             SubscriptionExtRepository
 
 	// L1 缓存：加速中间件热路径的订阅查询
 	subCacheL1     *ristretto.Cache

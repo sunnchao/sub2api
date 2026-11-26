@@ -66,13 +66,6 @@ func (s *SubscriptionService) SetTemplateRepository(repo SubscriptionTemplateRep
 	}
 }
 
-// SetExtRepository injects a custom SubscriptionExtRepository (primarily for tests).
-func (s *SubscriptionService) SetExtRepository(repo SubscriptionExtRepository) {
-	if s != nil {
-		s.extRepo = repo
-	}
-}
-
 func (s *SubscriptionService) templateRepository() SubscriptionTemplateRepository {
 	if s == nil {
 		return nil
@@ -81,16 +74,6 @@ func (s *SubscriptionService) templateRepository() SubscriptionTemplateRepositor
 		return s.templateRepo
 	}
 	return newEntSubscriptionTemplateStore(s.entClient)
-}
-
-func (s *SubscriptionService) extRepository() SubscriptionExtRepository {
-	if s == nil {
-		return nil
-	}
-	if s.extRepo != nil {
-		return s.extRepo
-	}
-	return newEntSubscriptionExtStore(s.entClient)
 }
 
 func (s *SubscriptionService) multiSubRepository() UserSubscriptionMultiRepository {
@@ -324,7 +307,7 @@ func (s *SubscriptionService) UpdateTemplate(ctx context.Context, id int64, inpu
 		tpl.Description = strings.TrimSpace(*input.Description)
 	}
 
-	var boundGroup *Group = tpl.Group
+	boundGroup := tpl.Group
 	if input.GroupID != nil && *input.GroupID != tpl.GroupID {
 		if *input.GroupID <= 0 {
 			return nil, infraerrors.BadRequest("SUBSCRIPTION_TEMPLATE_GROUP_REQUIRED", "group_id is required")

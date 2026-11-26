@@ -176,9 +176,9 @@ func (r *sqliteTestUserSubRepo) getSnapshots(ctx context.Context, c *dbent.Clien
 	defer func() { _ = rows.Close() }()
 	for rows.Next() {
 		var (
-			snap                 UserSubscriptionSnapshot
-			tplID                sql.NullInt64
-			d, w, m, h           sql.NullFloat64
+			snap       UserSubscriptionSnapshot
+			tplID      sql.NullInt64
+			d, w, m, h sql.NullFloat64
 		)
 		if err := rows.Scan(&snap.SubscriptionID, &tplID, &snap.TemplateName, &d, &w, &m, &h, &snap.HourlyWindowHours, &snap.UpdatedAt); err != nil {
 			return nil, err
