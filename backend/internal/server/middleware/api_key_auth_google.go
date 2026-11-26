@@ -133,8 +133,9 @@ func APIKeyAuthWithSubscriptionGoogle(apiKeyService *service.APIKeyService, subs
 			abortWithGoogleError(c, 403, message)
 			return
 		}
-		// 专属分组授权校验：用户对该专属分组的授权被撤销后应拒绝（与主中间件一致，防止越权）。
-		if !validateAPIKeyGroupAllowed(apiKey) {
+		// 专属分组授权校验：用户对该专属分组的授权被撤销后应拒绝（持有该分组有效订阅自动放行）。
+		if !validateAPIKeyGroupAllowed(apiKey) &&
+			(apiKey.Group == nil || !hasActiveSubscriptionForGroup(c.Request.Context(), subscriptionService, apiKey.User.ID, apiKey.Group.ID)) {
 			service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonAPIKeyGroupUnavailable)
 			MarkIngressRejected(c, IngressRejectGroupNotAllowed)
 			abortWithGoogleError(c, 403, "API Key 所属专属分组不再允许当前用户使用")
@@ -175,41 +176,23 @@ func APIKeyAuthWithSubscriptionGoogle(apiKeyService *service.APIKeyService, subs
 			return
 		}
 
-		isSubscriptionType := apiKey.Group != nil && apiKey.Group.IsSubscriptionType()
-		if isSubscriptionType && subscriptionService != nil {
-			subscription, err := subscriptionService.GetActiveSubscription(
-				c.Request.Context(),
-				apiKey.User.ID,
-				apiKey.Group.ID,
+		if apiKey.Group != nil {
+			candidates, activeSubs, mgErr := expandGroupCandidates(
+				c.Request.Context(), apiKey, apiKey.Group, subscriptionService, cfg, false, false,
 			)
-			if err != nil {
-				abortWithGoogleError(c, 403, "No active subscription found for this group")
+			if len(activeSubs) > 0 {
+				c.Set(string(ContextKeyActiveSubscriptions), activeSubs)
+			}
+			if len(candidates) == 0 {
+				abortWithMultiGroupAuthError(c, mgErr, true)
 				return
 			}
-
-			needsMaintenance, err := subscriptionService.ValidateAndCheckLimits(subscription, apiKey.Group)
-			if needsMaintenance {
-				refreshed, maintenanceErr := subscriptionService.EnsureWindowMaintenance(c.Request.Context(), subscription)
-				if maintenanceErr != nil {
-					abortWithGoogleError(c, 500, "Failed to maintain subscription usage windows")
-					return
-				}
-				subscription = refreshed
-				_, err = subscriptionService.ValidateAndCheckLimits(subscription, apiKey.Group)
+			if candidates[0].Subscription != nil {
+				c.Set(string(ContextKeySubscription), candidates[0].Subscription)
 			}
-			if err != nil {
-				status := 403
-				if errors.Is(err, service.ErrDailyLimitExceeded) ||
-					errors.Is(err, service.ErrWeeklyLimitExceeded) ||
-					errors.Is(err, service.ErrMonthlyLimitExceeded) ||
-					errors.Is(err, service.ErrHourlyLimitExceeded) {
-					status = 429
-				}
-				abortWithGoogleError(c, status, err.Error())
-				return
+			if len(candidates) > 1 {
+				c.Set(string(ContextKeyGroupCandidates), candidates)
 			}
-
-			c.Set(string(ContextKeySubscription), subscription)
 		} else {
 			if apiKeyBalanceBelowAuthThreshold(apiKey.User.Balance, cfg) {
 				abortWithGoogleError(c, 403, "Insufficient account balance")

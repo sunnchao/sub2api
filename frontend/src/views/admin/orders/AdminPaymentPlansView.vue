@@ -14,18 +14,21 @@
         <template #cell-name="{ value, row }">
           <span class="text-sm font-medium" :class="getPlanNameClass(row.group_id)">{{ value }}</span>
         </template>
-        <template #cell-group_id="{ value }">
-          <span v-if="isGroupMissing(value)" class="text-sm">
-            <span class="text-gray-400">#{{ value }}</span>
-            <span class="ml-1 badge badge-danger">{{ t('payment.admin.groupMissing') }}</span>
-          </span>
-          <GroupBadge
-            v-else-if="getGroup(value)"
-            :name="getGroup(value)!.name"
-            :platform="getGroup(value)!.platform"
-            :rate-multiplier="getGroup(value)!.rate_multiplier"
-          />
-          <span v-else class="text-sm text-gray-400">-</span>
+        <template #cell-group_id="{ value, row }">
+          <div class="flex flex-wrap items-center gap-1.5">
+            <span v-if="isGroupMissing(value)" class="text-sm">
+              <span class="text-gray-400">#{{ value }}</span>
+              <span class="ml-1 badge badge-danger">{{ t('payment.admin.groupMissing') }}</span>
+            </span>
+            <GroupBadge
+              v-else-if="getGroup(value)"
+              :name="getGroup(value)!.name"
+              :platform="getGroup(value)!.platform"
+              :rate-multiplier="getGroup(value)!.rate_multiplier"
+            />
+            <span v-else class="text-sm text-gray-400">-</span>
+            <span v-if="row.template_name" class="badge badge-primary text-[11px]">{{ row.template_name }}</span>
+          </div>
         </template>
         <template #cell-price="{ value, row }">
           <div class="text-sm">
@@ -68,7 +71,7 @@
     </div>
 
     <!-- Plan Edit Dialog -->
-    <PlanEditDialog :show="showPlanDialog" :plan="editingPlan" :groups="groups" :payment-config="paymentConfig" @close="showPlanDialog = false" @saved="loadPlans" />
+    <PlanEditDialog :show="showPlanDialog" :plan="editingPlan" :groups="groups" :templates="templates" :payment-config="paymentConfig" @close="showPlanDialog = false" @saved="loadPlans" />
 
     <ConfirmDialog :show="showDeletePlanDialog" :title="t('payment.admin.deletePlan')" :message="t('payment.admin.deletePlanConfirm')" :confirm-text="t('common.delete')" danger @confirm="handleDeletePlan" @cancel="showDeletePlanDialog = false" />
   </AppLayout>
@@ -84,6 +87,7 @@ import { extractI18nErrorMessage } from '@/utils/apiError'
 import adminAPI from '@/api/admin'
 import type { SubscriptionPlan } from '@/types/payment'
 import type { AdminGroup } from '@/types'
+import type { SubscriptionTemplate } from '@/api/admin/subscriptionTemplates'
 import type { Column } from '@/components/common/types'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import DataTable from '@/components/common/DataTable.vue'
@@ -104,12 +108,19 @@ function planCurrencySymbol(currency?: string): string {
 // ==================== Groups ====================
 
 const groups = ref<AdminGroup[]>([])
+const templates = ref<SubscriptionTemplate[]>([])
 const paymentConfig = ref<AdminPaymentConfig | null>(null)
 
 async function loadGroups() {
   try {
     groups.value = await adminAPI.groups.getAll()
   } catch { /* ignore */ }
+}
+
+async function loadTemplates() {
+  try {
+    templates.value = await adminAPI.subscriptionTemplates.list()
+  } catch { /* optional */ }
 }
 
 async function loadPaymentConfig() {
@@ -196,6 +207,7 @@ async function handleDeletePlan() {
 
 onMounted(() => {
   loadGroups()
+  loadTemplates()
   loadPaymentConfig()
   loadPlans()
 })

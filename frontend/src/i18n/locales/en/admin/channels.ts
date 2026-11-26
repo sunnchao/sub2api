@@ -719,6 +719,48 @@ export default {
       },
       title: 'Subscription Management',
       description: 'Manage user subscriptions and quota limits',
+      tabs: {
+        subscriptions: 'User Subscriptions',
+        templates: 'Subscription Templates'
+      },
+      templates: {
+        create: 'New Template',
+        createTitle: 'Create Subscription Template',
+        editTitle: 'Edit Subscription Template',
+        deleteTitle: 'Delete Subscription Template',
+        deleteConfirm: "Delete template '{name}'? Existing user subscriptions keep their snapshotted limits.",
+        name: 'Template Name',
+        namePlaceholder: 'e.g. Claude Starter / Pro',
+        nameRequired: 'Template name is required',
+        description: 'Description',
+        descriptionPlaceholder: 'Optional notes for this tier',
+        boundGroup: 'Bound Group',
+        selectGroup: 'Select target group (standard or subscription)',
+        boundGroupHint: 'Supports both standard and subscription groups; API keys bound to this group deduct from this template.',
+        limits: 'Quota Limits',
+        defaultValidityDays: 'Default Validity (Days)',
+        sortOrder: 'Sort Order',
+        status: 'Status',
+        inactive: 'Inactive',
+        searchPlaceholder: 'Search template name or description...',
+        snapshotNotice: 'Updating a template only affects future assignments/purchases and does not mutate existing subscriptions.'
+      },
+      assignSource: {
+        label: 'Assign Source',
+        template: 'By Template (Recommended, stackable)',
+        group: 'By Legacy Subscription Group',
+        selectTemplate: 'Select a subscription template',
+        templateRequired: 'Please select a subscription template',
+        mode: 'Delivery Mode',
+        stack: 'Stack (create new parallel instance)',
+        extend: 'Extend (renew latest matching template sub, or create)'
+      },
+      editLimits: {
+        action: 'Edit Limits',
+        title: 'Adjust Subscription Limits',
+        hint: 'Leave blank for unlimited (will not fall back to group defaults). Takes effect immediately.',
+        saved: 'Subscription limits updated'
+      },
       assignSubscription: 'Assign Subscription',
       adjustSubscription: 'Adjust Subscription',
       revokeSubscription: 'Revoke Subscription',

@@ -174,6 +174,7 @@ type UpdateProviderInstanceRequest struct {
 }
 type CreatePlanRequest struct {
 	GroupID       int64    `json:"group_id"`
+	TemplateID    *int64   `json:"template_id"`
 	Name          string   `json:"name"`
 	Description   string   `json:"description"`
 	Price         float64  `json:"price"`
@@ -189,6 +190,8 @@ type CreatePlanRequest struct {
 
 type UpdatePlanRequest struct {
 	GroupID       *int64   `json:"group_id"`
+	TemplateID    *int64   `json:"template_id"`
+	ClearTemplate bool     `json:"clear_template"`
 	Name          *string  `json:"name"`
 	Description   *string  `json:"description"`
 	Price         *float64 `json:"price"`

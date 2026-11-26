@@ -2,9 +2,7 @@ package middleware
 
 import (
 	"context"
-	"errors"
 	"net/http"
-	"strings"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
@@ -72,6 +70,7 @@ const (
 	GroupRetryDefault GroupRetryDecision = iota
 	GroupRetryStop
 	GroupRetryNext
+	GroupRetryNextSubscription
 	GroupRetrySubscriptionOnly
 )
 
@@ -141,7 +140,7 @@ func handleMultiGroupAuth(
 		}
 	}
 
-	candidates, mgErr := resolveMultiGroupCandidates(c.Request.Context(), apiKey, subscriptionService, cfg, skipBilling, billingInfoRequest)
+	candidates, activeSubs, mgErr := resolveMultiGroupCandidatesWithSubs(c.Request.Context(), apiKey, subscriptionService, cfg, skipBilling, billingInfoRequest)
 	if mgErr != nil {
 		if mgErr.HasOpsReason {
 			service.MarkOpsClientBusinessLimited(c, mgErr.OpsReason)
@@ -156,6 +155,9 @@ func handleMultiGroupAuth(
 	ctx := context.WithValue(c.Request.Context(), ctxkey.UserID, apiKey.User.ID)
 	c.Request = c.Request.WithContext(ctx)
 
+	if len(activeSubs) > 0 {
+		c.Set(string(ContextKeyActiveSubscriptions), activeSubs)
+	}
 	c.Set(string(ContextKeyGroupCandidates), candidates)
 	c.Set(string(ContextKeyUser), AuthSubject{
 		UserID:      apiKey.User.ID,
@@ -232,6 +234,18 @@ func resolveMultiGroupCandidates(
 	skipBilling bool,
 	billingInfoRequest bool,
 ) ([]GroupCandidate, *multiGroupAuthError) {
+	candidates, _, err := resolveMultiGroupCandidatesWithSubs(ctx, apiKey, subscriptionService, cfg, skipBilling, billingInfoRequest)
+	return candidates, err
+}
+
+func resolveMultiGroupCandidatesWithSubs(
+	ctx context.Context,
+	apiKey *service.APIKey,
+	subscriptionService *service.SubscriptionService,
+	cfg *config.Config,
+	skipBilling bool,
+	billingInfoRequest bool,
+) ([]GroupCandidate, []service.UserSubscription, *multiGroupAuthError) {
 	boundGroups := apiKey.BoundGroups()
 	groupByID := make(map[int64]*service.Group, len(boundGroups))
 	for _, g := range boundGroups {
@@ -252,118 +266,25 @@ func resolveMultiGroupCandidates(
 
 	var firstErr *multiGroupAuthError
 	recordErr := func(err *multiGroupAuthError) {
-		if firstErr == nil {
+		if firstErr == nil && err != nil {
 			firstErr = err
 		}
 	}
 
-	simpleMode := cfg != nil && cfg.RunMode == config.RunModeSimple
 	candidates := make([]GroupCandidate, 0, len(orderedIDs))
+	var allActiveSubs []service.UserSubscription
 
 	for _, gid := range orderedIDs {
 		group := groupByID[gid]
-		if group == nil || strings.EqualFold(group.Status, "deleted") {
-			recordErr(&multiGroupAuthError{
-				Status:       http.StatusForbidden,
-				Code:         "GROUP_DELETED",
-				Message:      "API Key 所属分组已删除",
-				Ingress:      IngressRejectGroupDeleted,
-				HasIngress:   true,
-				OpsReason:    service.OpsClientBusinessLimitedReasonAPIKeyGroupUnavailable,
-				HasOpsReason: true,
-			})
-			continue
+		groupCands, groupSubs, groupErr := expandGroupCandidates(ctx, apiKey, group, subscriptionService, cfg, skipBilling, billingInfoRequest)
+		if len(groupSubs) > 0 {
+			allActiveSubs = append(allActiveSubs, groupSubs...)
 		}
-		if !group.IsActive() {
-			recordErr(&multiGroupAuthError{
-				Status:       http.StatusForbidden,
-				Code:         "GROUP_DISABLED",
-				Message:      "API Key 所属分组已停用",
-				Ingress:      IngressRejectGroupDisabled,
-				HasIngress:   true,
-				OpsReason:    service.OpsClientBusinessLimitedReasonAPIKeyGroupUnavailable,
-				HasOpsReason: true,
-			})
-			continue
+		if len(groupCands) > 0 {
+			candidates = append(candidates, groupCands...)
+		} else {
+			recordErr(groupErr)
 		}
-		if !group.IsSubscriptionType() && apiKey.User != nil && !apiKey.User.CanBindGroup(group.ID, group.IsExclusive) {
-			recordErr(&multiGroupAuthError{
-				Status:       http.StatusForbidden,
-				Code:         "GROUP_NOT_ALLOWED",
-				Message:      "API Key 所属专属分组不再允许当前用户使用",
-				Ingress:      IngressRejectGroupNotAllowed,
-				HasIngress:   true,
-				OpsReason:    service.OpsClientBusinessLimitedReasonAPIKeyGroupUnavailable,
-				HasOpsReason: true,
-			})
-			continue
-		}
-
-		if simpleMode || skipBilling {
-			cand := GroupCandidate{Group: group}
-			if !simpleMode && skipBilling && !billingInfoRequest && group.IsSubscriptionType() && subscriptionService != nil && apiKey.User != nil {
-				if sub, err := subscriptionService.GetActiveSubscription(ctx, apiKey.User.ID, group.ID); err == nil {
-					cand.Subscription = sub
-				}
-			}
-			candidates = append(candidates, cand)
-			continue
-		}
-
-		if group.IsSubscriptionType() && subscriptionService != nil {
-			sub, subErr := subscriptionService.GetActiveSubscription(ctx, apiKey.User.ID, group.ID)
-			if subErr != nil {
-				recordErr(&multiGroupAuthError{
-					Status:  http.StatusForbidden,
-					Code:    "SUBSCRIPTION_NOT_FOUND",
-					Message: "No active subscription found for this group",
-				})
-				continue
-			}
-			needsMaintenance, validateErr := subscriptionService.ValidateAndCheckLimits(sub, group)
-			if needsMaintenance {
-				refreshed, maintenanceErr := subscriptionService.EnsureWindowMaintenance(ctx, sub)
-				if maintenanceErr != nil {
-					recordErr(&multiGroupAuthError{
-						Status:  http.StatusInternalServerError,
-						Code:    "SUBSCRIPTION_MAINTENANCE_FAILED",
-						Message: "Failed to maintain subscription usage windows",
-					})
-					continue
-				}
-				sub = refreshed
-				_, validateErr = subscriptionService.ValidateAndCheckLimits(sub, group)
-			}
-			if validateErr != nil {
-				code := "SUBSCRIPTION_INVALID"
-				status := http.StatusForbidden
-				if errors.Is(validateErr, service.ErrDailyLimitExceeded) ||
-					errors.Is(validateErr, service.ErrWeeklyLimitExceeded) ||
-					errors.Is(validateErr, service.ErrMonthlyLimitExceeded) ||
-					errors.Is(validateErr, service.ErrHourlyLimitExceeded) {
-					code = "USAGE_LIMIT_EXCEEDED"
-					status = http.StatusTooManyRequests
-				}
-				recordErr(&multiGroupAuthError{
-					Status:  status,
-					Code:    code,
-					Message: validateErr.Error(),
-				})
-				continue
-			}
-			candidates = append(candidates, GroupCandidate{Group: group, Subscription: sub})
-			continue
-		}
-
-		if apiKey.User != nil && apiKeyBalanceBelowAuthThreshold(apiKey.User.Balance, cfg) {
-			recordErr(&multiGroupAuthError{
-				Status:  http.StatusForbidden,
-				Code:    "INSUFFICIENT_BALANCE",
-				Message: "Insufficient account balance",
-			})
-			continue
-		}
-		candidates = append(candidates, GroupCandidate{Group: group})
 	}
 
 	if len(candidates) == 0 {
@@ -378,7 +299,7 @@ func resolveMultiGroupCandidates(
 				HasOpsReason: true,
 			}
 		}
-		return nil, firstErr
+		return nil, allActiveSubs, firstErr
 	}
-	return candidates, nil
+	return candidates, allActiveSubs, nil
 }

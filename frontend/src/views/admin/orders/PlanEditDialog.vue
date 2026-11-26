@@ -1,6 +1,22 @@
 <template>
   <BaseDialog :show="show" :title="plan ? t('payment.admin.editPlan') : t('payment.admin.createPlan')" width="wide" @close="emit('close')">
     <form id="plan-form" @submit.prevent="handleSavePlan" class="space-y-4">
+      <!-- Optional Subscription Template -->
+      <div v-if="templateOptions.length > 1">
+        <label class="input-label">{{ t('payment.admin.subscriptionTemplate') }}</label>
+        <Select
+          v-model="planForm.template_id"
+          :options="templateOptions"
+          :placeholder="t('payment.admin.selectTemplateOptional')"
+          class="w-full"
+          data-testid="plan-template-select"
+          @change="handleTemplateChange"
+        />
+        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+          {{ t('payment.admin.templateHint') }}
+        </p>
+      </div>
+
       <div class="grid grid-cols-2 gap-4">
         <div>
           <label class="input-label">{{ t('payment.admin.planName') }} <span class="text-red-500">*</span></label>
@@ -8,7 +24,13 @@
         </div>
         <div>
           <label class="input-label">{{ t('payment.admin.group') }} <span class="text-red-500">*</span></label>
-          <Select v-model="planForm.group_id" :options="groupOptions" :placeholder="t('payment.admin.selectGroup')" class="w-full">
+          <Select
+            v-model="planForm.group_id"
+            :options="groupOptions"
+            :disabled="Boolean(selectedTemplate)"
+            :placeholder="t('payment.admin.selectGroup')"
+            class="w-full"
+          >
             <template #selected="{ option }">
               <span v-if="option?.platform" :class="platformTextClass(String(option.platform))">{{ option.label }}</span>
               <span v-else>{{ option?.label || t('payment.admin.selectGroup') }}</span>
@@ -21,16 +43,17 @@
         </div>
       </div>
 
-      <!-- Group Info Preview -->
+      <!-- Group / Template Info Preview -->
       <div v-if="selectedGroupInfo" class="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-dark-600 dark:bg-dark-800">
-        <div class="mb-2 flex items-center gap-2">
+        <div class="mb-2 flex flex-wrap items-center gap-2">
           <GroupBadge :name="selectedGroupInfo.name" :platform="selectedGroupInfo.platform" :rate-multiplier="selectedGroupInfo.rate_multiplier" />
+          <span v-if="selectedTemplate" class="badge badge-primary text-xs">{{ selectedTemplate.name }}</span>
         </div>
         <div class="grid grid-cols-2 gap-2 text-xs">
-          <div><span class="text-gray-500">{{ t('payment.admin.dailyLimit') }}:</span> <span class="ml-1 font-medium text-gray-700 dark:text-gray-300">{{ selectedGroupInfo.daily_limit_usd != null ? '$' + selectedGroupInfo.daily_limit_usd : t('payment.admin.unlimited') }}</span></div>
-          <div><span class="text-gray-500">{{ t('payment.admin.weeklyLimit') }}:</span> <span class="ml-1 font-medium text-gray-700 dark:text-gray-300">{{ selectedGroupInfo.weekly_limit_usd != null ? '$' + selectedGroupInfo.weekly_limit_usd : t('payment.admin.unlimited') }}</span></div>
-          <div><span class="text-gray-500">{{ t('payment.admin.monthlyLimit') }}:</span> <span class="ml-1 font-medium text-gray-700 dark:text-gray-300">{{ selectedGroupInfo.monthly_limit_usd != null ? '$' + selectedGroupInfo.monthly_limit_usd : t('payment.admin.unlimited') }}</span></div>
-          <div v-if="selectedGroupInfo.hourly_limit_usd"><span class="text-gray-500">{{ t('payment.admin.hourlyLimit', { hours: selectedGroupInfo.hourly_window_hours || 5 }) }}:</span> <span class="ml-1 font-medium text-gray-700 dark:text-gray-300">${{ selectedGroupInfo.hourly_limit_usd }}</span></div>
+          <div><span class="text-gray-500">{{ t('payment.admin.dailyLimit') }}:</span> <span class="ml-1 font-medium text-gray-700 dark:text-gray-300">{{ previewLimits.daily_limit_usd != null ? '$' + previewLimits.daily_limit_usd : t('payment.admin.unlimited') }}</span></div>
+          <div><span class="text-gray-500">{{ t('payment.admin.weeklyLimit') }}:</span> <span class="ml-1 font-medium text-gray-700 dark:text-gray-300">{{ previewLimits.weekly_limit_usd != null ? '$' + previewLimits.weekly_limit_usd : t('payment.admin.unlimited') }}</span></div>
+          <div><span class="text-gray-500">{{ t('payment.admin.monthlyLimit') }}:</span> <span class="ml-1 font-medium text-gray-700 dark:text-gray-300">{{ previewLimits.monthly_limit_usd != null ? '$' + previewLimits.monthly_limit_usd : t('payment.admin.unlimited') }}</span></div>
+          <div v-if="previewLimits.hourly_limit_usd"><span class="text-gray-500">{{ t('payment.admin.hourlyLimit', { hours: previewLimits.hourly_window_hours || 5 }) }}:</span> <span class="ml-1 font-medium text-gray-700 dark:text-gray-300">${{ previewLimits.hourly_limit_usd }}</span></div>
         </div>
       </div>
 
@@ -101,6 +124,7 @@ import { extractApiErrorMessage } from '@/utils/apiError'
 import { formatPaymentAmount } from '@/components/payment/currency'
 import type { SubscriptionPlan } from '@/types/payment'
 import type { AdminGroup } from '@/types'
+import type { SubscriptionTemplate } from '@/api/admin/subscriptionTemplates'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Select from '@/components/common/Select.vue'
 import Icon from '@/components/icons/Icon.vue'
@@ -111,6 +135,7 @@ const props = defineProps<{
   show: boolean
   plan: SubscriptionPlan | null
   groups: AdminGroup[]
+  templates?: SubscriptionTemplate[]
   paymentConfig?: AdminPaymentConfig | null
 }>()
 
@@ -123,7 +148,7 @@ const { t } = useI18n()
 const appStore = useAppStore()
 
 const saving = ref(false)
-const planForm = reactive({ name: '', group_id: null as number | null, description: '', price: 0, original_price: 0, currency: '', validity_days: 30, validity_unit: 'days', sort_order: 0, for_sale: true })
+const planForm = reactive({ name: '', group_id: null as number | null, template_id: null as number | null, description: '', price: 0, original_price: 0, currency: '', validity_days: 30, validity_unit: 'days', sort_order: 0, for_sale: true })
 const planFeaturesText = ref('')
 
 const validityUnitOptions = computed(() => [
@@ -132,9 +157,26 @@ const validityUnitOptions = computed(() => [
   { value: 'months', label: t('payment.admin.months') },
 ])
 
+const activeTemplates = computed(() =>
+  (props.templates || []).filter(tpl => tpl.status === 'active'),
+)
+
+const templateOptions = computed(() => [
+  { value: null as number | null, label: t('payment.admin.selectTemplateOptional') },
+  ...activeTemplates.value.map(tpl => ({
+    value: tpl.id,
+    label: tpl.group ? `${tpl.name} (${tpl.group.name})` : tpl.name,
+  })),
+])
+
+const selectedTemplate = computed(() => {
+  if (!planForm.template_id) return null
+  return (props.templates || []).find(tpl => tpl.id === planForm.template_id) || null
+})
+
 const groupOptions = computed(() =>
   props.groups
-    .filter(g => g.subscription_type === 'subscription')
+    .filter(g => selectedTemplate.value ? g.id === selectedTemplate.value.group_id : g.subscription_type === 'subscription')
     .map(g => ({
       value: g.id,
       label: `${g.name} — ${g.platform} (${g.rate_multiplier}x)`,
@@ -146,6 +188,37 @@ const selectedGroupInfo = computed(() => {
   if (!planForm.group_id) return null
   return props.groups.find(g => g.id === planForm.group_id) || null
 })
+
+const previewLimits = computed(() => {
+  if (selectedTemplate.value) {
+    return {
+      daily_limit_usd: selectedTemplate.value.daily_limit_usd,
+      weekly_limit_usd: selectedTemplate.value.weekly_limit_usd,
+      monthly_limit_usd: selectedTemplate.value.monthly_limit_usd,
+      hourly_limit_usd: selectedTemplate.value.hourly_limit_usd,
+      hourly_window_hours: selectedTemplate.value.hourly_window_hours || 5,
+    }
+  }
+  return {
+    daily_limit_usd: selectedGroupInfo.value?.daily_limit_usd ?? null,
+    weekly_limit_usd: selectedGroupInfo.value?.weekly_limit_usd ?? null,
+    monthly_limit_usd: selectedGroupInfo.value?.monthly_limit_usd ?? null,
+    hourly_limit_usd: selectedGroupInfo.value?.hourly_limit_usd ?? null,
+    hourly_window_hours: selectedGroupInfo.value?.hourly_window_hours || 5,
+  }
+})
+
+function handleTemplateChange() {
+  if (selectedTemplate.value) {
+    planForm.group_id = selectedTemplate.value.group_id
+    if (!props.plan && selectedTemplate.value.default_validity_days > 0) {
+      planForm.validity_days = selectedTemplate.value.default_validity_days
+      planForm.validity_unit = 'days'
+    }
+  } else if (selectedGroupInfo.value && selectedGroupInfo.value.subscription_type !== 'subscription') {
+    planForm.group_id = null
+  }
+}
 
 function roundCnyAmount(value: number): number {
   return Math.round(value * 100) / 100
@@ -176,10 +249,10 @@ const subscriptionCnyPreview = computed(() => {
 watch(() => props.show, (visible) => {
   if (!visible) return
   if (props.plan) {
-    Object.assign(planForm, { name: props.plan.name, group_id: props.plan.group_id, description: props.plan.description, price: props.plan.price, original_price: props.plan.original_price || 0, currency: props.plan.currency || '', validity_days: props.plan.validity_days, validity_unit: props.plan.validity_unit || 'days', sort_order: props.plan.sort_order || 0, for_sale: props.plan.for_sale })
+    Object.assign(planForm, { name: props.plan.name, group_id: props.plan.group_id, template_id: props.plan.template_id ?? null, description: props.plan.description, price: props.plan.price, original_price: props.plan.original_price || 0, currency: props.plan.currency || '', validity_days: props.plan.validity_days, validity_unit: props.plan.validity_unit || 'days', sort_order: props.plan.sort_order || 0, for_sale: props.plan.for_sale })
     planFeaturesText.value = (props.plan.features || []).join('\n')
   } else {
-    Object.assign(planForm, { name: '', group_id: null, description: '', price: 0, original_price: 0, currency: '', validity_days: 30, validity_unit: 'days', sort_order: 0, for_sale: true })
+    Object.assign(planForm, { name: '', group_id: null, template_id: null, description: '', price: 0, original_price: 0, currency: '', validity_days: 30, validity_unit: 'days', sort_order: 0, for_sale: true })
     planFeaturesText.value = ''
   }
 })
@@ -187,7 +260,7 @@ watch(() => props.show, (visible) => {
 /** Build request payload with snake_case keys matching backend JSON tags */
 function buildPlanPayload() {
   const features = planFeaturesText.value.split('\n').map(f => f.trim()).filter(Boolean).join('\n')
-  return {
+  const payload: Record<string, unknown> = {
     name: planForm.name,
     group_id: planForm.group_id,
     description: planForm.description,
@@ -200,6 +273,12 @@ function buildPlanPayload() {
     for_sale: planForm.for_sale,
     features,
   }
+  if (planForm.template_id) {
+    payload.template_id = planForm.template_id
+  } else if (props.plan?.template_id) {
+    payload.clear_template = true
+  }
+  return payload
 }
 
 async function handleSavePlan() {

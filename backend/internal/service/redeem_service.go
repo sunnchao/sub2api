@@ -269,6 +269,22 @@ func (s *RedeemService) CreateCode(ctx context.Context, code *RedeemCode) error 
 	if code.IsExpired() {
 		return ErrRedeemCodeExpired
 	}
+	if code.Type == RedeemTypeSubscription && code.TemplateID != nil && *code.TemplateID > 0 {
+		mode, err := NormalizeRedeemSubscriptionMode(code.RedeemMode)
+		if err != nil {
+			return err
+		}
+		code.RedeemMode = mode
+		if code.GroupID == nil && s.subscriptionService != nil {
+			tpl, err := s.subscriptionService.GetTemplate(ctx, *code.TemplateID)
+			if err != nil {
+				return err
+			}
+			gid := tpl.GroupID
+			code.GroupID = &gid
+			code.TemplateName = tpl.Name
+		}
+	}
 
 	if err := s.redeemRepo.Create(ctx, code); err != nil {
 		return fmt.Errorf("create redeem code: %w", err)
@@ -454,7 +470,7 @@ func (s *RedeemService) redeem(ctx context.Context, userID int64, code string, r
 	switch redeemCode.Type {
 	case RedeemTypeBalance, RedeemTypeConcurrency:
 	case RedeemTypeSubscription:
-		if redeemCode.GroupID == nil {
+		if redeemCode.GroupID == nil && (redeemCode.TemplateID == nil || *redeemCode.TemplateID <= 0) {
 			return nil, infraerrors.BadRequest("REDEEM_CODE_INVALID", "invalid subscription redeem code: missing group_id")
 		}
 	default:
@@ -516,7 +532,30 @@ func (s *RedeemService) redeem(ctx context.Context, userID int64, code string, r
 
 	case RedeemTypeSubscription:
 		validityDays := redeemCode.ValidityDays
-		if validityDays < 0 {
+		if redeemCode.TemplateID != nil && *redeemCode.TemplateID > 0 {
+			if validityDays < 0 {
+				if err := s.reduceOrCancelTemplateSubscription(txCtx, userID, *redeemCode.TemplateID, redeemCode.GroupID, -validityDays, redeemCode.Code); err != nil {
+					return nil, fmt.Errorf("reduce or cancel template subscription: %w", err)
+				}
+			} else {
+				sub, _, err := s.subscriptionService.AssignByTemplate(txCtx, &AssignTemplateSubscriptionInput{
+					UserID:                 userID,
+					TemplateID:             *redeemCode.TemplateID,
+					ValidityDays:           validityDays,
+					AssignedBy:             0, // 系统分配
+					Notes:                  fmt.Sprintf("通过兑换码 %s 兑换", redeemCode.Code),
+					Mode:                   redeemCode.RedeemMode,
+					DeferCacheInvalidation: true,
+				})
+				if err != nil {
+					return nil, fmt.Errorf("assign template subscription: %w", err)
+				}
+				if sub != nil && redeemCode.GroupID == nil {
+					gid := sub.GroupID
+					redeemCode.GroupID = &gid
+				}
+			}
+		} else if validityDays < 0 {
 			// 负数天数：缩短订阅，减到 0 则取消订阅
 			if err := s.reduceOrCancelSubscription(txCtx, userID, *redeemCode.GroupID, -validityDays, redeemCode.Code); err != nil {
 				return nil, fmt.Errorf("reduce or cancel subscription: %w", err)
@@ -588,6 +627,9 @@ func (s *RedeemService) invalidateRedeemCaches(ctx context.Context, userID int64
 	case RedeemTypeSubscription:
 		if s.authCacheInvalidator != nil {
 			s.authCacheInvalidator.InvalidateAuthCacheByUserID(ctx, userID)
+		}
+		if redeemCode.GroupID != nil && s.subscriptionService != nil {
+			s.subscriptionService.InvalidateSubCacheSync(userID, *redeemCode.GroupID)
 		}
 		if s.billingCacheService == nil {
 			return
@@ -695,6 +737,23 @@ func (s *RedeemService) GetUserHistory(ctx context.Context, userID int64, limit 
 	return codes, nil
 }
 
+// reduceOrCancelTemplateSubscription shortens or expires the latest subscription originating
+// from a template (falling back to group lookup if snapshot lineage is absent).
+func (s *RedeemService) reduceOrCancelTemplateSubscription(ctx context.Context, userID, templateID int64, groupID *int64, reduceDays int, code string) error {
+	sub, err := s.subscriptionService.FindLatestSubscriptionByTemplateID(ctx, userID, templateID)
+	if err != nil || sub == nil {
+		if groupID != nil && *groupID > 0 {
+			return s.reduceOrCancelSubscription(ctx, userID, *groupID, reduceDays, code)
+		}
+		return ErrSubscriptionNotFound
+	}
+	sub, err = s.subscriptionService.userSubRepo.GetByIDForUpdate(ctx, sub.ID)
+	if err != nil {
+		return fmt.Errorf("lock subscription for reduction: %w", err)
+	}
+	return s.applySubscriptionReduction(ctx, sub, reduceDays, code)
+}
+
 // reduceOrCancelSubscription 缩短订阅天数，剩余天数 <= 0 时取消订阅
 func (s *RedeemService) reduceOrCancelSubscription(ctx context.Context, userID, groupID int64, reduceDays int, code string) error {
 	sub, err := s.subscriptionService.userSubRepo.GetByUserIDAndGroupID(ctx, userID, groupID)
@@ -709,7 +768,10 @@ func (s *RedeemService) reduceOrCancelSubscription(ctx context.Context, userID, 
 	if err != nil {
 		return fmt.Errorf("lock subscription for reduction: %w", err)
 	}
+	return s.applySubscriptionReduction(ctx, sub, reduceDays, code)
+}
 
+func (s *RedeemService) applySubscriptionReduction(ctx context.Context, sub *UserSubscription, reduceDays int, code string) error {
 	now := time.Now()
 	if s.subscriptionService.now != nil {
 		now = s.subscriptionService.now()
@@ -746,7 +808,10 @@ func (s *RedeemService) reduceOrCancelSubscription(ctx context.Context, userID, 
 	}
 
 	// 失效缓存
-	s.subscriptionService.InvalidateSubCache(userID, groupID)
+	s.subscriptionService.InvalidateSubCache(sub.UserID, sub.GroupID)
+	if s.billingCacheService != nil {
+		_ = s.billingCacheService.InvalidateSubscriptionInstance(ctx, sub.ID)
+	}
 
 	return nil
 }

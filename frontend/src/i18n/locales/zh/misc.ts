@@ -492,6 +492,15 @@ export default {
     },
     subscribeNow: '立即开通',
     renewNow: '续费',
+    alreadyOwnedBadge: '已持有',
+    purchaseMode: {
+      title: '购买方式',
+      stackLabel: '新购叠加（默认）',
+      stackDesc: '新增一条独立并行订阅，与现有订阅共存并按到期优先顺序扣费',
+      renewLabel: '续期已有订阅',
+      renewDesc: '延长选定订阅的有效期，不新增订阅实例',
+      selectTarget: '选择要续期的订阅'
+    },
     selectPlan: '选择套餐',
     planFeatures: '功能特性',
     planCard: {
@@ -645,6 +654,9 @@ export default {
       weeklyLimit: '周限额',
       monthlyLimit: '月限额',
       hourlyLimit: '{hours} 小时限额',
+      subscriptionTemplate: '订阅模板（可选）',
+      selectTemplateOptional: '不绑定模板（沿用订阅分组默认限额）',
+      templateHint: '选择模板后将自动绑定该模板对应的分组（支持标准分组与订阅分组）并展示模板限额',
       unlimited: '无限制',
       searchUserSubs: '搜索用户订阅...',
       daily: '日',

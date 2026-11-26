@@ -20,6 +20,14 @@
           >
             {{ plan.name }}
           </h3>
+          <div v-if="hasOwnedMatchingSub" class="mt-1">
+            <span
+              class="inline-flex shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+              data-testid="plan-owned-badge"
+            >
+              {{ t('payment.alreadyOwnedBadge') }}
+            </span>
+          </div>
           <p v-if="plan.description" class="mt-0.5 text-xs leading-relaxed text-gray-500 dark:text-dark-400 line-clamp-2">
             {{ plan.description }}
           </p>
@@ -102,13 +110,13 @@
 
       <div class="flex-1" />
 
-      <!-- Subscribe Button -->
+      <!-- Subscribe Button (always defaults to new/stack purchase; renewal is available in confirm & subscription cards) -->
       <button
         type="button"
         :class="['w-full rounded-xl py-2.5 text-sm font-semibold transition-all active:scale-[0.98]', btnClass]"
         @click="emit('select', plan)"
       >
-        {{ isRenewal ? t('payment.renewNow') : t('payment.subscribeNow') }}
+        {{ t('payment.subscribeNow') }}
       </button>
     </div>
   </div>
@@ -139,8 +147,12 @@ const emit = defineEmits<{ select: [plan: SubscriptionPlan] }>()
 const { t } = useI18n()
 
 const platform = computed(() => props.plan.group_platform || '')
-const isRenewal = computed(() =>
-  props.activeSubscriptions?.some(s => s.group_id === props.plan.group_id && s.status === 'active') ?? false
+const hasOwnedMatchingSub = computed(() =>
+  props.activeSubscriptions?.some(s => {
+    if (s.status !== 'active') return false
+    if (props.plan.template_id) return s.template_id === props.plan.template_id
+    return s.group_id === props.plan.group_id
+  }) ?? false
 )
 
 // Derived color classes from central config

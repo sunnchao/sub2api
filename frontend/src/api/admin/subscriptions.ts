@@ -10,6 +10,7 @@ import type {
   AssignSubscriptionRequest,
   BulkAssignSubscriptionRequest,
   ExtendSubscriptionRequest,
+  UpdateSubscriptionLimitsRequest,
   PaginatedResponse
 } from '@/types'
 
@@ -113,8 +114,15 @@ export async function getProgress(id: number): Promise<SubscriptionProgress> {
  * @param request - Assignment request
  * @returns Created subscription
  */
-export async function assign(request: AssignSubscriptionRequest): Promise<UserSubscription> {
-  const { data } = await apiClient.post<UserSubscription>('/admin/subscriptions/assign', request)
+export async function assign(
+  request: AssignSubscriptionRequest,
+  idempotencyKey?: string
+): Promise<UserSubscription> {
+  const { data } = idempotencyKey
+    ? await apiClient.post<UserSubscription>('/admin/subscriptions/assign', request, {
+        headers: { 'Idempotency-Key': idempotencyKey }
+      })
+    : await apiClient.post<UserSubscription>('/admin/subscriptions/assign', request)
   return data
 }
 
@@ -124,12 +132,27 @@ export async function assign(request: AssignSubscriptionRequest): Promise<UserSu
  * @returns Per-user assignment outcomes and created or reused subscriptions
  */
 export async function bulkAssign(
-  request: BulkAssignSubscriptionRequest
+  request: BulkAssignSubscriptionRequest,
+  idempotencyKey?: string
 ): Promise<BulkAssignSubscriptionResult> {
-  const { data } = await apiClient.post<BulkAssignSubscriptionResult>(
-    '/admin/subscriptions/bulk-assign',
-    request
-  )
+  const { data } = idempotencyKey
+    ? await apiClient.post<BulkAssignSubscriptionResult>(
+        '/admin/subscriptions/bulk-assign',
+        request,
+        { headers: { 'Idempotency-Key': idempotencyKey } }
+      )
+    : await apiClient.post<BulkAssignSubscriptionResult>('/admin/subscriptions/bulk-assign', request)
+  return data
+}
+
+/**
+ * Update snapshotted quota limits for a single user subscription
+ */
+export async function updateLimits(
+  id: number,
+  request: UpdateSubscriptionLimitsRequest
+): Promise<UserSubscription> {
+  const { data } = await apiClient.put<UserSubscription>(`/admin/subscriptions/${id}/limits`, request)
   return data
 }
 
@@ -237,6 +260,7 @@ export const subscriptionsAPI = {
   bulkAssign,
   bulkAction,
   extend,
+  updateLimits,
   revoke,
   restore,
   resetQuota,

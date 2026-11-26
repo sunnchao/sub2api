@@ -714,10 +714,20 @@ func registerSubscriptionRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		subscriptions.POST("/bulk-assign", h.Admin.Subscription.BulkAssign)
 		subscriptions.POST("/bulk-action", h.Admin.Subscription.BulkAction)
 		subscriptions.POST("/:id/extend", h.Admin.Subscription.Extend)
+		subscriptions.PUT("/:id/limits", h.Admin.Subscription.UpdateLimits)
 		subscriptions.POST("/:id/reset-quota", h.Admin.Subscription.ResetQuota)
 		subscriptions.POST("/:id/revoke", h.Admin.Subscription.Revoke)
 		subscriptions.POST("/:id/restore", h.Admin.Subscription.Restore)
 		subscriptions.DELETE("/:id", h.Admin.Subscription.Revoke)
+	}
+
+	templates := admin.Group("/subscription-templates")
+	{
+		templates.GET("", h.Admin.Subscription.ListTemplates)
+		templates.GET("/:id", h.Admin.Subscription.GetTemplate)
+		templates.POST("", h.Admin.Subscription.CreateTemplate)
+		templates.PUT("/:id", h.Admin.Subscription.UpdateTemplate)
+		templates.DELETE("/:id", h.Admin.Subscription.DeleteTemplate)
 	}
 
 	// 分组下的订阅列表

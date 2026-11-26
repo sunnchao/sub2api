@@ -302,7 +302,7 @@ func (s *BillingCacheService) reserveInflight(ctx context.Context, user *User, g
 	if !ok || user == nil {
 		return nil, nil
 	}
-	if group != nil && group.IsSubscriptionType() && subscription != nil {
+	if IsSubscriptionBillingActive(group, subscription) {
 		return nil, nil
 	}
 	if capped && cfg.MaxReservationUSD > 0 && estimate > cfg.MaxReservationUSD {

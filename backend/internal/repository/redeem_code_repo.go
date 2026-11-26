@@ -23,7 +23,8 @@ func NewRedeemCodeRepository(client *dbent.Client) service.RedeemCodeRepository 
 }
 
 func (r *redeemCodeRepository) Create(ctx context.Context, code *service.RedeemCode) error {
-	created, err := r.client.RedeemCode.Create().
+	client := clientFromContext(ctx, r.client)
+	created, err := client.RedeemCode.Create().
 		SetCode(code.Code).
 		SetType(code.Type).
 		SetValue(code.Value).
@@ -38,6 +39,11 @@ func (r *redeemCodeRepository) Create(ctx context.Context, code *service.RedeemC
 	if err == nil {
 		code.ID = created.ID
 		code.CreatedAt = created.CreatedAt
+		if code.TemplateID != nil && *code.TemplateID > 0 {
+			if saveErr := r.saveRedeemCodeTemplates(ctx, client, []service.RedeemCode{*code}); saveErr != nil {
+				return saveErr
+			}
+		}
 	}
 	return err
 }
@@ -47,10 +53,15 @@ func (r *redeemCodeRepository) CreateBatch(ctx context.Context, codes []service.
 		return nil
 	}
 
+	client := clientFromContext(ctx, r.client)
+	hasTemplates := false
 	builders := make([]*dbent.RedeemCodeCreate, 0, len(codes))
 	for i := range codes {
 		c := &codes[i]
-		b := r.client.RedeemCode.Create().
+		if c.TemplateID != nil && *c.TemplateID > 0 {
+			hasTemplates = true
+		}
+		b := client.RedeemCode.Create().
 			SetCode(c.Code).
 			SetType(c.Type).
 			SetValue(c.Value).
@@ -64,11 +75,25 @@ func (r *redeemCodeRepository) CreateBatch(ctx context.Context, codes []service.
 		builders = append(builders, b)
 	}
 
-	return r.client.RedeemCode.CreateBulk(builders...).Exec(ctx)
+	if !hasTemplates {
+		return client.RedeemCode.CreateBulk(builders...).Exec(ctx)
+	}
+	created, err := client.RedeemCode.CreateBulk(builders...).Save(ctx)
+	if err != nil {
+		return err
+	}
+	for i := range created {
+		if i < len(codes) {
+			codes[i].ID = created[i].ID
+			codes[i].CreatedAt = created[i].CreatedAt
+		}
+	}
+	return r.saveRedeemCodeTemplates(ctx, client, codes)
 }
 
 func (r *redeemCodeRepository) GetByID(ctx context.Context, id int64) (*service.RedeemCode, error) {
-	m, err := r.client.RedeemCode.Query().
+	client := clientFromContext(ctx, r.client)
+	m, err := client.RedeemCode.Query().
 		Where(redeemcode.IDEQ(id)).
 		Only(ctx)
 	if err != nil {
@@ -77,11 +102,16 @@ func (r *redeemCodeRepository) GetByID(ctx context.Context, id int64) (*service.
 		}
 		return nil, err
 	}
-	return redeemCodeEntityToService(m), nil
+	out := redeemCodeEntityToService(m)
+	if err := r.attachRedeemCodeTemplateSingle(ctx, client, out); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (r *redeemCodeRepository) GetByCode(ctx context.Context, code string) (*service.RedeemCode, error) {
-	m, err := r.client.RedeemCode.Query().
+	client := clientFromContext(ctx, r.client)
+	m, err := client.RedeemCode.Query().
 		Where(redeemcode.CodeEQ(code)).
 		Only(ctx)
 	if err != nil {
@@ -90,7 +120,11 @@ func (r *redeemCodeRepository) GetByCode(ctx context.Context, code string) (*ser
 		}
 		return nil, err
 	}
-	return redeemCodeEntityToService(m), nil
+	out := redeemCodeEntityToService(m)
+	if err := r.attachRedeemCodeTemplateSingle(ctx, client, out); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (r *redeemCodeRepository) Delete(ctx context.Context, id int64) error {
@@ -161,6 +195,9 @@ func (r *redeemCodeRepository) ListWithFilters(ctx context.Context, params pagin
 	}
 
 	outCodes := redeemCodeEntitiesToService(codes)
+	if err := r.attachRedeemCodeTemplates(ctx, r.client, outCodes); err != nil {
+		return nil, nil, err
+	}
 
 	return outCodes, paginationResultFromTotal(int64(total), params), nil
 }
@@ -354,7 +391,11 @@ func (r *redeemCodeRepository) ListByUser(ctx context.Context, userID int64, lim
 		return nil, err
 	}
 
-	return redeemCodeEntitiesToService(codes), nil
+	out := redeemCodeEntitiesToService(codes)
+	if err := r.attachRedeemCodeTemplates(ctx, r.client, out); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 // ListByUserPaginated returns paginated balance/concurrency history for a user.
@@ -383,7 +424,11 @@ func (r *redeemCodeRepository) ListByUserPaginated(ctx context.Context, userID i
 		return nil, nil, err
 	}
 
-	return redeemCodeEntitiesToService(codes), paginationResultFromTotal(int64(total), params), nil
+	out := redeemCodeEntitiesToService(codes)
+	if err := r.attachRedeemCodeTemplates(ctx, r.client, out); err != nil {
+		return nil, nil, err
+	}
+	return out, paginationResultFromTotal(int64(total), params), nil
 }
 
 // SumPositiveBalanceByUser returns total recharged amount (sum of value > 0 where type is balance/admin_balance).

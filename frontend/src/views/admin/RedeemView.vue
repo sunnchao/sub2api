@@ -133,6 +133,9 @@
               <template v-if="row.type === 'balance'">${{ value.toFixed(2) }}</template>
               <template v-else-if="row.type === 'subscription'">
                 {{ row.validity_days || 30 }} {{ t('admin.redeem.days') }}
+                <span v-if="row.template_name" class="ml-1 badge badge-primary text-[10px]">
+                  {{ row.template_name }}
+                </span>
                 <span v-if="row.group" class="ml-1 text-xs text-gray-500 dark:text-gray-400"
                   >({{ row.group.name }})</span
                 >
@@ -313,7 +316,60 @@
             </div>
             <!-- 订阅类型：显示分组选择和有效天数 -->
             <template v-if="generateForm.type === 'subscription'">
-              <div>
+              <div v-if="subscriptionTemplateOptions.length > 0">
+                <label class="input-label">{{ t('admin.redeem.subscriptionSource') }}</label>
+                <div class="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    data-test="redeem-source-template"
+                    :class="[
+                      'rounded-lg border px-3 py-2 text-xs font-medium transition-colors',
+                      generateForm.subscription_source === 'template'
+                        ? 'border-primary-500 bg-primary-50 text-primary-700 dark:border-primary-400 dark:bg-primary-900/20 dark:text-primary-300'
+                        : 'border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-dark-600 dark:text-gray-300 dark:hover:bg-dark-700'
+                    ]"
+                    @click="generateForm.subscription_source = 'template'"
+                  >
+                    {{ t('admin.redeem.bindTemplate') }}
+                  </button>
+                  <button
+                    type="button"
+                    data-test="redeem-source-group"
+                    :class="[
+                      'rounded-lg border px-3 py-2 text-xs font-medium transition-colors',
+                      generateForm.subscription_source === 'group'
+                        ? 'border-primary-500 bg-primary-50 text-primary-700 dark:border-primary-400 dark:bg-primary-900/20 dark:text-primary-300'
+                        : 'border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-dark-600 dark:text-gray-300 dark:hover:bg-dark-700'
+                    ]"
+                    @click="generateForm.subscription_source = 'group'"
+                  >
+                    {{ t('admin.redeem.bindGroup') }}
+                  </button>
+                </div>
+              </div>
+
+              <template v-if="generateForm.subscription_source === 'template' && subscriptionTemplateOptions.length > 0">
+                <div>
+                  <label class="input-label">{{ t('admin.subscriptions.templates.name') }}</label>
+                  <Select
+                    v-model="generateForm.template_id"
+                    :options="subscriptionTemplateOptions"
+                    :placeholder="t('admin.redeem.selectTemplatePlaceholder')"
+                    data-test="redeem-template-select"
+                    @change="onRedeemTemplateChange"
+                  />
+                </div>
+                <div>
+                  <label class="input-label">{{ t('admin.redeem.redeemMode') }}</label>
+                  <Select
+                    v-model="generateForm.redeem_mode"
+                    :options="redeemModeOptions"
+                    data-test="redeem-mode-select"
+                  />
+                </div>
+              </template>
+
+              <div v-else>
                 <label class="input-label">{{ t('admin.redeem.selectGroup') }}</label>
                 <Select
                   v-model="generateForm.group_id"
@@ -839,11 +895,37 @@ const generateForm = reactive({
   type: 'balance' as RedeemCodeType,
   value: 10,
   count: 1,
+  subscription_source: 'group' as 'template' | 'group',
   group_id: null as number | null,
+  template_id: null as number | null,
+  redeem_mode: 'stack' as 'stack' | 'extend',
   validity_days: 30,
   expiry_option: 'never' as RedeemCodeExpiryOption,
   custom_expiry_days: 7
 })
+
+const subscriptionTemplates = ref<Array<{ id: number; name: string; status: string; default_validity_days: number; group?: { name: string } }>>([])
+
+const subscriptionTemplateOptions = computed(() =>
+  subscriptionTemplates.value
+    .filter((tpl) => tpl.status === 'active')
+    .map((tpl) => ({
+      value: tpl.id,
+      label: tpl.group ? `${tpl.name} (${tpl.group.name})` : tpl.name
+    }))
+)
+
+const redeemModeOptions = computed(() => [
+  { value: 'stack', label: t('admin.redeem.redeemModeStack') },
+  { value: 'extend', label: t('admin.redeem.redeemModeExtend') }
+])
+
+const onRedeemTemplateChange = () => {
+  const tpl = subscriptionTemplates.value.find((item) => item.id === generateForm.template_id)
+  if (tpl && tpl.default_validity_days > 0) {
+    generateForm.validity_days = tpl.default_validity_days
+  }
+}
 
 // 监听类型变化，邀请码类型时自动设置 value 为 0
 watch(
@@ -1026,10 +1108,19 @@ const buildBatchUpdateFields = (): BatchUpdateRedeemCodeFields | null => {
 }
 
 const handleGenerateCodes = async () => {
-  // 订阅类型必须选择分组
-  if (generateForm.type === 'subscription' && !generateForm.group_id) {
-    appStore.showError(t('admin.redeem.groupRequired'))
-    return
+  const useTemplate =
+    generateForm.type === 'subscription' &&
+    generateForm.subscription_source === 'template' &&
+    subscriptionTemplateOptions.value.length > 0
+  if (generateForm.type === 'subscription') {
+    if (useTemplate && !generateForm.template_id) {
+      appStore.showError(t('admin.redeem.templateRequired'))
+      return
+    }
+    if (!useTemplate && !generateForm.group_id) {
+      appStore.showError(t('admin.redeem.groupRequired'))
+      return
+    }
   }
 
   const expiresInDays = getRedeemCodeExpiresInDays()
@@ -1044,15 +1135,20 @@ const handleGenerateCodes = async () => {
       generateForm.count,
       generateForm.type,
       generateForm.value,
-      generateForm.type === 'subscription' ? generateForm.group_id : undefined,
+      generateForm.type === 'subscription' && !useTemplate ? generateForm.group_id : undefined,
       generateForm.type === 'subscription' ? generateForm.validity_days : undefined,
-      expiresInDays
+      expiresInDays,
+      useTemplate
+        ? { templateId: generateForm.template_id, redeemMode: generateForm.redeem_mode }
+        : undefined
     )
     showGenerateDialog.value = false
     generatedCodes.value = result
     showResultDialog.value = true
     // 重置表单
     generateForm.group_id = null
+    generateForm.template_id = null
+    generateForm.redeem_mode = 'stack'
     generateForm.validity_days = 30
     generateForm.expiry_option = 'never'
     generateForm.custom_expiry_days = 7
@@ -1185,9 +1281,22 @@ const loadSubscriptionGroups = async () => {
   }
 }
 
+const loadSubscriptionTemplates = async () => {
+  try {
+    if (!adminAPI.subscriptionTemplates?.list) return
+    subscriptionTemplates.value = await adminAPI.subscriptionTemplates.list()
+    if (subscriptionTemplates.value.some((tpl) => tpl.status === 'active')) {
+      generateForm.subscription_source = 'template'
+    }
+  } catch {
+    // optional in minimal test mocks
+  }
+}
+
 onMounted(() => {
   loadCodes()
   loadSubscriptionGroups()
+  loadSubscriptionTemplates()
 })
 
 onUnmounted(() => {

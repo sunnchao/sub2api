@@ -149,12 +149,8 @@ func (s *PaymentService) validateSubOrder(ctx context.Context, req CreateOrderRe
 	if err != nil || !plan.ForSale {
 		return nil, infraerrors.NotFound("PLAN_NOT_AVAILABLE", "plan not found or not for sale")
 	}
-	group, err := s.groupRepo.GetByID(ctx, plan.GroupID)
-	if err != nil || group.Status != payment.EntityStatusActive {
-		return nil, infraerrors.NotFound("GROUP_NOT_FOUND", "subscription group is no longer available")
-	}
-	if !group.IsSubscriptionType() {
-		return nil, infraerrors.BadRequest("GROUP_TYPE_MISMATCH", "group is not a subscription type")
+	if err := s.validateSubOrderGroupAndTarget(ctx, req, plan); err != nil {
+		return nil, err
 	}
 	return plan, nil
 }
@@ -228,6 +224,12 @@ func (s *PaymentService) createOrderInTx(ctx context.Context, req CreateOrderReq
 	order, err = tx.PaymentOrder.UpdateOneID(order.ID).SetRechargeCode(code).Save(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("set recharge code: %w", err)
+	}
+	if plan != nil {
+		txCtx := dbent.NewTxContext(ctx, tx)
+		if err := s.persistOrderSubscriptionMetaInTx(txCtx, order.ID, plan.ID, req.TargetSubscriptionID); err != nil {
+			return nil, fmt.Errorf("persist order subscription meta: %w", err)
+		}
 	}
 	if err := tx.Commit(); err != nil {
 		return nil, fmt.Errorf("commit order transaction: %w", err)

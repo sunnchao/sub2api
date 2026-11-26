@@ -260,7 +260,7 @@ func (s *PaymentService) prepDeduct(ctx context.Context, o *dbent.PaymentOrder, 
 		p.DeductionType = payment.DeductionTypeSubscription
 		if o.SubscriptionGroupID != nil && o.SubscriptionDays != nil {
 			p.SubDaysToDeduct = *o.SubscriptionDays
-			sub, err := s.subscriptionSvc.GetActiveSubscription(ctx, o.UserID, *o.SubscriptionGroupID)
+			sub, err := s.resolveOrderRefundSubscription(ctx, o)
 			if err == nil && sub != nil {
 				p.SubscriptionID = sub.ID
 			} else if !force {

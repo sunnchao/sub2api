@@ -719,6 +719,48 @@ export default {
       },
       title: '订阅管理',
       description: '管理用户订阅和配额限制',
+      tabs: {
+        subscriptions: '用户订阅',
+        templates: '订阅模板'
+      },
+      templates: {
+        create: '新建模板',
+        createTitle: '新建订阅模板',
+        editTitle: '编辑订阅模板',
+        deleteTitle: '删除订阅模板',
+        deleteConfirm: "确定要删除模板「{name}」吗？已有用户订阅会继续保留快照限额，不受影响。",
+        name: '模板名称',
+        namePlaceholder: '例如：Claude 轻享版 / 旗舰版',
+        nameRequired: '请输入模板名称',
+        description: '模板说明',
+        descriptionPlaceholder: '可选，用于说明此套餐档位的适用场景',
+        boundGroup: '绑定分组',
+        selectGroup: '选择目标分组（支持标准余额分组或订阅分组）',
+        boundGroupHint: '支持绑定「标准」或「订阅」分组，用户的 API Key 绑定该分组即可使用此模板额度',
+        limits: '周期限额',
+        defaultValidityDays: '默认有效期（天）',
+        sortOrder: '排序权重',
+        status: '状态',
+        inactive: '已停用',
+        searchPlaceholder: '搜索模板名称或说明...',
+        snapshotNotice: '修改模板仅对之后新分配或新购买的订阅生效，不会影响已发放的存量订阅。'
+      },
+      assignSource: {
+        label: '分配方式',
+        template: '按订阅模板（推荐，支持同分组叠加）',
+        group: '按传统订阅分组',
+        selectTemplate: '选择订阅模板',
+        templateRequired: '请选择订阅模板',
+        mode: '发放策略',
+        stack: '新开叠加（新增一条并行订阅）',
+        extend: '续期已有（延长同模板最新订阅，无则新建）'
+      },
+      editLimits: {
+        action: '调整限额',
+        title: '调整单条订阅限额',
+        hint: '留空表示该周期无限制（不再回退分组默认限额），保存后立即生效。',
+        saved: '订阅限额已更新'
+      },
       assignSubscription: '分配订阅',
       adjustSubscription: '调整订阅',
       revokeSubscription: '撤销订阅',

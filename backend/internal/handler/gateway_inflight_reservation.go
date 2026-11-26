@@ -74,7 +74,7 @@ func reserveInflightBalanceCtx(
 	if billing == nil || estimator == nil || apiKey == nil || apiKey.User == nil || !billing.InflightReservationEnabled() {
 		return ctx, inflightNoop, nil
 	}
-	if apiKey.Group != nil && apiKey.Group.IsSubscriptionType() && subscription != nil {
+	if service.IsSubscriptionBillingActive(apiKey.Group, subscription) {
 		return ctx, inflightNoop, nil
 	}
 	estimate, priced := estimator.EstimateInflightReservation(ctx, apiKey, req)

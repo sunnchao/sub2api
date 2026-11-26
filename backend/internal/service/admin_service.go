@@ -574,7 +574,9 @@ type GenerateRedeemCodesInput struct {
 	Count        int
 	Type         string
 	Value        float64
-	GroupID      *int64 // 订阅类型专用：关联的分组ID
+	GroupID      *int64 // 订阅类型专用：关联的分组ID（未指定模板时必填）
+	TemplateID   *int64 // 订阅类型可选：关联的订阅模板ID（自动派生分组并按模板快照发券）
+	RedeemMode   string // 模板兑换模式：stack（默认叠加）| extend（续期同模板最新订阅）
 	ValidityDays int    // 订阅类型专用：有效天数
 	ExpiresAt    *time.Time
 }

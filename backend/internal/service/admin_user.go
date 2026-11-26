@@ -1272,18 +1272,60 @@ func (s *adminServiceImpl) GenerateRedeemCodes(ctx context.Context, input *Gener
 		return nil, ErrRedeemCodeExpired
 	}
 
-	// 如果是订阅类型，验证必须有 GroupID
+	// 如果是订阅类型，支持按模板（兼容 standard 与 subscription 分组）或传统按 subscription 分组生成
+	var (
+		resolvedGroupID      *int64
+		resolvedTemplateID   *int64
+		resolvedTemplateName string
+		resolvedRedeemMode   string
+		defaultValidityDays  = 30
+	)
 	if input.Type == RedeemTypeSubscription {
-		if input.GroupID == nil {
-			return nil, errors.New("group_id is required for subscription type")
-		}
-		// 验证分组存在且为订阅类型
-		group, err := s.groupRepo.GetByID(ctx, *input.GroupID)
-		if err != nil {
-			return nil, fmt.Errorf("group not found: %w", err)
-		}
-		if !group.IsSubscriptionType() {
-			return nil, errors.New("group must be subscription type")
+		if input.TemplateID != nil && *input.TemplateID > 0 {
+			tplStore := newEntSubscriptionTemplateStore(s.entClient)
+			if tplStore == nil {
+				return nil, ErrSubscriptionTemplateNotFound
+			}
+			tpl, err := tplStore.GetByID(ctx, *input.TemplateID)
+			if err != nil {
+				return nil, err
+			}
+			if !tpl.IsActive() {
+				return nil, ErrSubscriptionTemplateInactive
+			}
+			group, err := s.groupRepo.GetByID(ctx, tpl.GroupID)
+			if err != nil {
+				return nil, fmt.Errorf("group not found: %w", err)
+			}
+			if !group.IsActive() {
+				return nil, infraerrors.BadRequest("GROUP_INACTIVE", "target group is not active")
+			}
+			mode, err := NormalizeRedeemSubscriptionMode(input.RedeemMode)
+			if err != nil {
+				return nil, err
+			}
+			gid := tpl.GroupID
+			tid := tpl.ID
+			resolvedGroupID = &gid
+			resolvedTemplateID = &tid
+			resolvedTemplateName = tpl.Name
+			resolvedRedeemMode = mode
+			if tpl.DefaultValidityDays > 0 {
+				defaultValidityDays = tpl.DefaultValidityDays
+			}
+		} else {
+			if input.GroupID == nil {
+				return nil, errors.New("group_id is required for subscription type")
+			}
+			// 验证分组存在且为订阅类型
+			group, err := s.groupRepo.GetByID(ctx, *input.GroupID)
+			if err != nil {
+				return nil, fmt.Errorf("group not found: %w", err)
+			}
+			if !group.IsSubscriptionType() {
+				return nil, errors.New("group must be subscription type")
+			}
+			resolvedGroupID = input.GroupID
 		}
 	}
 
@@ -1302,10 +1344,13 @@ func (s *adminServiceImpl) GenerateRedeemCodes(ctx context.Context, input *Gener
 		}
 		// 订阅类型专用字段
 		if input.Type == RedeemTypeSubscription {
-			code.GroupID = input.GroupID
+			code.GroupID = resolvedGroupID
+			code.TemplateID = resolvedTemplateID
+			code.TemplateName = resolvedTemplateName
+			code.RedeemMode = resolvedRedeemMode
 			code.ValidityDays = input.ValidityDays
 			if code.ValidityDays <= 0 {
-				code.ValidityDays = 30 // 默认30天
+				code.ValidityDays = defaultValidityDays
 			}
 		}
 		if err := s.redeemCodeRepo.Create(ctx, &code); err != nil {

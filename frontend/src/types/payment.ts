@@ -125,6 +125,8 @@ export interface PaymentOrder {
 export interface SubscriptionPlan {
   id: number
   group_id: number
+  template_id?: number | null
+  template_name?: string
   group_platform?: string
   group_name?: string
   rate_multiplier?: number
@@ -187,6 +189,7 @@ export interface CreateOrderRequest {
   payment_type: string
   order_type: string
   plan_id?: number
+  target_subscription_id?: number
   return_url?: string
   payment_source?: string
   openid?: string

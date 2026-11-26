@@ -468,6 +468,15 @@ export default {
     },
     subscribeNow: 'Subscribe Now',
     renewNow: 'Renew',
+    alreadyOwnedBadge: 'Owned',
+    purchaseMode: {
+      title: 'Purchase Option',
+      stackLabel: 'Add New Parallel Subscription (Default)',
+      stackDesc: 'Creates a new independent subscription deducted in earliest-expiry-first order',
+      renewLabel: 'Renew Existing Subscription',
+      renewDesc: 'Extends the expiry of a selected subscription instance',
+      selectTarget: 'Select subscription to renew'
+    },
     selectPlan: 'Select Plan',
     planFeatures: 'Features',
     planCard: {
@@ -621,6 +630,9 @@ export default {
       weeklyLimit: 'Weekly Limit',
       monthlyLimit: 'Monthly Limit',
       hourlyLimit: '{hours}h Limit',
+      subscriptionTemplate: 'Subscription Template (Optional)',
+      selectTemplateOptional: 'No template (use subscription group defaults)',
+      templateHint: 'Selecting a template automatically binds its target group (standard or subscription) and previews template limits.',
       unlimited: 'Unlimited',
       searchUserSubs: 'Search user subscriptions...',
       daily: 'D',

@@ -53,6 +53,8 @@ func (h *PaymentHandler) GetPlans(c *gin.Context) {
 	type planWithPlatform struct {
 		ID                 int64    `json:"id"`
 		GroupID            int64    `json:"group_id"`
+		TemplateID         *int64   `json:"template_id,omitempty"`
+		TemplateName       string   `json:"template_name,omitempty"`
 		GroupPlatform      string   `json:"group_platform"`
 		GroupName          string   `json:"group_name"`
 		RateMultiplier     float64  `json:"rate_multiplier"`
@@ -60,6 +62,11 @@ func (h *PaymentHandler) GetPlans(c *gin.Context) {
 		PeakStart          string   `json:"peak_start"`
 		PeakEnd            string   `json:"peak_end"`
 		PeakRateMultiplier float64  `json:"peak_rate_multiplier"`
+		DailyLimitUSD      *float64 `json:"daily_limit_usd,omitempty"`
+		WeeklyLimitUSD     *float64 `json:"weekly_limit_usd,omitempty"`
+		MonthlyLimitUSD    *float64 `json:"monthly_limit_usd,omitempty"`
+		HourlyLimitUSD     *float64 `json:"hourly_limit_usd,omitempty"`
+		HourlyWindowHours  int      `json:"hourly_window_hours,omitempty"`
 		Name               string   `json:"name"`
 		Description        string   `json:"description"`
 		Price              float64  `json:"price"`
@@ -73,19 +80,33 @@ func (h *PaymentHandler) GetPlans(c *gin.Context) {
 		SortOrder          int      `json:"sort_order"`
 	}
 	groupInfo := h.configService.GetGroupInfoMap(c.Request.Context(), plans)
+	planTemplates := h.configService.GetPlanTemplateMap(c.Request.Context(), plans)
 	result := make([]planWithPlatform, 0, len(plans))
 	for _, p := range plans {
 		gi := groupInfo[p.GroupID]
-		result = append(result, planWithPlatform{
+		item := planWithPlatform{
 			ID: int64(p.ID), GroupID: p.GroupID,
 			GroupPlatform: gi.Platform, GroupName: gi.I18n.LocalizeName(c.GetHeader("Accept-Language"), gi.Name),
 			RateMultiplier: gi.RateMultiplier, PeakRateEnabled: gi.PeakRateEnabled,
 			PeakStart: gi.PeakStart, PeakEnd: gi.PeakEnd, PeakRateMultiplier: gi.PeakRateMultiplier,
+			DailyLimitUSD: gi.DailyLimitUSD, WeeklyLimitUSD: gi.WeeklyLimitUSD, MonthlyLimitUSD: gi.MonthlyLimitUSD,
+			HourlyLimitUSD: gi.HourlyLimitUSD, HourlyWindowHours: gi.HourlyWindowHours,
 			Name: p.Name, Description: p.Description, Price: p.Price, OriginalPrice: p.OriginalPrice,
 			Currency:     p.Currency,
 			ValidityDays: p.ValidityDays, ValidityUnit: p.ValidityUnit, Features: p.Features,
 			ProductName: p.ProductName, ForSale: p.ForSale, SortOrder: p.SortOrder,
-		})
+		}
+		if tpl, ok := planTemplates[p.ID]; ok {
+			tid := tpl.TemplateID
+			item.TemplateID = &tid
+			item.TemplateName = tpl.TemplateName
+			item.DailyLimitUSD = tpl.DailyLimitUSD
+			item.WeeklyLimitUSD = tpl.WeeklyLimitUSD
+			item.MonthlyLimitUSD = tpl.MonthlyLimitUSD
+			item.HourlyLimitUSD = tpl.HourlyLimitUSD
+			item.HourlyWindowHours = tpl.HourlyWindowHours
+		}
+		result = append(result, item)
 	}
 	response.Success(c, result)
 }
@@ -118,13 +139,14 @@ func (h *PaymentHandler) GetCheckoutInfo(c *gin.Context) {
 		}
 	}
 
-	// Fetch plans with group info
+	// Fetch plans with group info and optional template overrides
 	plans, _ := h.configService.ListPlansForSale(ctx)
 	groupInfo := h.configService.GetGroupInfoMap(ctx, plans)
+	planTemplates := h.configService.GetPlanTemplateMap(ctx, plans)
 	planList := make([]checkoutPlan, 0, len(plans))
 	for _, p := range plans {
 		gi := groupInfo[p.GroupID]
-		planList = append(planList, checkoutPlan{
+		cp := checkoutPlan{
 			ID: int64(p.ID), GroupID: p.GroupID,
 			GroupPlatform: gi.Platform, GroupName: gi.I18n.LocalizeName(c.GetHeader("Accept-Language"), gi.Name),
 			RateMultiplier:  gi.RateMultiplier,
@@ -138,7 +160,18 @@ func (h *PaymentHandler) GetCheckoutInfo(c *gin.Context) {
 			Currency:     p.Currency,
 			ValidityDays: p.ValidityDays, ValidityUnit: p.ValidityUnit, Features: parseFeatures(p.Features),
 			ProductName: p.ProductName,
-		})
+		}
+		if tpl, ok := planTemplates[p.ID]; ok {
+			tid := tpl.TemplateID
+			cp.TemplateID = &tid
+			cp.TemplateName = tpl.TemplateName
+			cp.DailyLimitUSD = tpl.DailyLimitUSD
+			cp.WeeklyLimitUSD = tpl.WeeklyLimitUSD
+			cp.MonthlyLimitUSD = tpl.MonthlyLimitUSD
+			cp.HourlyLimitUSD = tpl.HourlyLimitUSD
+			cp.HourlyWindowHours = tpl.HourlyWindowHours
+		}
+		planList = append(planList, cp)
 	}
 
 	response.Success(c, checkoutInfoResponse{
@@ -183,6 +216,8 @@ type checkoutInfoResponse struct {
 type checkoutPlan struct {
 	ID                 int64    `json:"id"`
 	GroupID            int64    `json:"group_id"`
+	TemplateID         *int64   `json:"template_id,omitempty"`
+	TemplateName       string   `json:"template_name,omitempty"`
 	GroupPlatform      string   `json:"group_platform"`
 	GroupName          string   `json:"group_name"`
 	RateMultiplier     float64  `json:"rate_multiplier"`
@@ -243,8 +278,9 @@ type CreateOrderRequest struct {
 	WechatResumeToken string  `json:"wechat_resume_token"`
 	ReturnURL         string  `json:"return_url"`
 	PaymentSource     string  `json:"payment_source"`
-	OrderType         string  `json:"order_type"`
-	PlanID            int64   `json:"plan_id"`
+	OrderType            string `json:"order_type"`
+	PlanID               int64  `json:"plan_id"`
+	TargetSubscriptionID *int64 `json:"target_subscription_id,omitempty"`
 	// IsMobile lets the frontend declare its mobile status directly. When
 	// nil we fall back to User-Agent heuristics (which miss iPadOS / some
 	// embedded browsers that strip the "Mobile" keyword).
@@ -292,9 +328,10 @@ func (h *PaymentHandler) CreateOrder(c *gin.Context) {
 		SrcURL:          c.Request.Referer(),
 		ReturnURL:       req.ReturnURL,
 		PaymentSource:   req.PaymentSource,
-		OrderType:       req.OrderType,
-		PlanID:          req.PlanID,
-		Locale:          c.GetHeader("Accept-Language"),
+		OrderType:            req.OrderType,
+		PlanID:               req.PlanID,
+		TargetSubscriptionID: req.TargetSubscriptionID,
+		Locale:               c.GetHeader("Accept-Language"),
 	})
 	if err != nil {
 		response.ErrorFrom(c, err)

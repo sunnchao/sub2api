@@ -166,10 +166,79 @@
                     <span class="text-xs text-gray-400 dark:text-gray-500">{{ t('payment.planCard.monthlyLimit') }}</span>
                     <div class="text-lg font-semibold text-gray-800 dark:text-gray-200">${{ selectedPlan.monthly_limit_usd }}</div>
                   </div>
-                  <div v-if="selectedPlan.daily_limit_usd == null && selectedPlan.weekly_limit_usd == null && selectedPlan.monthly_limit_usd == null">
+                  <div v-if="selectedPlan.hourly_limit_usd != null">
+                    <span class="text-xs text-gray-400 dark:text-gray-500">{{ t('payment.planCard.hourlyLimit', { hours: selectedPlan.hourly_window_hours || 5 }) }}</span>
+                    <div class="text-lg font-semibold text-gray-800 dark:text-gray-200">${{ selectedPlan.hourly_limit_usd }}</div>
+                  </div>
+                  <div v-if="selectedPlan.daily_limit_usd == null && selectedPlan.weekly_limit_usd == null && selectedPlan.monthly_limit_usd == null && selectedPlan.hourly_limit_usd == null">
                     <span class="text-xs text-gray-400 dark:text-gray-500">{{ t('payment.planCard.quota') }}</span>
                     <div class="text-lg font-semibold text-gray-800 dark:text-gray-200">{{ t('payment.planCard.unlimited') }}</div>
                   </div>
+                </div>
+              </div>
+              <!-- Purchase Mode: New Stacked Instance (Default) vs Renew Existing Subscription -->
+              <div
+                v-if="matchingOwnedSubscriptions.length > 0"
+                class="card p-5 space-y-3"
+                data-testid="subscription-purchase-mode"
+              >
+                <p class="text-sm font-medium text-gray-900 dark:text-white">
+                  {{ t('payment.purchaseMode.title') }}
+                </p>
+                <div class="grid gap-2 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    data-testid="purchase-mode-stack"
+                    :class="[
+                      'rounded-xl border p-3 text-left transition-colors',
+                      subscriptionPurchaseMode === 'stack'
+                        ? 'border-primary-500 bg-primary-50 dark:border-primary-400 dark:bg-primary-900/20'
+                        : 'border-gray-200 hover:bg-gray-50 dark:border-dark-600 dark:hover:bg-dark-700'
+                    ]"
+                    @click="subscriptionPurchaseMode = 'stack'"
+                  >
+                    <div class="text-sm font-semibold text-gray-900 dark:text-white">
+                      {{ t('payment.purchaseMode.stackLabel') }}
+                    </div>
+                    <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                      {{ t('payment.purchaseMode.stackDesc') }}
+                    </p>
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="purchase-mode-renew"
+                    :class="[
+                      'rounded-xl border p-3 text-left transition-colors',
+                      subscriptionPurchaseMode === 'renew'
+                        ? 'border-primary-500 bg-primary-50 dark:border-primary-400 dark:bg-primary-900/20'
+                        : 'border-gray-200 hover:bg-gray-50 dark:border-dark-600 dark:hover:bg-dark-700'
+                    ]"
+                    @click="selectRenewPurchaseMode"
+                  >
+                    <div class="text-sm font-semibold text-gray-900 dark:text-white">
+                      {{ t('payment.purchaseMode.renewLabel') }}
+                    </div>
+                    <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                      {{ t('payment.purchaseMode.renewDesc') }}
+                    </p>
+                  </button>
+                </div>
+                <div v-if="subscriptionPurchaseMode === 'renew'">
+                  <label class="input-label text-xs">{{ t('payment.purchaseMode.selectTarget') }}</label>
+                  <select
+                    v-model.number="targetSubscriptionId"
+                    class="input text-sm"
+                    data-testid="target-subscription-select"
+                  >
+                    <option
+                      v-for="sub in matchingOwnedSubscriptions"
+                      :key="sub.id"
+                      :value="sub.id"
+                    >
+                      #{{ sub.id }} · {{ sub.template_name || sub.group?.name || `#${sub.group_id}` }}
+                      <template v-if="sub.expires_at"> ({{ t('userSubscriptions.daysRemaining', { days: getDaysRemaining(sub.expires_at) }) }})</template>
+                    </option>
+                  </select>
                 </div>
               </div>
               <div v-if="enabledMethods.length >= 1" class="card p-6">
@@ -222,7 +291,7 @@
                     <div :class="['h-6 w-1 shrink-0 rounded-full', platformAccentBarClass(sub.group?.platform || '')]" />
                     <div class="min-w-0 flex-1">
                       <div class="flex items-center gap-1.5">
-                        <span class="truncate text-xs font-semibold text-gray-900 dark:text-white">{{ sub.group?.name || t('payment.groupFallback', { id: sub.group_id }) }}</span>
+                        <span class="truncate text-xs font-semibold text-gray-900 dark:text-white">{{ sub.template_name || sub.group?.name || t('payment.groupFallback', { id: sub.group_id }) }}</span>
                         <span :class="['shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-medium', platformBadgeLightClass(sub.group?.platform || '')]">{{ platformLabel(sub.group?.platform || '') }}</span>
                       </div>
                       <div class="flex flex-wrap gap-x-3 text-[11px] text-gray-400 dark:text-gray-500">
@@ -784,10 +853,37 @@ const paymentButtonClass = computed(() => {
 const planBadgeClass = computed(() => platformBadgeClass(selectedPlan.value?.group_platform || ''))
 const planTextClass = computed(() => platformTextClass(selectedPlan.value?.group_platform || ''))
 
-// Renewal modal state
+// Renewal modal & stack-vs-renew state
 const showRenewalModal = ref(false)
 const renewGroupId = ref<number | null>(null)
+const renewTemplateId = ref<number | null>(null)
+const subscriptionPurchaseMode = ref<'stack' | 'renew'>('stack')
+const targetSubscriptionId = ref<number | null>(null)
+
+const matchingOwnedSubscriptions = computed(() => {
+  const plan = selectedPlan.value
+  if (!plan) return []
+  return activeSubscriptions.value.filter(s => {
+    if (s.status !== 'active') return false
+    if (plan.template_id) return s.template_id === plan.template_id
+    return s.group_id === plan.group_id
+  })
+})
+
+function selectRenewPurchaseMode() {
+  subscriptionPurchaseMode.value = 'renew'
+  if (
+    !targetSubscriptionId.value
+    || !matchingOwnedSubscriptions.value.some(s => s.id === targetSubscriptionId.value)
+  ) {
+    targetSubscriptionId.value = matchingOwnedSubscriptions.value[0]?.id ?? null
+  }
+}
+
 const renewalPlans = computed(() => {
+  if (renewTemplateId.value != null) {
+    return checkout.value.plans.filter(p => p.template_id === renewTemplateId.value)
+  }
   if (renewGroupId.value == null) return []
   return checkout.value.plans.filter(p => p.group_id === renewGroupId.value)
 })
@@ -807,19 +903,27 @@ function planPeakRateLabel(plan: SubscriptionPlan): string {
 
 function selectPlan(plan: SubscriptionPlan) {
   selectedPlan.value = plan
+  subscriptionPurchaseMode.value = 'stack'
+  targetSubscriptionId.value = null
   errorMessage.value = ''
 }
 
 function selectPlanFromModal(plan: SubscriptionPlan) {
   showRenewalModal.value = false
   renewGroupId.value = null
+  renewTemplateId.value = null
   selectedPlan.value = plan
+  if (targetSubscriptionId.value && targetSubscriptionId.value > 0) {
+    subscriptionPurchaseMode.value = 'renew'
+  }
   errorMessage.value = ''
 }
 
 function closeRenewalModal() {
   showRenewalModal.value = false
   renewGroupId.value = null
+  renewTemplateId.value = null
+  targetSubscriptionId.value = null
 }
 
 async function handleSubmitRecharge() {
@@ -838,11 +942,18 @@ async function createOrder(orderAmount: number, orderType: OrderType, planId?: n
   errorHintMessage.value = ''
   const requestType = normalizeVisibleMethod(options.paymentType || selectedMethod.value) || options.paymentType || selectedMethod.value
   try {
+    const resolvedTargetSubId = orderType === 'subscription'
+      && subscriptionPurchaseMode.value === 'renew'
+      && targetSubscriptionId.value
+      && targetSubscriptionId.value > 0
+      ? targetSubscriptionId.value
+      : undefined
     const payload = buildCreateOrderPayload({
       amount: orderAmount,
       paymentType: requestType,
       orderType,
       planId,
+      targetSubscriptionId: resolvedTargetSubId,
       origin: typeof window !== 'undefined' ? window.location.origin : '',
       isMobile: isMobileDevice(),
       isWechatBrowser: typeof window !== 'undefined' && /MicroMessenger/i.test(window.navigator.userAgent),
@@ -1202,10 +1313,24 @@ onMounted(async () => {
     }
     await resumeWechatPaymentFromQuery()
     // balance_disabled → the tabs watcher above moves activeTab to the subscription tab (when enabled).
-    // Handle renewal navigation: ?tab=subscription&group=123 (ignored when subscriptions are disabled)
+    // Handle renewal navigation: ?tab=subscription&group=123&subscription_id=456&template=789
     if (route.query.tab === 'subscription' && subscriptionEnabled.value) {
       activeTab.value = 'subscription'
-      if (route.query.group) {
+      const subIdFromQuery = route.query.subscription_id ? Number(route.query.subscription_id) : null
+      const templateIdFromQuery = route.query.template ? Number(route.query.template) : null
+      if (subIdFromQuery && subIdFromQuery > 0) {
+        targetSubscriptionId.value = subIdFromQuery
+        subscriptionPurchaseMode.value = 'renew'
+      }
+      if (templateIdFromQuery && templateIdFromQuery > 0) {
+        const tplPlans = checkout.value.plans.filter(p => p.template_id === templateIdFromQuery)
+        if (tplPlans.length === 1) {
+          selectedPlan.value = tplPlans[0]
+        } else if (tplPlans.length > 1) {
+          renewTemplateId.value = templateIdFromQuery
+          showRenewalModal.value = true
+        }
+      } else if (route.query.group) {
         const groupId = Number(route.query.group)
         const groupPlans = checkout.value.plans.filter(p => p.group_id === groupId)
         if (groupPlans.length === 1) {

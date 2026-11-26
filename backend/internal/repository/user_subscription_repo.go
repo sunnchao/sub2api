@@ -74,7 +74,9 @@ func (r *userSubscriptionRepository) GetByID(ctx context.Context, id int64) (*se
 	if err != nil {
 		return nil, translatePersistenceError(err, service.ErrSubscriptionNotFound, nil)
 	}
-	return userSubscriptionEntityToService(m), nil
+	out := userSubscriptionEntityToService(m)
+	_ = r.attachSubscriptionSnapshotSingle(ctx, client, out)
+	return out, nil
 }
 
 func (r *userSubscriptionRepository) GetByIDForUpdate(ctx context.Context, id int64) (*service.UserSubscription, error) {
@@ -86,7 +88,9 @@ func (r *userSubscriptionRepository) GetByIDForUpdate(ctx context.Context, id in
 	if err != nil {
 		return nil, translatePersistenceError(err, service.ErrSubscriptionNotFound, nil)
 	}
-	return userSubscriptionEntityToService(m), nil
+	out := userSubscriptionEntityToService(m)
+	_ = r.attachSubscriptionSnapshotSingle(ctx, client, out)
+	return out, nil
 }
 
 func (r *userSubscriptionRepository) GetByIDIncludeDeleted(ctx context.Context, id int64) (*service.UserSubscription, error) {
@@ -101,7 +105,9 @@ func (r *userSubscriptionRepository) GetByIDIncludeDeleted(ctx context.Context, 
 	if err != nil {
 		return nil, translatePersistenceError(err, service.ErrSubscriptionNotFound, nil)
 	}
-	return userSubscriptionEntityToServicePreserveStatus(m), nil
+	out := userSubscriptionEntityToServicePreserveStatus(m)
+	_ = r.attachSubscriptionSnapshotSingle(ctx, client, out)
+	return out, nil
 }
 
 func (r *userSubscriptionRepository) GetByUserIDAndGroupID(ctx context.Context, userID, groupID int64) (*service.UserSubscription, error) {
@@ -109,11 +115,14 @@ func (r *userSubscriptionRepository) GetByUserIDAndGroupID(ctx context.Context, 
 	m, err := client.UserSubscription.Query().
 		Where(usersubscription.UserIDEQ(userID), usersubscription.GroupIDEQ(groupID)).
 		WithGroup().
-		Only(ctx)
+		Order(dbent.Desc(usersubscription.FieldExpiresAt), dbent.Desc(usersubscription.FieldID)).
+		First(ctx)
 	if err != nil {
 		return nil, translatePersistenceError(err, service.ErrSubscriptionNotFound, nil)
 	}
-	return userSubscriptionEntityToService(m), nil
+	out := userSubscriptionEntityToService(m)
+	_ = r.attachSubscriptionSnapshotSingle(ctx, client, out)
+	return out, nil
 }
 
 func (r *userSubscriptionRepository) GetActiveByUserIDAndGroupID(ctx context.Context, userID, groupID int64) (*service.UserSubscription, error) {
@@ -126,11 +135,18 @@ func (r *userSubscriptionRepository) GetActiveByUserIDAndGroupID(ctx context.Con
 			usersubscription.ExpiresAtGT(time.Now()),
 		).
 		WithGroup().
-		Only(ctx)
+		Order(
+			dbent.Asc(usersubscription.FieldExpiresAt),
+			dbent.Asc(usersubscription.FieldCreatedAt),
+			dbent.Asc(usersubscription.FieldID),
+		).
+		First(ctx)
 	if err != nil {
 		return nil, translatePersistenceError(err, service.ErrSubscriptionNotFound, nil)
 	}
-	return userSubscriptionEntityToService(m), nil
+	out := userSubscriptionEntityToService(m)
+	_ = r.attachSubscriptionSnapshotSingle(ctx, client, out)
+	return out, nil
 }
 
 func (r *userSubscriptionRepository) Update(ctx context.Context, sub *service.UserSubscription) error {
@@ -196,7 +212,9 @@ func (r *userSubscriptionRepository) ListByUserID(ctx context.Context, userID in
 	if err != nil {
 		return nil, err
 	}
-	return userSubscriptionEntitiesToService(subs), nil
+	out := userSubscriptionEntitiesToService(subs)
+	_ = r.attachSubscriptionSnapshots(ctx, client, out)
+	return out, nil
 }
 
 func (r *userSubscriptionRepository) ListActiveByUserID(ctx context.Context, userID int64) ([]service.UserSubscription, error) {
@@ -208,12 +226,14 @@ func (r *userSubscriptionRepository) ListActiveByUserID(ctx context.Context, use
 			usersubscription.ExpiresAtGT(time.Now()),
 		).
 		WithGroup().
-		Order(dbent.Desc(usersubscription.FieldCreatedAt)).
+		Order(dbent.Asc(usersubscription.FieldExpiresAt), dbent.Asc(usersubscription.FieldCreatedAt), dbent.Asc(usersubscription.FieldID)).
 		All(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return userSubscriptionEntitiesToService(subs), nil
+	out := userSubscriptionEntitiesToService(subs)
+	_ = r.attachSubscriptionSnapshots(ctx, client, out)
+	return out, nil
 }
 
 func (r *userSubscriptionRepository) ListByGroupID(ctx context.Context, groupID int64, params pagination.PaginationParams) ([]service.UserSubscription, *pagination.PaginationResult, error) {
@@ -236,7 +256,9 @@ func (r *userSubscriptionRepository) ListByGroupID(ctx context.Context, groupID 
 		return nil, nil, err
 	}
 
-	return userSubscriptionEntitiesToService(subs), paginationResultFromTotal(int64(total), params), nil
+	out := userSubscriptionEntitiesToService(subs)
+	_ = r.attachSubscriptionSnapshots(ctx, client, out)
+	return out, paginationResultFromTotal(int64(total), params), nil
 }
 
 func (r *userSubscriptionRepository) List(ctx context.Context, params pagination.PaginationParams, userID, groupID *int64, status, platform, sortBy, sortOrder string) ([]service.UserSubscription, *pagination.PaginationResult, error) {
@@ -333,6 +355,7 @@ func (r *userSubscriptionRepository) List(ctx context.Context, params pagination
 			return nil, nil, err
 		}
 	}
+	_ = r.attachSubscriptionSnapshots(ctx, client, result)
 
 	return result, paginationResultFromTotal(int64(total), params), nil
 }

@@ -3,6 +3,7 @@ package admin
 import (
 	"context"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
@@ -42,7 +43,9 @@ func NewSubscriptionHandler(subscriptionService *service.SubscriptionService) *S
 // AssignSubscriptionRequest represents assign subscription request
 type AssignSubscriptionRequest struct {
 	UserID       int64  `json:"user_id" binding:"required"`
-	GroupID      int64  `json:"group_id" binding:"required"`
+	GroupID      int64  `json:"group_id"`
+	TemplateID   *int64 `json:"template_id"`
+	Mode         string `json:"mode"`
 	ValidityDays int    `json:"validity_days" binding:"omitempty,max=36500"` // max 100 years
 	Notes        string `json:"notes"`
 }
@@ -50,7 +53,9 @@ type AssignSubscriptionRequest struct {
 // BulkAssignSubscriptionRequest represents bulk assign subscription request
 type BulkAssignSubscriptionRequest struct {
 	UserIDs      []int64 `json:"user_ids" binding:"required,min=1,max=100,dive,gt=0"`
-	GroupID      int64   `json:"group_id" binding:"required"`
+	GroupID      int64   `json:"group_id"`
+	TemplateID   *int64  `json:"template_id"`
+	Mode         string  `json:"mode"`
 	ValidityDays int     `json:"validity_days" binding:"omitempty,max=36500"` // max 100 years
 	Notes        string  `json:"notes"`
 }
@@ -141,23 +146,42 @@ func (h *SubscriptionHandler) Assign(c *gin.Context) {
 		response.BadRequest(c, "Invalid request: "+err.Error())
 		return
 	}
+	if req.GroupID <= 0 && (req.TemplateID == nil || *req.TemplateID <= 0) {
+		response.BadRequest(c, "Either group_id or template_id is required")
+		return
+	}
 
 	// Get admin user ID from context
 	adminID := getAdminIDFromContext(c)
+	exec := func(ctx context.Context) (any, error) {
+		subscription, execErr := h.subscriptionService.AssignSubscription(ctx, &service.AssignSubscriptionInput{
+			UserID:       req.UserID,
+			GroupID:      req.GroupID,
+			TemplateID:   req.TemplateID,
+			Mode:         req.Mode,
+			ValidityDays: req.ValidityDays,
+			AssignedBy:   adminID,
+			Notes:        req.Notes,
+		})
+		if execErr != nil {
+			return nil, execErr
+		}
+		return dto.UserSubscriptionFromServiceAdmin(subscription), nil
+	}
 
-	subscription, err := h.subscriptionService.AssignSubscription(c.Request.Context(), &service.AssignSubscriptionInput{
-		UserID:       req.UserID,
-		GroupID:      req.GroupID,
-		ValidityDays: req.ValidityDays,
-		AssignedBy:   adminID,
-		Notes:        req.Notes,
-	})
+	if strings.TrimSpace(c.GetHeader("Idempotency-Key")) != "" {
+		executeAdminIdempotentJSONWithResponse(c, "admin.subscriptions.assign", req, service.DefaultWriteIdempotencyTTL(), exec, func(data any) any {
+			return adminSubscriptionResponse(c, data)
+		})
+		return
+	}
+
+	data, err := exec(c.Request.Context())
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}
-
-	response.Success(c, adminSubscriptionResponse(c, dto.UserSubscriptionFromServiceAdmin(subscription)))
+	response.Success(c, adminSubscriptionResponse(c, data))
 }
 
 // BulkAssign handles bulk assigning subscriptions to multiple users
@@ -168,23 +192,42 @@ func (h *SubscriptionHandler) BulkAssign(c *gin.Context) {
 		response.BadRequest(c, "Invalid request: "+err.Error())
 		return
 	}
+	if req.GroupID <= 0 && (req.TemplateID == nil || *req.TemplateID <= 0) {
+		response.BadRequest(c, "Either group_id or template_id is required")
+		return
+	}
 
 	// Get admin user ID from context
 	adminID := getAdminIDFromContext(c)
+	exec := func(ctx context.Context) (any, error) {
+		result, execErr := h.subscriptionService.BulkAssignSubscription(ctx, &service.BulkAssignSubscriptionInput{
+			UserIDs:      req.UserIDs,
+			GroupID:      req.GroupID,
+			TemplateID:   req.TemplateID,
+			Mode:         req.Mode,
+			ValidityDays: req.ValidityDays,
+			AssignedBy:   adminID,
+			Notes:        req.Notes,
+		})
+		if execErr != nil {
+			return nil, execErr
+		}
+		return dto.BulkAssignResultFromService(result), nil
+	}
 
-	result, err := h.subscriptionService.BulkAssignSubscription(c.Request.Context(), &service.BulkAssignSubscriptionInput{
-		UserIDs:      req.UserIDs,
-		GroupID:      req.GroupID,
-		ValidityDays: req.ValidityDays,
-		AssignedBy:   adminID,
-		Notes:        req.Notes,
-	})
+	if strings.TrimSpace(c.GetHeader("Idempotency-Key")) != "" {
+		executeAdminIdempotentJSONWithResponse(c, "admin.subscriptions.bulk-assign", req, service.DefaultWriteIdempotencyTTL(), exec, func(data any) any {
+			return adminSubscriptionResponse(c, data)
+		})
+		return
+	}
+
+	data, err := exec(c.Request.Context())
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}
-
-	response.Success(c, adminSubscriptionResponse(c, dto.BulkAssignResultFromService(result)))
+	response.Success(c, adminSubscriptionResponse(c, data))
 }
 
 // BulkAction applies one operation to selected subscriptions, returning each outcome.

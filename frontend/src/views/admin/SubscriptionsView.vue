@@ -1,6 +1,42 @@
 <template>
   <AppLayout>
-    <TablePageLayout>
+    <!-- Dual Tab Bar: User Subscriptions | Subscription Templates -->
+    <div class="mb-4 flex items-center gap-2 border-b border-gray-200 dark:border-dark-700">
+      <button
+        type="button"
+        data-test="tab-subscriptions"
+        :class="[
+          'border-b-2 px-4 py-2.5 text-sm font-medium transition-colors',
+          activeViewTab === 'subscriptions'
+            ? 'border-primary-500 text-primary-600 dark:text-primary-400'
+            : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+        ]"
+        @click="activeViewTab = 'subscriptions'"
+      >
+        {{ t('admin.subscriptions.tabs.subscriptions') }}
+      </button>
+      <button
+        type="button"
+        data-test="tab-templates"
+        :class="[
+          'border-b-2 px-4 py-2.5 text-sm font-medium transition-colors',
+          activeViewTab === 'templates'
+            ? 'border-primary-500 text-primary-600 dark:text-primary-400'
+            : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+        ]"
+        @click="activeViewTab = 'templates'"
+      >
+        {{ t('admin.subscriptions.tabs.templates') }}
+      </button>
+    </div>
+
+    <SubscriptionTemplatesTab
+      v-if="activeViewTab === 'templates'"
+      :groups="groups"
+      @changed="loadTemplates"
+    />
+
+    <TablePageLayout v-else>
       <template #filters>
         <!-- Top Toolbar: Left (search + filters) / Right (actions) -->
         <div class="flex flex-wrap items-start justify-between gap-4">
@@ -234,40 +270,45 @@
           </template>
 
           <template #cell-group="{ row }">
-            <GroupBadge
-              v-if="row.group"
-              :name="row.group.name"
-              :platform="row.group.platform"
-              :subscription-type="row.group.subscription_type"
-              :rate-multiplier="row.group.rate_multiplier"
-              :show-rate="false"
-            />
-            <span v-else class="text-sm text-gray-400 dark:text-dark-500">-</span>
+            <div class="flex flex-wrap items-center gap-1.5">
+              <GroupBadge
+                v-if="row.group"
+                :name="row.group.name"
+                :platform="row.group.platform"
+                :subscription-type="row.group.subscription_type"
+                :rate-multiplier="row.group.rate_multiplier"
+                :show-rate="false"
+              />
+              <span v-else class="text-sm text-gray-400 dark:text-dark-500">-</span>
+              <span v-if="row.template_name" class="badge badge-primary text-[11px]" data-test="sub-template-badge">
+                {{ row.template_name }}
+              </span>
+            </div>
           </template>
 
           <template #cell-usage="{ row }">
             <div class="min-w-[280px] space-y-2">
               <!-- Hourly Usage -->
-              <div v-if="row.group?.hourly_limit_usd" class="usage-row">
+              <div v-if="effectiveLimits(row).hourly_limit_usd" class="usage-row">
                 <div class="flex items-center gap-2">
                   <span class="usage-label">{{
                     t('admin.subscriptions.hourly', {
-                      hours: row.group?.hourly_window_hours || 5
+                      hours: effectiveLimits(row).hourly_window_hours || 5
                     })
                   }}</span>
                   <div class="h-1.5 flex-1 rounded-full bg-gray-200 dark:bg-dark-600">
                     <div
                       class="h-1.5 rounded-full transition-all"
-                      :class="getProgressClass(row.hourly_usage_usd, row.group?.hourly_limit_usd)"
+                      :class="getProgressClass(row.hourly_usage_usd, effectiveLimits(row).hourly_limit_usd)"
                       :style="{
-                        width: getProgressWidth(row.hourly_usage_usd, row.group?.hourly_limit_usd)
+                        width: getProgressWidth(row.hourly_usage_usd, effectiveLimits(row).hourly_limit_usd)
                       }"
                     ></div>
                   </div>
                   <span class="usage-amount">
                     ${{ row.hourly_usage_usd?.toFixed(2) || '0.00' }}
                     <span class="text-gray-400">/</span>
-                    ${{ row.group?.hourly_limit_usd?.toFixed(2) }}
+                    ${{ effectiveLimits(row).hourly_limit_usd?.toFixed(2) }}
                   </span>
                 </div>
                 <div class="reset-info" v-if="row.hourly_window_start">
@@ -288,29 +329,29 @@
                     formatResetTime(
                       row.hourly_window_start,
                       'hourly',
-                      row.group?.hourly_window_hours || 5
+                      effectiveLimits(row).hourly_window_hours || 5
                     )
                   }}</span>
                 </div>
               </div>
 
               <!-- Daily Usage -->
-              <div v-if="row.group?.daily_limit_usd" class="usage-row">
+              <div v-if="effectiveLimits(row).daily_limit_usd" class="usage-row">
                 <div class="flex items-center gap-2">
                   <span class="usage-label">{{ t('admin.subscriptions.daily') }}</span>
                   <div class="h-1.5 flex-1 rounded-full bg-gray-200 dark:bg-dark-600">
                     <div
                       class="h-1.5 rounded-full transition-all"
-                      :class="getProgressClass(row.daily_usage_usd, row.group?.daily_limit_usd)"
+                      :class="getProgressClass(row.daily_usage_usd, effectiveLimits(row).daily_limit_usd)"
                       :style="{
-                        width: getProgressWidth(row.daily_usage_usd, row.group?.daily_limit_usd)
+                        width: getProgressWidth(row.daily_usage_usd, effectiveLimits(row).daily_limit_usd)
                       }"
                     ></div>
                   </div>
                   <span class="usage-amount">
                     ${{ row.daily_usage_usd?.toFixed(2) || '0.00' }}
                     <span class="text-gray-400">/</span>
-                    ${{ row.group?.daily_limit_usd?.toFixed(2) }}
+                    ${{ effectiveLimits(row).daily_limit_usd?.toFixed(2) }}
                   </span>
                 </div>
                 <div class="reset-info" v-if="row.daily_window_start">
@@ -332,22 +373,22 @@
               </div>
 
               <!-- Weekly Usage -->
-              <div v-if="row.group?.weekly_limit_usd" class="usage-row">
+              <div v-if="effectiveLimits(row).weekly_limit_usd" class="usage-row">
                 <div class="flex items-center gap-2">
                   <span class="usage-label">{{ t('admin.subscriptions.weekly') }}</span>
                   <div class="h-1.5 flex-1 rounded-full bg-gray-200 dark:bg-dark-600">
                     <div
                       class="h-1.5 rounded-full transition-all"
-                      :class="getProgressClass(row.weekly_usage_usd, row.group?.weekly_limit_usd)"
+                      :class="getProgressClass(row.weekly_usage_usd, effectiveLimits(row).weekly_limit_usd)"
                       :style="{
-                        width: getProgressWidth(row.weekly_usage_usd, row.group?.weekly_limit_usd)
+                        width: getProgressWidth(row.weekly_usage_usd, effectiveLimits(row).weekly_limit_usd)
                       }"
                     ></div>
                   </div>
                   <span class="usage-amount">
                     ${{ row.weekly_usage_usd?.toFixed(2) || '0.00' }}
                     <span class="text-gray-400">/</span>
-                    ${{ row.group?.weekly_limit_usd?.toFixed(2) }}
+                    ${{ effectiveLimits(row).weekly_limit_usd?.toFixed(2) }}
                   </span>
                 </div>
                 <div class="reset-info" v-if="row.weekly_window_start">
@@ -369,22 +410,22 @@
               </div>
 
               <!-- Monthly Usage -->
-              <div v-if="row.group?.monthly_limit_usd" class="usage-row">
+              <div v-if="effectiveLimits(row).monthly_limit_usd" class="usage-row">
                 <div class="flex items-center gap-2">
                   <span class="usage-label">{{ t('admin.subscriptions.monthly') }}</span>
                   <div class="h-1.5 flex-1 rounded-full bg-gray-200 dark:bg-dark-600">
                     <div
                       class="h-1.5 rounded-full transition-all"
-                      :class="getProgressClass(row.monthly_usage_usd, row.group?.monthly_limit_usd)"
+                      :class="getProgressClass(row.monthly_usage_usd, effectiveLimits(row).monthly_limit_usd)"
                       :style="{
-                        width: getProgressWidth(row.monthly_usage_usd, row.group?.monthly_limit_usd)
+                        width: getProgressWidth(row.monthly_usage_usd, effectiveLimits(row).monthly_limit_usd)
                       }"
                     ></div>
                   </div>
                   <span class="usage-amount">
                     ${{ row.monthly_usage_usd?.toFixed(2) || '0.00' }}
                     <span class="text-gray-400">/</span>
-                    ${{ row.group?.monthly_limit_usd?.toFixed(2) }}
+                    ${{ effectiveLimits(row).monthly_limit_usd?.toFixed(2) }}
                   </span>
                 </div>
                 <div class="reset-info" v-if="row.monthly_window_start">
@@ -408,10 +449,10 @@
               <!-- No Limits - Unlimited badge -->
               <div
                 v-if="
-                  !row.group?.daily_limit_usd &&
-                  !row.group?.weekly_limit_usd &&
-                  !row.group?.monthly_limit_usd &&
-                  !row.group?.hourly_limit_usd
+                  !effectiveLimits(row).daily_limit_usd &&
+                  !effectiveLimits(row).weekly_limit_usd &&
+                  !effectiveLimits(row).monthly_limit_usd &&
+                  !effectiveLimits(row).hourly_limit_usd
                 "
                 class="flex items-center gap-2 rounded-lg bg-gradient-to-r from-emerald-50 to-teal-50 px-3 py-2 dark:from-emerald-900/20 dark:to-teal-900/20"
               >
@@ -475,6 +516,15 @@
                 <span class="text-xs">{{ t('admin.subscriptions.adjust') }}</span>
               </button>
               <button
+                v-if="row.status === 'active' || row.status === 'expired'"
+                @click="handleEditLimits(row)"
+                :data-test="`edit-limits-${row.id}`"
+                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-indigo-50 hover:text-indigo-600 dark:hover:bg-indigo-900/20 dark:hover:text-indigo-400"
+              >
+                <Icon name="edit" size="sm" />
+                <span class="text-xs">{{ t('admin.subscriptions.editLimits.action') }}</span>
+              </button>
+              <button
                 v-if="row.status === 'active'"
                 @click="handleResetQuota(row)"
                 :disabled="resettingQuota && resettingSubscription?.id === row.id"
@@ -533,6 +583,13 @@
       :subscriptions="bulkSubscriptions"
       @close="bulkAction = null"
       @completed="handleBulkCompleted"
+    />
+
+    <SubscriptionLimitsEditDialog
+      :show="showEditLimitsModal"
+      :subscription="editingLimitsSubscription"
+      @close="showEditLimitsModal = false"
+      @saved="loadSubscriptions"
     />
 
     <!-- Assign Subscription Modal -->
@@ -623,7 +680,64 @@
             </ul>
           </div>
         </div>
-        <div>
+        <div v-if="activeTemplateOptions.length > 0">
+          <label class="input-label">{{ t('admin.subscriptions.assignSource.label') }}</label>
+          <div class="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              data-test="assign-source-template"
+              :disabled="submitting"
+              :class="[
+                'rounded-lg border px-3 py-2 text-left text-xs font-medium transition-colors',
+                assignSource === 'template'
+                  ? 'border-primary-500 bg-primary-50 text-primary-700 dark:border-primary-400 dark:bg-primary-900/20 dark:text-primary-300'
+                  : 'border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-dark-600 dark:text-gray-300 dark:hover:bg-dark-700'
+              ]"
+              @click="assignSource = 'template'"
+            >
+              {{ t('admin.subscriptions.assignSource.template') }}
+            </button>
+            <button
+              type="button"
+              data-test="assign-source-group"
+              :disabled="submitting"
+              :class="[
+                'rounded-lg border px-3 py-2 text-left text-xs font-medium transition-colors',
+                assignSource === 'group'
+                  ? 'border-primary-500 bg-primary-50 text-primary-700 dark:border-primary-400 dark:bg-primary-900/20 dark:text-primary-300'
+                  : 'border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-dark-600 dark:text-gray-300 dark:hover:bg-dark-700'
+              ]"
+              @click="assignSource = 'group'"
+            >
+              {{ t('admin.subscriptions.assignSource.group') }}
+            </button>
+          </div>
+        </div>
+
+        <template v-if="assignSource === 'template' && activeTemplateOptions.length > 0">
+          <div>
+            <label class="input-label">{{ t('admin.subscriptions.templates.name') }}</label>
+            <Select
+              v-model="assignForm.template_id"
+              :disabled="submitting"
+              :options="activeTemplateOptions"
+              :placeholder="t('admin.subscriptions.assignSource.selectTemplate')"
+              data-test="assign-template-select"
+              @change="onAssignTemplateChange"
+            />
+          </div>
+          <div>
+            <label class="input-label">{{ t('admin.subscriptions.assignSource.mode') }}</label>
+            <Select
+              v-model="assignForm.mode"
+              :disabled="submitting"
+              :options="assignModeOptions"
+              data-test="assign-mode-select"
+            />
+          </div>
+        </template>
+
+        <div v-else>
           <label class="input-label">{{ t('admin.subscriptions.form.group') }}</label>
           <Select
             v-model="assignForm.group_id"
@@ -895,8 +1009,11 @@ import { adminAPI } from '@/api/admin'
 import type { AdminUser, UserSubscription, Group, GroupPlatform, SubscriptionType } from '@/types'
 import type { SimpleUser } from '@/api/admin/usage'
 import type { SubscriptionBulkAction, SubscriptionBulkActionResult, BulkAssignSubscriptionResult } from '@/api/admin/subscriptions'
+import type { SubscriptionTemplate } from '@/api/admin/subscriptionTemplates'
 import { useTableSelection } from '@/composables/useTableSelection'
 import BulkSubscriptionActionDialog from '@/components/admin/subscription/BulkSubscriptionActionDialog.vue'
+import SubscriptionTemplatesTab from '@/components/admin/subscription/SubscriptionTemplatesTab.vue'
+import SubscriptionLimitsEditDialog from '@/components/admin/subscription/SubscriptionLimitsEditDialog.vue'
 import type { Column } from '@/components/common/types'
 import { formatDateTimeToMinute } from '@/utils/format'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
@@ -1055,10 +1172,39 @@ const statusOptions = computed(() => [
   { value: 'revoked', label: t('admin.subscriptions.status.revoked') }
 ])
 
+const activeViewTab = ref<'subscriptions' | 'templates'>('subscriptions')
 const subscriptions = ref<UserSubscription[]>([])
 const groups = ref<Group[]>([])
+const subscriptionTemplates = ref<SubscriptionTemplate[]>([])
 const loading = ref(false)
+const showEditLimitsModal = ref(false)
+const editingLimitsSubscription = ref<UserSubscription | null>(null)
+const assignSource = ref<'template' | 'group'>('group')
 let abortController: AbortController | null = null
+
+const effectiveLimits = (sub: UserSubscription) => {
+  if (sub.has_custom_limits) {
+    return {
+      daily_limit_usd: sub.daily_limit_usd ?? null,
+      weekly_limit_usd: sub.weekly_limit_usd ?? null,
+      monthly_limit_usd: sub.monthly_limit_usd ?? null,
+      hourly_limit_usd: sub.hourly_limit_usd ?? null,
+      hourly_window_hours: sub.hourly_window_hours || 5
+    }
+  }
+  return {
+    daily_limit_usd: sub.group?.daily_limit_usd ?? null,
+    weekly_limit_usd: sub.group?.weekly_limit_usd ?? null,
+    monthly_limit_usd: sub.group?.monthly_limit_usd ?? null,
+    hourly_limit_usd: sub.group?.hourly_limit_usd ?? null,
+    hourly_window_hours: sub.group?.hourly_window_hours || 5
+  }
+}
+
+const handleEditLimits = (subscription: UserSubscription) => {
+  editingLimitsSubscription.value = subscription
+  showEditLimitsModal.value = true
+}
 
 const { selectedIds, selectedCount, setSelectedIds, clear: clearSelection, removeMany: removeSelectedIds } =
   useTableSelection<UserSubscription>({ rows: subscriptions, getId: (subscription) => subscription.id })
@@ -1144,8 +1290,31 @@ const restoringSubscription = ref<UserSubscription | null>(null)
 const assignForm = reactive({
   user_id: null as number | null,
   group_id: null as number | null,
+  template_id: null as number | null,
+  mode: 'stack' as 'stack' | 'extend',
   validity_days: 30
 })
+
+const activeTemplateOptions = computed(() =>
+  subscriptionTemplates.value
+    .filter((tpl) => tpl.status === 'active')
+    .map((tpl) => ({
+      value: tpl.id,
+      label: tpl.group ? `${tpl.name} (${tpl.group.name})` : tpl.name
+    }))
+)
+
+const assignModeOptions = computed(() => [
+  { value: 'stack', label: t('admin.subscriptions.assignSource.stack') },
+  { value: 'extend', label: t('admin.subscriptions.assignSource.extend') }
+])
+
+const onAssignTemplateChange = () => {
+  const tpl = subscriptionTemplates.value.find((item) => item.id === assignForm.template_id)
+  if (tpl && tpl.default_validity_days > 0) {
+    assignForm.validity_days = tpl.default_validity_days
+  }
+}
 
 const extendForm = reactive({
   days: 30
@@ -1232,6 +1401,18 @@ const loadGroups = async () => {
     groups.value = await adminAPI.groups.getAll()
   } catch (error) {
     console.error('Error loading groups:', error)
+  }
+}
+
+const loadTemplates = async () => {
+  try {
+    if (!adminAPI.subscriptionTemplates?.list) return
+    subscriptionTemplates.value = await adminAPI.subscriptionTemplates.list()
+    if (subscriptionTemplates.value.some((tpl) => tpl.status === 'active') && !assignForm.group_id) {
+      assignSource.value = 'template'
+    }
+  } catch {
+    // optional in minimal test mocks
   }
 }
 
@@ -1380,7 +1561,10 @@ const closeAssignModal = () => {
   batchAssignResult.value = null
   assignForm.user_id = null
   assignForm.group_id = null
+  assignForm.template_id = null
+  assignForm.mode = 'stack'
   assignForm.validity_days = 30
+  assignSource.value = activeTemplateOptions.value.length > 0 ? 'template' : 'group'
   // Clear user search state
   selectedUser.value = null
   userSearchKeyword.value = ''
@@ -1388,13 +1572,24 @@ const closeAssignModal = () => {
   showUserDropdown.value = false
 }
 
+const generateAssignIdempotencyKey = () =>
+  typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : `assign-${Date.now()}-${Math.random().toString(36).slice(2)}`
+
 const handleAssignSubscription = async () => {
   if (submitting.value) return
   if (batchAssignEnabled.value ? assignUsers.value.length === 0 : !assignForm.user_id) {
     appStore.showError(t('admin.subscriptions.pleaseSelectUser'))
     return
   }
-  if (!assignForm.group_id) {
+  const useTemplate = assignSource.value === 'template' && activeTemplateOptions.value.length > 0
+  if (useTemplate) {
+    if (!assignForm.template_id) {
+      appStore.showError(t('admin.subscriptions.assignSource.templateRequired'))
+      return
+    }
+  } else if (!assignForm.group_id) {
     appStore.showError(t('admin.subscriptions.pleaseSelectGroup'))
     return
   }
@@ -1405,12 +1600,23 @@ const handleAssignSubscription = async () => {
 
   submitting.value = true
   try {
+    const idempotencyKey = useTemplate ? generateAssignIdempotencyKey() : undefined
     if (batchAssignEnabled.value) {
-      batchAssignResult.value = await adminAPI.subscriptions.bulkAssign({
-        user_ids: assignUsers.value.map((user) => user.id),
-        group_id: assignForm.group_id,
-        validity_days: assignForm.validity_days
-      })
+      const payload = useTemplate
+        ? {
+            user_ids: assignUsers.value.map((user) => user.id),
+            template_id: assignForm.template_id!,
+            mode: assignForm.mode,
+            validity_days: assignForm.validity_days
+          }
+        : {
+            user_ids: assignUsers.value.map((user) => user.id),
+            group_id: assignForm.group_id!,
+            validity_days: assignForm.validity_days
+          }
+      batchAssignResult.value = idempotencyKey
+        ? await adminAPI.subscriptions.bulkAssign(payload, idempotencyKey)
+        : await adminAPI.subscriptions.bulkAssign(payload)
       const result = batchAssignResult.value
       const successIds = new Set(result.subscriptions.map((subscription) => subscription.user_id))
       assignUsers.value = assignUsers.value.filter((user) => !successIds.has(user.id))
@@ -1420,11 +1626,23 @@ const handleAssignSubscription = async () => {
       }
       return
     }
-    await adminAPI.subscriptions.assign({
-      user_id: assignForm.user_id!,
-      group_id: assignForm.group_id,
-      validity_days: assignForm.validity_days
-    })
+    const singlePayload = useTemplate
+      ? {
+          user_id: assignForm.user_id!,
+          template_id: assignForm.template_id!,
+          mode: assignForm.mode,
+          validity_days: assignForm.validity_days
+        }
+      : {
+          user_id: assignForm.user_id!,
+          group_id: assignForm.group_id!,
+          validity_days: assignForm.validity_days
+        }
+    if (idempotencyKey) {
+      await adminAPI.subscriptions.assign(singlePayload, idempotencyKey)
+    } else {
+      await adminAPI.subscriptions.assign(singlePayload)
+    }
     appStore.showSuccess(t('admin.subscriptions.subscriptionAssigned'))
     submitting.value = false
     closeAssignModal()
@@ -1666,6 +1884,7 @@ onMounted(() => {
   loadSavedColumns()
   loadSubscriptions()
   loadGroups()
+  loadTemplates()
   document.addEventListener('click', handleClickOutside)
 })
 

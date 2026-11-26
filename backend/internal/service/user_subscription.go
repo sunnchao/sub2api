@@ -31,6 +31,16 @@ type UserSubscription struct {
 	MonthlyUsageUSD float64
 	HourlyUsageUSD  float64
 
+	// Optional template lineage & snapshotted quota limits (from user_subscription_snapshots sidecar table).
+	TemplateID        *int64
+	TemplateName      string
+	HasCustomLimits   bool
+	DailyLimitUSD     *float64
+	WeeklyLimitUSD    *float64
+	MonthlyLimitUSD   *float64
+	HourlyLimitUSD    *float64
+	HourlyWindowHours int
+
 	AssignedBy *int64
 	AssignedAt time.Time
 	Notes      string
@@ -227,36 +237,40 @@ func (s *UserSubscription) HourlyResetTime(group *Group) *time.Time {
 	if s.HourlyWindowStart == nil {
 		return nil
 	}
-	t := s.windowResetAnchor(*s.HourlyWindowStart).Add(hourlyWindowPeriod(group))
+	t := s.windowResetAnchor(*s.HourlyWindowStart).Add(s.EffectiveLimits(group).HourlyWindowPeriod())
 	return &t
 }
 
 func (s *UserSubscription) CheckDailyLimit(group *Group, additionalCost float64) bool {
-	if !group.HasDailyLimit() {
+	limits := s.EffectiveLimits(group)
+	if !limits.HasDailyLimit() {
 		return true
 	}
-	return s.DailyUsageUSD+additionalCost <= *group.DailyLimitUSD
+	return s.DailyUsageUSD+additionalCost <= *limits.DailyLimitUSD
 }
 
 func (s *UserSubscription) CheckWeeklyLimit(group *Group, additionalCost float64) bool {
-	if !group.HasWeeklyLimit() {
+	limits := s.EffectiveLimits(group)
+	if !limits.HasWeeklyLimit() {
 		return true
 	}
-	return s.WeeklyUsageUSD+additionalCost <= *group.WeeklyLimitUSD
+	return s.WeeklyUsageUSD+additionalCost <= *limits.WeeklyLimitUSD
 }
 
 func (s *UserSubscription) CheckMonthlyLimit(group *Group, additionalCost float64) bool {
-	if !group.HasMonthlyLimit() {
+	limits := s.EffectiveLimits(group)
+	if !limits.HasMonthlyLimit() {
 		return true
 	}
-	return s.MonthlyUsageUSD+additionalCost <= *group.MonthlyLimitUSD
+	return s.MonthlyUsageUSD+additionalCost <= *limits.MonthlyLimitUSD
 }
 
 func (s *UserSubscription) CheckHourlyLimit(group *Group, additionalCost float64) bool {
-	if !group.HasHourlyLimit() {
+	limits := s.EffectiveLimits(group)
+	if !limits.HasHourlyLimit() {
 		return true
 	}
-	return s.HourlyUsageUSD+additionalCost <= *group.HourlyLimitUSD
+	return s.HourlyUsageUSD+additionalCost <= *limits.HourlyLimitUSD
 }
 
 func (s *UserSubscription) CheckAllLimits(group *Group, additionalCost float64) (daily, weekly, monthly bool) {

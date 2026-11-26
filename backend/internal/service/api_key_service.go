@@ -489,8 +489,15 @@ func (s *APIKeyService) canUserBindGroup(ctx context.Context, user *User, group 
 		_, err := s.userSubRepo.GetActiveByUserIDAndGroupID(ctx, user.ID, group.ID)
 		return err == nil // 有有效订阅则允许
 	}
-	// 标准类型分组：使用原有逻辑
-	return user.CanBindGroup(group.ID, group.IsExclusive)
+	// 标准类型分组：先按原有逻辑；若用户持有该分组有效订阅（如模板绑定标准专属分组），自动授予绑定权
+	if user.CanBindGroup(group.ID, group.IsExclusive) {
+		return true
+	}
+	if s.userSubRepo != nil {
+		_, err := s.userSubRepo.GetActiveByUserIDAndGroupID(ctx, user.ID, group.ID)
+		return err == nil
+	}
+	return false
 }
 
 func normalizeAPIKeyGroupIDs(groupID *int64, groupIDs []int64) ([]int64, error) {
@@ -1174,8 +1181,8 @@ func (s *APIKeyService) canUserBindGroupInternal(user *User, group *Group, subsc
 	if group.IsSubscriptionType() {
 		return subscribedGroupIDs[group.ID]
 	}
-	// 标准类型分组：使用原有逻辑
-	return user.CanBindGroup(group.ID, group.IsExclusive)
+	// 标准类型分组：使用原有逻辑或持有有效订阅自动放行
+	return user.CanBindGroup(group.ID, group.IsExclusive) || subscribedGroupIDs[group.ID]
 }
 
 func (s *APIKeyService) SearchAPIKeys(ctx context.Context, userID int64, keyword string, limit int) ([]APIKey, error) {

@@ -14,6 +14,7 @@ import announcementsAPI from './announcements'
 import settingsAPI from './settings'
 import systemAPI from './system'
 import subscriptionsAPI from './subscriptions'
+import subscriptionTemplatesAPI from './subscriptionTemplates'
 import usageAPI from './usage'
 import geminiAPI from './gemini'
 import antigravityAPI from './antigravity'
@@ -53,6 +54,7 @@ export const adminAPI = {
   settings: settingsAPI,
   system: systemAPI,
   subscriptions: subscriptionsAPI,
+  subscriptionTemplates: subscriptionTemplatesAPI,
   usage: usageAPI,
   gemini: geminiAPI,
   antigravity: antigravityAPI,
@@ -90,6 +92,7 @@ export {
   settingsAPI,
   systemAPI,
   subscriptionsAPI,
+  subscriptionTemplatesAPI,
   usageAPI,
   geminiAPI,
   antigravityAPI,

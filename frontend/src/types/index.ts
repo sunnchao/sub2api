@@ -1974,6 +1974,9 @@ export interface RedeemCode {
   updated_at?: string
   notes?: string
   group_id?: number | null // 订阅类型专用
+  template_id?: number | null // 订阅模板 ID
+  template_name?: string // 订阅模板名称
+  redeem_mode?: 'stack' | 'extend' // 模板兑换模式
   validity_days?: number // 订阅类型专用
   user?: User
   group?: Group // 关联的分组
@@ -1984,6 +1987,8 @@ export interface GenerateRedeemCodesRequest {
   type: RedeemCodeType
   value: number
   group_id?: number | null // 订阅类型专用
+  template_id?: number | null // 订阅模板 ID
+  redeem_mode?: 'stack' | 'extend' // 模板兑换模式
   validity_days?: number // 订阅类型专用
   expires_at?: string | null
   expires_in_days?: number
@@ -2212,6 +2217,14 @@ export interface UserSubscription {
   weekly_window_start: string | null
   monthly_window_start: string | null
   hourly_window_start: string | null
+  template_id?: number | null
+  template_name?: string
+  has_custom_limits?: boolean
+  daily_limit_usd?: number | null
+  weekly_limit_usd?: number | null
+  monthly_limit_usd?: number | null
+  hourly_limit_usd?: number | null
+  hourly_window_hours?: number
   created_at: string
   updated_at: string
   revoked_at?: string | null
@@ -2252,14 +2265,28 @@ export interface SubscriptionProgress {
 
 export interface AssignSubscriptionRequest {
   user_id: number
-  group_id: number
+  group_id?: number
+  template_id?: number | null
+  mode?: 'stack' | 'extend'
   validity_days?: number
+  notes?: string
 }
 
 export interface BulkAssignSubscriptionRequest {
   user_ids: number[]
-  group_id: number
+  group_id?: number
+  template_id?: number | null
+  mode?: 'stack' | 'extend'
   validity_days?: number
+  notes?: string
+}
+
+export interface UpdateSubscriptionLimitsRequest {
+  daily_limit_usd?: number | null
+  weekly_limit_usd?: number | null
+  monthly_limit_usd?: number | null
+  hourly_limit_usd?: number | null
+  hourly_window_hours?: number
 }
 
 export interface ExtendSubscriptionRequest {

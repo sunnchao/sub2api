@@ -1819,48 +1819,9 @@ func (h *GatewayHandler) usageQuotaLimited(c *gin.Context, ctx context.Context, 
 	c.JSON(http.StatusOK, resp)
 }
 
-// usageUnrestricted 处理 unrestricted 模式的响应（向后兼容）
+// usageUnrestricted 处理 unrestricted 模式的响应（向后兼容，支持多订阅聚合与快照限额）
 func (h *GatewayHandler) usageUnrestricted(c *gin.Context, ctx context.Context, apiKey *service.APIKey, subject middleware2.AuthSubject, usageData gin.H, dailyUsage any, modelStats any) {
-	// 订阅模式
-	if apiKey.Group != nil && apiKey.Group.IsSubscriptionType() {
-		resp := gin.H{
-			"mode":     "unrestricted",
-			"isValid":  true,
-			"planName": apiKey.Group.Name,
-			"unit":     "USD",
-		}
-
-		// 订阅信息可能不在 context 中（/v1/usage 路径跳过了中间件的计费检查）
-		subscription, ok := middleware2.GetSubscriptionFromContext(c)
-		if ok {
-			remaining := h.calculateSubscriptionRemaining(apiKey.Group, subscription)
-			resp["remaining"] = remaining
-			resp["subscription"] = gin.H{
-				"daily_usage_usd":     subscription.DailyUsageUSD,
-				"weekly_usage_usd":    subscription.WeeklyUsageUSD,
-				"monthly_usage_usd":   subscription.MonthlyUsageUSD,
-				"hourly_usage_usd":    subscription.HourlyUsageUSD,
-				"daily_limit_usd":     apiKey.Group.DailyLimitUSD,
-				"weekly_limit_usd":    apiKey.Group.WeeklyLimitUSD,
-				"monthly_limit_usd":   apiKey.Group.MonthlyLimitUSD,
-				"hourly_limit_usd":    apiKey.Group.HourlyLimitUSD,
-				"hourly_window_hours": apiKey.Group.HourlyWindowHours,
-				"weekly_window_start": subscription.WeeklyWindowStart,
-				"hourly_window_start": subscription.HourlyWindowStart,
-				"expires_at":          subscription.ExpiresAt,
-			}
-		}
-
-		if usageData != nil {
-			resp["usage"] = usageData
-		}
-		if dailyUsage != nil {
-			resp["daily_usage"] = dailyUsage
-		}
-		if modelStats != nil {
-			resp["model_stats"] = modelStats
-		}
-		c.JSON(http.StatusOK, resp)
+	if h.usageUnrestrictedWithMultiSub(c, ctx, apiKey, subject, usageData, dailyUsage, modelStats) {
 		return
 	}
 
@@ -2542,8 +2503,9 @@ func billingErrorDetails(c *gin.Context, err error) (status int, code, message s
 		case errors.Is(err, service.ErrSubscriptionInvalid), errors.Is(err, service.ErrSubscriptionNotFound),
 			errors.Is(err, service.ErrSubscriptionExpired), errors.Is(err, service.ErrSubscriptionSuspended),
 			errors.Is(err, service.ErrHourlyLimitExceeded), errors.Is(err, service.ErrDailyLimitExceeded),
-			errors.Is(err, service.ErrWeeklyLimitExceeded), errors.Is(err, service.ErrMonthlyLimitExceeded),
-			errors.Is(err, service.ErrGroupRPMExceeded):
+			errors.Is(err, service.ErrWeeklyLimitExceeded), errors.Is(err, service.ErrMonthlyLimitExceeded):
+			middleware2.SetGroupRetryDecision(c, middleware2.GroupRetryNextSubscription)
+		case errors.Is(err, service.ErrGroupRPMExceeded):
 			middleware2.SetGroupRetryDecision(c, middleware2.GroupRetryNext)
 		}
 	}

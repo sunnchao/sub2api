@@ -528,6 +528,9 @@ type RedeemCode struct {
 
 	GroupID      *int64 `json:"group_id"`
 	ValidityDays int    `json:"validity_days"`
+	TemplateID   *int64 `json:"template_id,omitempty"`
+	TemplateName string `json:"template_name,omitempty"`
+	RedeemMode   string `json:"redeem_mode,omitempty"`
 
 	// Notes is only populated for admin_balance/admin_concurrency types
 	// so users can see why they were charged or credited
@@ -782,6 +785,15 @@ type UserSubscription struct {
 	WeeklyUsageUSD  float64 `json:"weekly_usage_usd"`
 	MonthlyUsageUSD float64 `json:"monthly_usage_usd"`
 	HourlyUsageUSD  float64 `json:"hourly_usage_usd"`
+
+	TemplateID        *int64   `json:"template_id,omitempty"`
+	TemplateName      string   `json:"template_name,omitempty"`
+	HasCustomLimits   bool     `json:"has_custom_limits,omitempty"`
+	DailyLimitUSD     *float64 `json:"daily_limit_usd,omitempty"`
+	WeeklyLimitUSD    *float64 `json:"weekly_limit_usd,omitempty"`
+	MonthlyLimitUSD   *float64 `json:"monthly_limit_usd,omitempty"`
+	HourlyLimitUSD    *float64 `json:"hourly_limit_usd,omitempty"`
+	HourlyWindowHours int      `json:"hourly_window_hours,omitempty"`
 
 	CreatedAt time.Time  `json:"created_at"`
 	UpdatedAt time.Time  `json:"updated_at"`

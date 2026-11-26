@@ -744,84 +744,16 @@
           <!-- Subscription limits (only show when subscription type is selected) -->
           <div
             v-if="createForm.subscription_type === 'subscription'"
-            class="space-y-4 border-l-2 border-primary-200 pl-4 dark:border-primary-800"
+            class="border-l-2 border-primary-200 pl-4 dark:border-primary-800"
           >
-            <div>
-              <label class="input-label">{{
-                t("admin.groups.subscription.dailyLimit")
-              }}</label>
-              <input
-                v-model.number="createForm.daily_limit_usd"
-                type="number"
-                step="0.01"
-                min="0"
-                class="input"
-                :placeholder="t('admin.groups.subscription.noLimit')"
-              />
-            </div>
-            <div>
-              <label class="input-label">{{
-                t("admin.groups.subscription.weeklyLimit")
-              }}</label>
-              <input
-                v-model.number="createForm.weekly_limit_usd"
-                type="number"
-                step="0.01"
-                min="0"
-                class="input"
-                :placeholder="t('admin.groups.subscription.noLimit')"
-              />
-            </div>
-            <div>
-              <label class="input-label">{{
-                t("admin.groups.subscription.monthlyLimit")
-              }}</label>
-              <input
-                v-model.number="createForm.monthly_limit_usd"
-                type="number"
-                step="0.01"
-                min="0"
-                class="input"
-                :placeholder="t('admin.groups.subscription.noLimit')"
-              />
-            </div>
-            <div class="grid grid-cols-2 gap-3">
-              <div>
-                <label class="input-label">{{
-                  t("admin.groups.subscription.hourlyLimit")
-                }}</label>
-                <input
-                  v-model.number="createForm.hourly_limit_usd"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  class="input"
-                  :placeholder="t('admin.groups.subscription.noLimit')"
-                  data-testid="create-hourly-limit"
-                />
-              </div>
-              <div>
-                <label class="input-label">{{
-                  t("admin.groups.subscription.hourlyWindowHours")
-                }}</label>
-                <input
-                  v-model.number="createForm.hourly_window_hours"
-                  type="number"
-                  min="1"
-                  max="168"
-                  step="1"
-                  class="input"
-                  data-testid="create-hourly-window-hours"
-                />
-              </div>
-            </div>
-            <p class="input-hint">
-              {{
-                t("admin.groups.subscription.hourlyHint", {
-                  hours: createForm.hourly_window_hours || 5,
-                })
-              }}
-            </p>
+            <SubscriptionQuotaFields
+              v-model:daily-limit-usd="createForm.daily_limit_usd"
+              v-model:weekly-limit-usd="createForm.weekly_limit_usd"
+              v-model:monthly-limit-usd="createForm.monthly_limit_usd"
+              v-model:hourly-limit-usd="createForm.hourly_limit_usd"
+              v-model:hourly-window-hours="createForm.hourly_window_hours"
+              test-id-prefix="create"
+            />
           </div>
         </div>
 
@@ -2448,84 +2380,16 @@
           <!-- Subscription limits (only show when subscription type is selected) -->
           <div
             v-if="editForm.subscription_type === 'subscription'"
-            class="space-y-4 border-l-2 border-primary-200 pl-4 dark:border-primary-800"
+            class="border-l-2 border-primary-200 pl-4 dark:border-primary-800"
           >
-            <div>
-              <label class="input-label">{{
-                t("admin.groups.subscription.dailyLimit")
-              }}</label>
-              <input
-                v-model.number="editForm.daily_limit_usd"
-                type="number"
-                step="0.01"
-                min="0"
-                class="input"
-                :placeholder="t('admin.groups.subscription.noLimit')"
-              />
-            </div>
-            <div>
-              <label class="input-label">{{
-                t("admin.groups.subscription.weeklyLimit")
-              }}</label>
-              <input
-                v-model.number="editForm.weekly_limit_usd"
-                type="number"
-                step="0.01"
-                min="0"
-                class="input"
-                :placeholder="t('admin.groups.subscription.noLimit')"
-              />
-            </div>
-            <div>
-              <label class="input-label">{{
-                t("admin.groups.subscription.monthlyLimit")
-              }}</label>
-              <input
-                v-model.number="editForm.monthly_limit_usd"
-                type="number"
-                step="0.01"
-                min="0"
-                class="input"
-                :placeholder="t('admin.groups.subscription.noLimit')"
-              />
-            </div>
-            <div class="grid grid-cols-2 gap-3">
-              <div>
-                <label class="input-label">{{
-                  t("admin.groups.subscription.hourlyLimit")
-                }}</label>
-                <input
-                  v-model.number="editForm.hourly_limit_usd"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  class="input"
-                  :placeholder="t('admin.groups.subscription.noLimit')"
-                  data-testid="edit-hourly-limit"
-                />
-              </div>
-              <div>
-                <label class="input-label">{{
-                  t("admin.groups.subscription.hourlyWindowHours")
-                }}</label>
-                <input
-                  v-model.number="editForm.hourly_window_hours"
-                  type="number"
-                  min="1"
-                  max="168"
-                  step="1"
-                  class="input"
-                  data-testid="edit-hourly-window-hours"
-                />
-              </div>
-            </div>
-            <p class="input-hint">
-              {{
-                t("admin.groups.subscription.hourlyHint", {
-                  hours: editForm.hourly_window_hours || 5,
-                })
-              }}
-            </p>
+            <SubscriptionQuotaFields
+              v-model:daily-limit-usd="editForm.daily_limit_usd"
+              v-model:weekly-limit-usd="editForm.weekly_limit_usd"
+              v-model:monthly-limit-usd="editForm.monthly_limit_usd"
+              v-model:hourly-limit-usd="editForm.hourly_limit_usd"
+              v-model:hourly-window-hours="editForm.hourly_window_hours"
+              test-id-prefix="edit"
+            />
           </div>
         </div>
 
@@ -4453,6 +4317,7 @@ import GroupRateMultipliersModal from "@/components/admin/group/GroupRateMultipl
 import GroupRPMOverridesModal from "@/components/admin/group/GroupRPMOverridesModal.vue";
 import GroupCapacityBadge from "@/components/common/GroupCapacityBadge.vue";
 import ReasoningEffortPolicyFields from "@/components/admin/group/ReasoningEffortPolicyFields.vue";
+import SubscriptionQuotaFields from "@/components/admin/subscription/SubscriptionQuotaFields.vue";
 import CodexManifestAccountsField from "@/components/admin/group/CodexManifestAccountsField.vue";
 import PricingEntryCard from "@/components/admin/channel/PricingEntryCard.vue";
 import type { PricingFormEntry } from "@/components/admin/channel/types";

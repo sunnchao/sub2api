@@ -21,6 +21,11 @@ type RedeemCode struct {
 	GroupID      *int64
 	ValidityDays int
 
+	// Optional template & mode metadata (from redeem_code_templates sidecar table).
+	TemplateID   *int64
+	TemplateName string
+	RedeemMode   string
+
 	User  *User
 	Group *Group
 }

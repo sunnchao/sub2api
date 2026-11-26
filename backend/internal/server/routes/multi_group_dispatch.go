@@ -277,9 +277,13 @@ func (d *multiGroupDispatcher) Wrap(handler gin.HandlerFunc) gin.HandlerFunc {
 
 		var bestFailure *capturedAttempt
 		var subscriptionOnly bool
+		skipGroupIDs := make(map[int64]bool)
 		for idx, cand := range candidates {
 			if baseCtx.Err() != nil {
 				break
+			}
+			if cand.Group != nil && skipGroupIDs[cand.Group.ID] {
+				continue
 			}
 			if subscriptionOnly && !hasActiveGroupSubscription(cand) {
 				continue
@@ -319,6 +323,9 @@ func (d *multiGroupDispatcher) Wrap(handler gin.HandlerFunc) gin.HandlerFunc {
 			}
 			if decision == middleware.GroupRetrySubscriptionOnly {
 				subscriptionOnly = true
+			} else if decision != middleware.GroupRetryNextSubscription && cand.Group != nil {
+				// Group-level failure (allowlist/platform/RPM/upstream): skip other subscriptions on the same group.
+				skipGroupIDs[cand.Group.ID] = true
 			}
 
 			rank := failurePriorityRank(rw.status, bodyBytes)
@@ -410,9 +417,16 @@ func (d *multiGroupDispatcher) WrapModels(handler gin.HandlerFunc) gin.HandlerFu
 
 		var successBodies [][]byte
 		var bestFailure *capturedAttempt
+		seenGroupIDs := make(map[int64]bool, len(candidates))
 		for _, cand := range candidates {
 			if baseCtx.Err() != nil {
 				break
+			}
+			if cand.Group != nil {
+				if seenGroupIDs[cand.Group.ID] {
+					continue
+				}
+				seenGroupIDs[cand.Group.ID] = true
 			}
 			restoreGinKeys(c, baseKeys)
 			c.Errors = c.Errors[:0]
@@ -667,7 +681,7 @@ func hasRemainingSubscription(remaining []middleware.GroupCandidate) bool {
 }
 
 func hasActiveGroupSubscription(candidate middleware.GroupCandidate) bool {
-	return candidate.Subscription != nil && candidate.Group != nil && candidate.Group.IsSubscriptionType()
+	return candidate.Subscription != nil && candidate.Group != nil
 }
 
 func extractJSONErrorCodeAndMessage(body []byte) (string, string) {
@@ -709,7 +723,7 @@ func shouldRetryNextGroup(status int, body []byte, hasRemainingSub bool, reqCtxE
 	switch decision {
 	case middleware.GroupRetryStop:
 		return false
-	case middleware.GroupRetryNext:
+	case middleware.GroupRetryNext, middleware.GroupRetryNextSubscription:
 		return true
 	case middleware.GroupRetrySubscriptionOnly:
 		return hasRemainingSub

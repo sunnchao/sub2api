@@ -38,10 +38,16 @@
             <div class="flex items-center gap-3">
               <div :class="['h-1.5 w-1.5 shrink-0 rounded-full', platformAccentDotClass(subscription.group?.platform || '')]" />
               <div>
-                <div class="flex items-center gap-2">
+                <div class="flex flex-wrap items-center gap-2">
                   <h3 class="font-semibold text-gray-900 dark:text-white">
-                    {{ subscription.group?.name || `Group #${subscription.group_id}` }}
+                    {{ subscription.template_name || subscription.group?.name || `Group #${subscription.group_id}` }}
                   </h3>
+                  <span
+                    v-if="subscription.template_name && subscription.group?.name"
+                    class="rounded-md bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600 dark:bg-dark-700 dark:text-gray-300"
+                  >
+                    {{ subscription.group.name }}
+                  </span>
                   <span :class="['rounded-md border px-2 py-0.5 text-[11px] font-medium', platformBadgeClass(subscription.group?.platform || '')]">
                     {{ platformLabel(subscription.group?.platform || '') }}
                   </span>
@@ -73,7 +79,15 @@
               <button
                 v-if="subscription.status === 'active'"
                 :class="['rounded-lg px-3 py-1.5 text-xs font-semibold text-white transition-colors', platformButtonClass(subscription.group?.platform || '')]"
-                @click="router.push({ path: '/purchase', query: { tab: 'subscription', group: String(subscription.group_id) } })"
+                @click="router.push({
+                  path: '/purchase',
+                  query: {
+                    tab: 'subscription',
+                    group: String(subscription.group_id),
+                    subscription_id: String(subscription.id),
+                    ...(subscription.template_id ? { template: String(subscription.template_id) } : {})
+                  }
+                })"
               >
                 {{ t('payment.renewNow') }}
               </button>
@@ -101,18 +115,18 @@
             </div>
 
             <!-- Hourly Usage -->
-            <div v-if="subscription.group?.hourly_limit_usd" class="space-y-2">
+            <div v-if="effectiveLimits(subscription).hourly_limit_usd" class="space-y-2">
               <div class="flex items-center justify-between">
                 <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
                   {{
                     t('userSubscriptions.hourly', {
-                      hours: subscription.group?.hourly_window_hours || 5
+                      hours: effectiveLimits(subscription).hourly_window_hours || 5
                     })
                   }}
                 </span>
                 <span class="text-sm text-gray-500 dark:text-dark-400">
                   ${{ (subscription.hourly_usage_usd || 0).toFixed(2) }} / ${{
-                    subscription.group.hourly_limit_usd.toFixed(2)
+                    effectiveLimits(subscription).hourly_limit_usd!.toFixed(2)
                   }}
                 </span>
               </div>
@@ -122,13 +136,13 @@
                   :class="
                     getProgressBarClass(
                       subscription.hourly_usage_usd,
-                      subscription.group.hourly_limit_usd
+                      effectiveLimits(subscription).hourly_limit_usd!
                     )
                   "
                   :style="{
                     width: getProgressWidth(
                       subscription.hourly_usage_usd,
-                      subscription.group.hourly_limit_usd
+                      effectiveLimits(subscription).hourly_limit_usd!
                     )
                   }"
                 ></div>
@@ -141,7 +155,7 @@
                   t('userSubscriptions.resetIn', {
                     time: formatResetTime(
                       subscription.hourly_window_start,
-                      subscription.group.hourly_window_hours || 5
+                      effectiveLimits(subscription).hourly_window_hours || 5
                     )
                   })
                 }}
@@ -149,14 +163,14 @@
             </div>
 
             <!-- Daily Usage -->
-            <div v-if="subscription.group?.daily_limit_usd" class="space-y-2">
+            <div v-if="effectiveLimits(subscription).daily_limit_usd" class="space-y-2">
               <div class="flex items-center justify-between">
                 <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
                   {{ t('userSubscriptions.daily') }}
                 </span>
                 <span class="text-sm text-gray-500 dark:text-dark-400">
                   ${{ (subscription.daily_usage_usd || 0).toFixed(2) }} / ${{
-                    subscription.group.daily_limit_usd.toFixed(2)
+                    effectiveLimits(subscription).daily_limit_usd!.toFixed(2)
                   }}
                 </span>
               </div>
@@ -166,13 +180,13 @@
                   :class="
                     getProgressBarClass(
                       subscription.daily_usage_usd,
-                      subscription.group.daily_limit_usd
+                      effectiveLimits(subscription).daily_limit_usd!
                     )
                   "
                   :style="{
                     width: getProgressWidth(
                       subscription.daily_usage_usd,
-                      subscription.group.daily_limit_usd
+                      effectiveLimits(subscription).daily_limit_usd!
                     )
                   }"
                 ></div>
@@ -186,14 +200,14 @@
             </div>
 
             <!-- Weekly Usage -->
-            <div v-if="subscription.group?.weekly_limit_usd" class="space-y-2">
+            <div v-if="effectiveLimits(subscription).weekly_limit_usd" class="space-y-2">
               <div class="flex items-center justify-between">
                 <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
                   {{ t('userSubscriptions.weekly') }}
                 </span>
                 <span class="text-sm text-gray-500 dark:text-dark-400">
                   ${{ (subscription.weekly_usage_usd || 0).toFixed(2) }} / ${{
-                    subscription.group.weekly_limit_usd.toFixed(2)
+                    effectiveLimits(subscription).weekly_limit_usd!.toFixed(2)
                   }}
                 </span>
               </div>
@@ -203,13 +217,13 @@
                   :class="
                     getProgressBarClass(
                       subscription.weekly_usage_usd,
-                      subscription.group.weekly_limit_usd
+                      effectiveLimits(subscription).weekly_limit_usd!
                     )
                   "
                   :style="{
                     width: getProgressWidth(
                       subscription.weekly_usage_usd,
-                      subscription.group.weekly_limit_usd
+                      effectiveLimits(subscription).weekly_limit_usd!
                     )
                   }"
                 ></div>
@@ -227,14 +241,14 @@
             </div>
 
             <!-- Monthly Usage -->
-            <div v-if="subscription.group?.monthly_limit_usd" class="space-y-2">
+            <div v-if="effectiveLimits(subscription).monthly_limit_usd" class="space-y-2">
               <div class="flex items-center justify-between">
                 <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
                   {{ t('userSubscriptions.monthly') }}
                 </span>
                 <span class="text-sm text-gray-500 dark:text-dark-400">
                   ${{ (subscription.monthly_usage_usd || 0).toFixed(2) }} / ${{
-                    subscription.group.monthly_limit_usd.toFixed(2)
+                    effectiveLimits(subscription).monthly_limit_usd!.toFixed(2)
                   }}
                 </span>
               </div>
@@ -244,13 +258,13 @@
                   :class="
                     getProgressBarClass(
                       subscription.monthly_usage_usd,
-                      subscription.group.monthly_limit_usd
+                      effectiveLimits(subscription).monthly_limit_usd!
                     )
                   "
                   :style="{
                     width: getProgressWidth(
                       subscription.monthly_usage_usd,
-                      subscription.group.monthly_limit_usd
+                      effectiveLimits(subscription).monthly_limit_usd!
                     )
                   }"
                 ></div>
@@ -270,10 +284,10 @@
             <!-- No limits configured - Unlimited badge -->
             <div
               v-if="
-                !subscription.group?.hourly_limit_usd &&
-                !subscription.group?.daily_limit_usd &&
-                !subscription.group?.weekly_limit_usd &&
-                !subscription.group?.monthly_limit_usd
+                !effectiveLimits(subscription).hourly_limit_usd &&
+                !effectiveLimits(subscription).daily_limit_usd &&
+                !effectiveLimits(subscription).weekly_limit_usd &&
+                !effectiveLimits(subscription).monthly_limit_usd
               "
               class="flex items-center justify-center rounded-xl bg-gradient-to-r from-emerald-50 to-teal-50 py-6 dark:from-emerald-900/20 dark:to-teal-900/20"
             >
@@ -314,6 +328,25 @@ import {
   isOneTimeDailyQuota,
   type RemainingDurationParts
 } from '@/utils/subscriptionQuota'
+
+function effectiveLimits(sub: UserSubscription) {
+  if (sub.has_custom_limits) {
+    return {
+      daily_limit_usd: sub.daily_limit_usd ?? null,
+      weekly_limit_usd: sub.weekly_limit_usd ?? null,
+      monthly_limit_usd: sub.monthly_limit_usd ?? null,
+      hourly_limit_usd: sub.hourly_limit_usd ?? null,
+      hourly_window_hours: sub.hourly_window_hours || 5
+    }
+  }
+  return {
+    daily_limit_usd: sub.group?.daily_limit_usd ?? null,
+    weekly_limit_usd: sub.group?.weekly_limit_usd ?? null,
+    monthly_limit_usd: sub.group?.monthly_limit_usd ?? null,
+    hourly_limit_usd: sub.group?.hourly_limit_usd ?? null,
+    hourly_window_hours: sub.group?.hourly_window_hours || 5
+  }
+}
 
 function platformAccentDotClass(p: string): string {
   switch (p) {

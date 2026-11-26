@@ -141,6 +141,16 @@ func (s *PaymentConfigService) ListPlansForSale(ctx context.Context) ([]*dbent.S
 }
 
 func (s *PaymentConfigService) CreatePlan(ctx context.Context, req CreatePlanRequest) (*dbent.SubscriptionPlan, error) {
+	if req.TemplateID != nil && *req.TemplateID > 0 {
+		tpl, err := s.resolveActiveTemplateForPlan(ctx, *req.TemplateID)
+		if err != nil {
+			return nil, err
+		}
+		req.GroupID = tpl.GroupID
+		if req.ValidityDays <= 0 && tpl.DefaultValidityDays > 0 {
+			req.ValidityDays = tpl.DefaultValidityDays
+		}
+	}
 	if err := validatePlanRequired(req.Name, req.GroupID, req.Price, req.ValidityDays, req.ValidityUnit, req.OriginalPrice); err != nil {
 		return nil, err
 	}
@@ -156,7 +166,16 @@ func (s *PaymentConfigService) CreatePlan(ctx context.Context, req CreatePlanReq
 	if req.OriginalPrice != nil {
 		b.SetOriginalPrice(*req.OriginalPrice)
 	}
-	return b.Save(ctx)
+	plan, err := b.Save(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if req.TemplateID != nil && *req.TemplateID > 0 {
+		if bindErr := s.setPlanTemplateBinding(ctx, plan.ID, *req.TemplateID); bindErr != nil {
+			return nil, bindErr
+		}
+	}
+	return plan, nil
 }
 
 // UpdatePlan updates a subscription plan by ID (patch semantics).
@@ -167,7 +186,13 @@ func (s *PaymentConfigService) UpdatePlan(ctx context.Context, id int64, req Upd
 		return nil, err
 	}
 	u := s.entClient.SubscriptionPlan.UpdateOneID(id)
-	if req.GroupID != nil {
+	if req.TemplateID != nil && *req.TemplateID > 0 {
+		tpl, err := s.resolveActiveTemplateForPlan(ctx, *req.TemplateID)
+		if err != nil {
+			return nil, err
+		}
+		u.SetGroupID(tpl.GroupID)
+	} else if req.GroupID != nil {
 		u.SetGroupID(*req.GroupID)
 	}
 	if req.Name != nil {
@@ -207,7 +232,20 @@ func (s *PaymentConfigService) UpdatePlan(ctx context.Context, id int64, req Upd
 	if req.SortOrder != nil {
 		u.SetSortOrder(*req.SortOrder)
 	}
-	return u.Save(ctx)
+	plan, err := u.Save(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if req.ClearTemplate {
+		if clearErr := s.clearPlanTemplateBinding(ctx, plan.ID); clearErr != nil {
+			return nil, clearErr
+		}
+	} else if req.TemplateID != nil && *req.TemplateID > 0 {
+		if bindErr := s.setPlanTemplateBinding(ctx, plan.ID, *req.TemplateID); bindErr != nil {
+			return nil, bindErr
+		}
+	}
+	return plan, nil
 }
 
 func (s *PaymentConfigService) DeletePlan(ctx context.Context, id int64) error {

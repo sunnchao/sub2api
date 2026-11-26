@@ -631,29 +631,45 @@ func (s *PaymentService) ensurePaymentSubscriptionAssigned(ctx context.Context, 
 	}
 
 	recoveredFromNote := false
+	var fulfilledSubID int64
 	if !alreadyAssigned {
 		orderNote := paymentSubscriptionOrderNote(o.ID)
-		existing, lookupErr := s.subscriptionSvc.userSubRepo.GetByUserIDAndGroupID(txCtx, o.UserID, groupID)
-		switch {
-		case lookupErr == nil && existing != nil && hasPaymentSubscriptionOrderNote(existing.Notes, orderNote):
-			recoveredFromNote = true
-		case lookupErr != nil && !errors.Is(lookupErr, ErrSubscriptionNotFound):
-			return fmt.Errorf("check existing subscription assignment: %w", lookupErr)
-		default:
-			if _, _, err := s.subscriptionSvc.assignOrExtendSubscription(txCtx, &AssignSubscriptionInput{
-				UserID:       o.UserID,
-				GroupID:      groupID,
-				ValidityDays: days,
-				AssignedBy:   0,
-				Notes:        orderNote,
-			}, true); err != nil {
-				return fmt.Errorf("assign subscription: %w", err)
+		metaSubID, handled, metaErr := s.fulfillOrderSubscriptionWithMeta(txCtx, o, days, orderNote)
+		if metaErr != nil {
+			return metaErr
+		}
+		if handled {
+			fulfilledSubID = metaSubID
+		} else {
+			existing, lookupErr := s.subscriptionSvc.userSubRepo.GetByUserIDAndGroupID(txCtx, o.UserID, groupID)
+			switch {
+			case lookupErr == nil && existing != nil && hasPaymentSubscriptionOrderNote(existing.Notes, orderNote):
+				recoveredFromNote = true
+				fulfilledSubID = existing.ID
+			case lookupErr != nil && !errors.Is(lookupErr, ErrSubscriptionNotFound):
+				return fmt.Errorf("check existing subscription assignment: %w", lookupErr)
+			default:
+				sub, _, err := s.subscriptionSvc.assignOrExtendSubscription(txCtx, &AssignSubscriptionInput{
+					UserID:       o.UserID,
+					GroupID:      groupID,
+					ValidityDays: days,
+					AssignedBy:   0,
+					Notes:        orderNote,
+				}, true)
+				if err != nil {
+					return fmt.Errorf("assign subscription: %w", err)
+				}
+				if sub != nil {
+					fulfilledSubID = sub.ID
+				}
 			}
+			s.recordLegacyFulfilledSubscriptionID(txCtx, o.ID, fulfilledSubID)
 		}
 
 		detail, _ := json.Marshal(map[string]any{
 			"groupID":           groupID,
 			"validityDays":      days,
+			"subscriptionID":    fulfilledSubID,
 			"recoveredFromNote": recoveredFromNote,
 		})
 		if _, err := txClient.PaymentAuditLog.Create().
@@ -666,7 +682,7 @@ func (s *PaymentService) ensurePaymentSubscriptionAssigned(ctx context.Context, 
 				_ = tx.Rollback()
 				claimed, checkErr := hasPaymentSubscriptionAssignmentAudit(ctx, s.entClient, o.ID)
 				if checkErr == nil && claimed {
-					return s.subscriptionSvc.invalidateSubscriptionCaches(o.UserID, groupID)
+					return s.subscriptionSvc.invalidateSubscriptionInstanceCaches(o.UserID, groupID, fulfilledSubID)
 				}
 			}
 			return fmt.Errorf("record subscription assignment audit: %w", err)
@@ -680,7 +696,7 @@ func (s *PaymentService) ensurePaymentSubscriptionAssigned(ctx context.Context, 
 	}
 	// Assignment cache invalidation is deferred while this transaction is open,
 	// then performed synchronously against the committed subscription.
-	if err := s.subscriptionSvc.invalidateSubscriptionCaches(o.UserID, groupID); err != nil {
+	if err := s.subscriptionSvc.invalidateSubscriptionInstanceCaches(o.UserID, groupID, fulfilledSubID); err != nil {
 		return fmt.Errorf("invalidate subscription cache after fulfillment: %w", err)
 	}
 	return nil
