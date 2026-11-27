@@ -45,6 +45,46 @@ export default {
       payments: 'Payment channels',
       concurrency: 'User & account concurrency tiers'
     },
+    ecosystem: {
+      title: 'Ride the AI Wave, Together.',
+      centerTitle: 'World-Class AI Models, Unified',
+      tagline: 'Keep your SDK — connecting models, creation, and production in one place.',
+      footerHint: 'All Major AI Model Providers',
+      branches: {
+        models: {
+          title: '159+ Models',
+          leaf1: 'OpenAI',
+          leaf2: 'Claude',
+          leaf3: 'Gemini',
+          leaf4: 'DeepSeek'
+        },
+        multimodal: {
+          title: 'Multimodal Creation',
+          leaf1: 'Text & Reasoning',
+          leaf2: 'Vision',
+          leaf3: 'Image Gen',
+          leaf4: 'Video Gen'
+        },
+        usage: {
+          title: 'Usage Clarity',
+          leaf1: 'Request Logs',
+          leaf2: 'Token Usage',
+          leaf3: 'Cost Reports'
+        },
+        production: {
+          title: 'Production Ready',
+          leaf1: 'Failover',
+          leaf2: 'Scheduling',
+          leaf3: 'Smart Routing'
+        },
+        integration: {
+          title: 'Rapid Integration',
+          leaf1: 'Single API Key',
+          leaf2: 'Existing SDKs',
+          leaf3: 'OpenAI Compatible'
+        }
+      }
+    },
     workflow: {
       eyebrow: 'How It Works',
       title: 'Up and running in three steps',

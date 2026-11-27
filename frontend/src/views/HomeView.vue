@@ -297,57 +297,11 @@
         </div>
       </section>
 
-      <!-- Stats -->
-      <section class="px-4 sm:px-6">
-        <ul
-          class="mx-auto grid max-w-6xl grid-cols-2 gap-px overflow-hidden rounded-2xl border border-gray-200 bg-gray-200 md:grid-cols-4 dark:border-dark-800 dark:bg-dark-800"
-        >
-          <li v-for="stat in stats" :key="stat.titleKey" class="bg-white px-4 py-7 text-center dark:bg-dark-950">
-            <p class="gradient-text inline-block text-4xl font-bold tracking-tight">{{ stat.value }}</p>
-            <p class="mt-1.5 text-sm text-gray-500 dark:text-dark-400">{{ t(stat.titleKey) }}</p>
-          </li>
-        </ul>
-      </section>
-
-      <!-- Supported providers -->
-      <section class="px-4 pt-24 sm:px-6">
-        <div class="mx-auto max-w-6xl text-center">
-          <h2 class="text-2xl font-bold tracking-tight sm:text-3xl">{{ t('home.providers.title') }}</h2>
-          <p class="mt-2 text-sm text-gray-500 dark:text-dark-400">{{ t('home.providers.description') }}</p>
-          <ul class="mt-8 flex flex-wrap items-center justify-center gap-3">
-            <li
-              v-for="provider in providers"
-              :key="provider.id"
-              :class="[
-                'flex items-center gap-2.5 rounded-xl border bg-white px-4 py-2.5 shadow-sm dark:bg-dark-900',
-                provider.soon
-                  ? 'border-gray-200 opacity-60 dark:border-dark-700'
-                  : 'border-primary-200 ring-1 ring-primary-500/15 dark:border-primary-800',
-              ]"
-            >
-              <span
-                :class="['flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br text-xs font-bold text-white', provider.gradient]"
-              >
-                {{ provider.initial }}
-              </span>
-              <span class="text-sm font-medium text-gray-700 dark:text-dark-200">{{ provider.name }}</span>
-              <span
-                :class="[
-                  'rounded px-1.5 py-0.5 text-[10px] font-medium',
-                  provider.soon
-                    ? 'bg-gray-100 text-gray-500 dark:bg-dark-700 dark:text-dark-400'
-                    : 'bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400',
-                ]"
-              >
-                {{ provider.soon ? t('home.providers.soon') : t('home.providers.supported') }}
-              </span>
-            </li>
-          </ul>
-        </div>
-      </section>
+      <!-- Interactive AI Ecosystem Constellation -->
+      <AiEcosystemConstellation />
 
       <!-- Core features -->
-      <section class="px-4 pt-24 sm:px-6">
+      <section class="px-4 pt-20 sm:px-6 sm:pt-24" v-if="false">
         <div class="mx-auto max-w-6xl">
           <div class="text-center">
             <p class="text-xs font-semibold uppercase tracking-widest text-primary-600 dark:text-primary-400">
@@ -461,14 +415,14 @@
           >
             {{ t('home.docs') }}
           </a>
-          <a
-            :href="githubUrl"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="text-sm text-gray-500 transition-colors hover:text-gray-700 dark:text-dark-400 dark:hover:text-white"
-          >
-            GitHub
-          </a>
+<!--          <a-->
+<!--            :href="githubUrl"-->
+<!--            target="_blank"-->
+<!--            rel="noopener noreferrer"-->
+<!--            class="text-sm text-gray-500 transition-colors hover:text-gray-700 dark:text-dark-400 dark:hover:text-white"-->
+<!--          >-->
+<!--            GitHub-->
+<!--          </a>-->
         </div>
       </div>
     </footer>
@@ -481,6 +435,7 @@ import { useI18n } from 'vue-i18n'
 import { useAuthStore, useAppStore } from '@/stores'
 import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
 import Icon from '@/components/icons/Icon.vue'
+import AiEcosystemConstellation from '@/components/home/AiEcosystemConstellation.vue'
 import { sanitizeUrl } from '@/utils/url'
 import { FeatureFlags, isFeatureFlagEnabled } from '@/utils/featureFlags'
 
@@ -509,7 +464,7 @@ const isHomeContentUrl = computed(() => {
 const isDark = ref(document.documentElement.classList.contains('dark'))
 
 // GitHub URL
-const githubUrl = 'https://github.com/Wei-Shaw/sub2api'
+// const githubUrl = 'https://github.com/Wei-Shaw/sub2api'
 
 // Auth state
 const isAuthenticated = computed(() => authStore.isAuthenticated)
@@ -676,22 +631,6 @@ function selectProtocol(index: number) {
   activeIndex.value = index
   stopRotation()
 }
-
-// Facts taken from the project feature list
-const stats = [
-  { value: '4+', titleKey: 'home.stats.platforms' },
-  { value: '4', titleKey: 'home.stats.protocols' },
-  { value: '4+', titleKey: 'home.stats.payments' },
-  { value: '2', titleKey: 'home.stats.concurrency' },
-]
-
-const providers = computed(() => [
-  { id: 'claude', name: t('home.providers.claude'), initial: 'C', gradient: 'from-orange-400 to-orange-500', soon: false },
-  { id: 'gpt', name: 'GPT', initial: 'G', gradient: 'from-green-500 to-green-600', soon: false },
-  { id: 'gemini', name: t('home.providers.gemini'), initial: 'G', gradient: 'from-blue-500 to-blue-600', soon: false },
-  { id: 'antigravity', name: t('home.providers.antigravity'), initial: 'A', gradient: 'from-rose-500 to-pink-600', soon: false },
-  { id: 'more', name: t('home.providers.more'), initial: '+', gradient: 'from-gray-500 to-gray-600', soon: true },
-])
 
 interface FeatureItem {
   icon: HomeIcon

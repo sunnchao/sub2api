@@ -30,14 +30,19 @@
       <div class="mb-8 text-center">
         <!-- Custom Logo or Default Logo -->
         <template v-if="settingsLoaded">
-          <div
-            class="mb-4 inline-flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl shadow-lg shadow-primary-500/30"
+          <router-link
+            to="/home"
+            class="group inline-flex flex-col items-center focus:outline-none"
           >
-            <img :src="siteLogo || '/logo.svg'" alt="Logo" class="h-full w-full object-contain" />
-          </div>
-          <h1 class="text-gradient mb-2 text-3xl font-bold">
-            {{ siteName }}
-          </h1>
+            <div
+              class="mb-4 inline-flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl shadow-lg shadow-primary-500/30 transition-transform group-hover:scale-105 group-hover:opacity-90"
+            >
+              <img :src="siteLogo || '/logo.svg'" alt="Logo" class="h-full w-full object-contain" />
+            </div>
+            <h1 class="text-gradient mb-2 text-3xl font-bold transition-opacity group-hover:opacity-85">
+              {{ siteName }}
+            </h1>
+          </router-link>
           <p class="text-sm text-gray-500 dark:text-dark-400">
             {{ siteSubtitle }}
           </p>

@@ -45,6 +45,46 @@ export default {
       payments: '内置支付渠道',
       concurrency: '用户 / 账号双层并发限制'
     },
+    ecosystem: {
+      title: 'AI 浪潮，与你同行。',
+      centerTitle: '汇聚全球顶尖模型',
+      tagline: '保留你的 SDK，把模型、创作与生产连接在一起。',
+      footerHint: '全部主流模型厂商',
+      branches: {
+        models: {
+          title: '159+ 个模型',
+          leaf1: 'OpenAI',
+          leaf2: 'Claude',
+          leaf3: 'Gemini',
+          leaf4: 'DeepSeek'
+        },
+        multimodal: {
+          title: '多模态创作',
+          leaf1: '文本与推理',
+          leaf2: '视觉理解',
+          leaf3: '图片生成',
+          leaf4: '视频生成'
+        },
+        usage: {
+          title: '用量透明',
+          leaf1: '请求日志',
+          leaf2: 'Token 用量',
+          leaf3: '费用报表'
+        },
+        production: {
+          title: '为生产而生',
+          leaf1: '故障转移',
+          leaf2: '请求调度',
+          leaf3: '智能路由'
+        },
+        integration: {
+          title: '快速接入',
+          leaf1: '一个 API Key',
+          leaf2: '复用现有 SDK',
+          leaf3: 'OpenAI 兼容'
+        }
+      }
+    },
     workflow: {
       eyebrow: '工作流程',
       title: '三步快速上手',

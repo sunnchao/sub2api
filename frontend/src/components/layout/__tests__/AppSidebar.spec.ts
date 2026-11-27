@@ -90,3 +90,10 @@ describe('AppSidebar MCP entry', () => {
     expect(componentSource).not.toMatch(/path: '\/settings\/mcp'[^\n]*PluginIcon/)
   })
 })
+
+describe('AppSidebar logo navigation', () => {
+  it('links the sidebar logo and site title to the site home page', () => {
+    expect(componentSource).toContain("const homePath = computed(() => '/home')")
+    expect(componentSource).toContain(':to="homePath"')
+  })
+})

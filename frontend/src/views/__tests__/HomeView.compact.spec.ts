@@ -109,6 +109,9 @@ describe('HomeView compact mode', () => {
 
     expect(wrapper.find('[data-testid="compact-home"]').exists()).toBe(false)
     expect(wrapper.find('.terminal-container').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="ai-ecosystem-constellation"]').exists()).toBe(true)
+    expect(wrapper.text()).not.toContain('home.stats.platforms')
+    expect(wrapper.text()).not.toContain('home.providers.title')
   })
 
   it('links unauthenticated visitors to login', () => {
