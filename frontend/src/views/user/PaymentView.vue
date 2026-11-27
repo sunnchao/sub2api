@@ -154,6 +154,10 @@
                       {{ planPeakRateLabel(selectedPlan) }}
                     </div>
                   </div>
+                  <div v-if="selectedPlan.hourly_limit_usd != null">
+                    <span class="text-xs text-gray-400 dark:text-gray-500">{{ t('payment.planCard.hourlyLimit', { hours: selectedPlan.hourly_window_hours || 5 }) }}</span>
+                    <div class="text-lg font-semibold text-gray-800 dark:text-gray-200">${{ selectedPlan.hourly_limit_usd }}</div>
+                  </div>
                   <div v-if="selectedPlan.daily_limit_usd != null">
                     <span class="text-xs text-gray-400 dark:text-gray-500">{{ t('payment.planCard.dailyLimit') }}</span>
                     <div class="text-lg font-semibold text-gray-800 dark:text-gray-200">${{ selectedPlan.daily_limit_usd }}</div>
@@ -165,10 +169,6 @@
                   <div v-if="selectedPlan.monthly_limit_usd != null">
                     <span class="text-xs text-gray-400 dark:text-gray-500">{{ t('payment.planCard.monthlyLimit') }}</span>
                     <div class="text-lg font-semibold text-gray-800 dark:text-gray-200">${{ selectedPlan.monthly_limit_usd }}</div>
-                  </div>
-                  <div v-if="selectedPlan.hourly_limit_usd != null">
-                    <span class="text-xs text-gray-400 dark:text-gray-500">{{ t('payment.planCard.hourlyLimit', { hours: selectedPlan.hourly_window_hours || 5 }) }}</span>
-                    <div class="text-lg font-semibold text-gray-800 dark:text-gray-200">${{ selectedPlan.hourly_limit_usd }}</div>
                   </div>
                   <div v-if="selectedPlan.daily_limit_usd == null && selectedPlan.weekly_limit_usd == null && selectedPlan.monthly_limit_usd == null && selectedPlan.hourly_limit_usd == null">
                     <span class="text-xs text-gray-400 dark:text-gray-500">{{ t('payment.planCard.quota') }}</span>
@@ -241,14 +241,55 @@
                   </select>
                 </div>
               </div>
-              <div v-if="enabledMethods.length >= 1" class="card p-6">
+              <div v-if="subMethodOptions.length >= 1" class="card p-6">
                 <PaymentMethodSelector
                   :methods="subMethodOptions"
                   :selected="selectedMethod"
                   @select="selectedMethod = $event"
                 />
               </div>
-              <div v-if="feeRate > 0 && selectedPlan.price > 0" class="card p-6">
+              <div
+                v-if="isBalanceMethod && selectedPlan"
+                class="card p-6"
+                data-testid="balance-payment-summary"
+              >
+                <div class="space-y-2 text-sm">
+                  <div class="flex justify-between">
+                    <span class="text-gray-500 dark:text-gray-400">{{ t('payment.currentBalance') }}</span>
+                    <span class="font-medium text-gray-900 dark:text-white">{{ formatPaymentAmount(userBalance, 'USD', localeCode) }}</span>
+                  </div>
+                  <div class="flex justify-between">
+                    <span class="text-gray-500 dark:text-gray-400">{{ t('payment.balanceDeductAmount') }}</span>
+                    <span class="font-medium text-gray-900 dark:text-white">-{{ formatPaymentAmount(selectedPlan.price, 'USD', localeCode) }}</span>
+                  </div>
+                  <div
+                    v-if="userBalance >= selectedPlan.price"
+                    class="flex justify-between border-t border-gray-200 pt-2 dark:border-dark-600"
+                  >
+                    <span class="font-medium text-gray-700 dark:text-gray-300">{{ t('payment.balanceAfterPurchase') }}</span>
+                    <span class="text-base font-bold text-emerald-600 dark:text-emerald-400">{{ formatPaymentAmount(balanceAfterPurchase, 'USD', localeCode) }}</span>
+                  </div>
+                  <div
+                    v-else
+                    class="flex flex-wrap items-center justify-between gap-2 border-t border-gray-200 pt-2 dark:border-dark-600"
+                    data-testid="balance-insufficient-notice"
+                  >
+                    <span class="text-xs font-medium text-amber-600 dark:text-amber-400">
+                      {{ t('payment.balanceInsufficientNotice', { shortfall: formatPaymentAmount(balanceShortfall, 'USD', localeCode) }) }}
+                    </span>
+                    <button
+                      v-if="!checkout.balance_disabled"
+                      type="button"
+                      class="text-xs font-semibold text-primary-600 hover:underline dark:text-primary-400"
+                      data-testid="go-to-recharge-btn"
+                      @click="goToRechargeTab"
+                    >
+                      {{ t('payment.goToRecharge') }}
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div v-if="!isBalanceMethod && feeRate > 0 && selectedPlan.price > 0" class="card p-6">
                 <div class="space-y-2 text-sm">
                   <div class="flex justify-between">
                     <span class="text-gray-500 dark:text-gray-400">{{ t('payment.amountLabel') }}</span>
@@ -269,6 +310,7 @@
                   <span class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
                   {{ t('common.processing') }}
                 </span>
+                <span v-else-if="isBalanceMethod">{{ t('payment.payWithBalance') }} {{ formatSelectedPaymentAmount(subTotalAmount) }}</span>
                 <span v-else>{{ t('payment.createOrder') }} {{ formatSelectedPaymentAmount(subTotalAmount) }}</span>
               </button>
               <button class="btn btn-secondary w-full" @click="selectedPlan = null">{{ t('common.cancel') }}</button>
@@ -297,7 +339,11 @@
                       <div class="flex flex-wrap gap-x-3 text-[11px] text-gray-400 dark:text-gray-500">
                         <span>{{ t('payment.planCard.rate') }}: ×{{ sub.group?.rate_multiplier ?? 1 }}</span>
                         <span v-if="subscriptionHasPeakRate(sub)">{{ t('payment.planCard.peakRate') }}: {{ subscriptionPeakRateLabel(sub) }}</span>
-                        <span v-if="sub.group?.daily_limit_usd == null && sub.group?.weekly_limit_usd == null && sub.group?.monthly_limit_usd == null">{{ t('payment.planCard.quota') }}: {{ t('payment.planCard.unlimited') }}</span>
+                        <span v-if="effectiveSubLimits(sub).hourly_limit_usd != null">{{ t('payment.planCard.hourlyLimit', { hours: effectiveSubLimits(sub).hourly_window_hours }) }}: ${{ effectiveSubLimits(sub).hourly_limit_usd }}</span>
+                        <span v-if="effectiveSubLimits(sub).daily_limit_usd != null">{{ t('payment.planCard.dailyLimit') }}: ${{ effectiveSubLimits(sub).daily_limit_usd }}</span>
+                        <span v-if="effectiveSubLimits(sub).weekly_limit_usd != null">{{ t('payment.planCard.weeklyLimit') }}: ${{ effectiveSubLimits(sub).weekly_limit_usd }}</span>
+                        <span v-if="effectiveSubLimits(sub).monthly_limit_usd != null">{{ t('payment.planCard.monthlyLimit') }}: ${{ effectiveSubLimits(sub).monthly_limit_usd }}</span>
+                        <span v-if="effectiveSubLimits(sub).hourly_limit_usd == null && effectiveSubLimits(sub).daily_limit_usd == null && effectiveSubLimits(sub).weekly_limit_usd == null && effectiveSubLimits(sub).monthly_limit_usd == null">{{ t('payment.planCard.quota') }}: {{ t('payment.planCard.unlimited') }}</span>
                         <span v-if="sub.expires_at">{{ t('userSubscriptions.daysRemaining', { days: getDaysRemaining(sub.expires_at) }) }}</span>
                         <span v-else>{{ t('userSubscriptions.noExpiration') }}</span>
                       </div>
@@ -413,6 +459,39 @@ function subscriptionHasPeakRate(sub: { group?: PeakRateFields | null }): boolea
 
 function subscriptionPeakRateLabel(sub: { group?: PeakRateFields | null }): string {
   return formatPeakRateWindow(sub.group, serverTimezoneLabel(appStore.cachedPublicSettings?.server_utc_offset))
+}
+
+function effectiveSubLimits(sub: {
+  has_custom_limits?: boolean
+  hourly_limit_usd?: number | null
+  hourly_window_hours?: number | null
+  daily_limit_usd?: number | null
+  weekly_limit_usd?: number | null
+  monthly_limit_usd?: number | null
+  group?: {
+    hourly_limit_usd?: number | null
+    hourly_window_hours?: number | null
+    daily_limit_usd?: number | null
+    weekly_limit_usd?: number | null
+    monthly_limit_usd?: number | null
+  } | null
+}) {
+  if (sub.has_custom_limits) {
+    return {
+      hourly_limit_usd: sub.hourly_limit_usd ?? null,
+      hourly_window_hours: sub.hourly_window_hours || 5,
+      daily_limit_usd: sub.daily_limit_usd ?? null,
+      weekly_limit_usd: sub.weekly_limit_usd ?? null,
+      monthly_limit_usd: sub.monthly_limit_usd ?? null,
+    }
+  }
+  return {
+    hourly_limit_usd: sub.group?.hourly_limit_usd ?? null,
+    hourly_window_hours: sub.group?.hourly_window_hours || 5,
+    daily_limit_usd: sub.group?.daily_limit_usd ?? null,
+    weekly_limit_usd: sub.group?.weekly_limit_usd ?? null,
+    monthly_limit_usd: sub.group?.monthly_limit_usd ?? null,
+  }
 }
 
 const loading = ref(true)
@@ -681,8 +760,12 @@ const globalMaxAmount = computed(() => {
 })
 
 // Selected method's limits (for validation and error messages)
+const userBalance = computed(() => Number(user.value?.balance) || 0)
+const isBalanceMethod = computed(() => activeTab.value === 'subscription' && selectedMethod.value === 'balance')
 const selectedLimit = computed(() => visibleMethods.value[selectedMethod.value])
-const selectedCurrency = computed(() => normalizePaymentCurrency(selectedLimit.value?.currency))
+const selectedCurrency = computed(() =>
+  isBalanceMethod.value ? 'USD' : normalizePaymentCurrency(selectedLimit.value?.currency)
+)
 const localeCode = computed(() => {
   const raw = i18n.locale as unknown
   if (typeof raw === 'string') return raw
@@ -794,14 +877,22 @@ const subPaymentAmount = computed(() => {
 })
 
 const subFeeAmount = computed(() => {
-  if (feeRate.value <= 0 || subPaymentAmount.value <= 0) return 0
+  if (isBalanceMethod.value || feeRate.value <= 0 || subPaymentAmount.value <= 0) return 0
   return ceilPaymentAmount((subPaymentAmount.value * feeRate.value) / 100, selectedCurrency.value)
 })
 
 const subTotalAmount = computed(() => {
-  if (feeRate.value <= 0 || subPaymentAmount.value <= 0) return subPaymentAmount.value
+  if (isBalanceMethod.value || feeRate.value <= 0 || subPaymentAmount.value <= 0) return subPaymentAmount.value
   return roundPaymentAmount(subPaymentAmount.value + subFeeAmount.value, selectedCurrency.value)
 })
+
+const balanceAfterPurchase = computed(() =>
+  Math.max(0, roundPaymentAmount(userBalance.value - (selectedPlan.value?.price ?? 0), 'USD'))
+)
+
+const balanceShortfall = computed(() =>
+  Math.max(0, roundPaymentAmount((selectedPlan.value?.price ?? 0) - userBalance.value, 'USD'))
+)
 
 function subscriptionTotalAmountForCurrency(value: number, currency: string): number {
   const paymentAmount = subscriptionPaymentAmountForCurrency(value, currency)
@@ -810,10 +901,10 @@ function subscriptionTotalAmountForCurrency(value: number, currency: string): nu
   return roundPaymentAmount(paymentAmount + fee, currency)
 }
 
-// Subscription-specific: method options based on gateway pay amount
+// Subscription-specific: online methods + account balance (USD, 0 fee)
 const subMethodOptions = computed<PaymentMethodOption[]>(() => {
   const price = selectedPlan.value?.price ?? 0
-  return enabledMethods.value.map((type) => {
+  const options: PaymentMethodOption[] = enabledMethods.value.map((type) => {
     const ml = visibleMethods.value[type]
     const currency = normalizePaymentCurrency(ml?.currency)
     return {
@@ -823,16 +914,72 @@ const subMethodOptions = computed<PaymentMethodOption[]>(() => {
       available: ml?.available !== false && amountFitsMethod(subscriptionTotalAmountForCurrency(price, currency), type),
     }
   })
+  const formattedBalance = formatPaymentAmount(userBalance.value, 'USD', localeCode.value)
+  const balanceAvailable = price > 0 && userBalance.value >= price
+  options.push({
+    type: 'balance',
+    fee_rate: 0,
+    available: balanceAvailable,
+    subtitle: balanceAvailable
+      ? t('payment.balanceAvailableShort', { balance: formattedBalance })
+      : t('payment.balanceInsufficientShort', { balance: formattedBalance }),
+  })
+  return options
 })
 
-const canSubmitSubscription = computed(() =>
-  selectedPlan.value !== null
-    && amountFitsMethod(subTotalAmount.value, selectedMethod.value)
+const canSubmitSubscription = computed(() => {
+  if (!selectedPlan.value || selectedPlan.value.price <= 0) return false
+  if (isBalanceMethod.value) {
+    return userBalance.value >= selectedPlan.value.price
+  }
+  return amountFitsMethod(subTotalAmount.value, selectedMethod.value)
     && selectedLimit.value?.available !== false
-)
+})
 
-// Auto-switch to first available method when current selection can't handle the amount
+function defaultOnlineMethod(): string {
+  if (!enabledMethods.value.length) return ''
+  const order: readonly string[] = METHOD_ORDER
+  const sorted = [...enabledMethods.value].sort((a, b) => {
+    const ai = order.indexOf(a)
+    const bi = order.indexOf(b)
+    return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi)
+  })
+  return sorted[0]
+}
+
+function ensureValidSubscriptionMethod() {
+  if (!selectedPlan.value) return
+  const options = subMethodOptions.value
+  const current = options.find((opt) => opt.type === selectedMethod.value)
+  if (current?.available) return
+  const firstAvailable = options.find((opt) => opt.available)
+  if (firstAvailable) {
+    selectedMethod.value = firstAvailable.type
+  } else if (!current && options.length > 0) {
+    selectedMethod.value = options[0].type
+  }
+}
+
+function goToRechargeTab() {
+  selectedPlan.value = null
+  activeTab.value = 'recharge'
+}
+
+watch(activeTab, (tab) => {
+  if (tab === 'recharge' && selectedMethod.value === 'balance') {
+    selectedMethod.value = defaultOnlineMethod()
+  }
+})
+
+watch(selectedPlan, (plan) => {
+  if (plan) {
+    ensureValidSubscriptionMethod()
+  }
+})
+
+// Auto-switch to first available method when current selection can't handle the amount (recharge tab only)
 watch(() => [payBaseAmount.value, selectedMethod.value] as const, ([amt, method]) => {
+  if (activeTab.value !== 'recharge') return
   if (amt <= 0 || amountFitsMethod(amt, method)) return
   const available = enabledMethods.value.find((m) => amountFitsMethod(amt, m))
   if (available) selectedMethod.value = available
@@ -1011,6 +1158,20 @@ async function createOrder(orderAmount: number, orderType: OrderType, planId?: n
       stripeRouteUrl,
       airwallexRouteUrl,
     })
+
+    if (decision.kind === 'instant_completed') {
+      removeRecoverySnapshot()
+      selectedPlan.value = null
+      void Promise.resolve(authStore.refreshUser()).catch(() => {})
+      if (orderType === 'subscription') {
+        subscriptionStore.fetchActiveSubscriptions(true).catch(() => {})
+      }
+      if (typeof appStore.showSuccess === 'function') {
+        appStore.showSuccess(t('payment.balancePaySuccess'))
+      }
+      await redirectToPaymentResult(decision.paymentState)
+      return
+    }
 
     if (decision.kind === 'wechat_oauth' && decision.oauth?.authorize_url) {
       window.location.href = buildWechatOAuthAuthorizeUrl(decision.oauth.authorize_url, {

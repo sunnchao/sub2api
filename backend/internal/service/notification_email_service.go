@@ -904,6 +904,7 @@ func notificationEmailSampleVariables(locale string) map[string]string {
 			"verification_code":   "123456",
 			"expires_in_minutes":  "15",
 			"reset_url":           "https://example.com/reset-password?token=preview",
+			"subscription_plan":   "Claude Pro 月付套餐",
 			"subscription_group":  "Claude Pro",
 			"subscription_days":   "30",
 			"expiry_time":         "2026-06-18 12:00",
@@ -952,6 +953,7 @@ func notificationEmailSampleVariables(locale string) map[string]string {
 		"verification_code":   "123456",
 		"expires_in_minutes":  "15",
 		"reset_url":           "https://example.com/reset-password?token=preview",
+		"subscription_plan":   "Claude Pro Monthly",
 		"subscription_group":  "Claude Pro",
 		"subscription_days":   "30",
 		"expiry_time":         "2026-06-18 12:00",
@@ -1067,7 +1069,7 @@ var notificationEmailEventDefinitions = map[string]NotificationEmailEventInfo{
 		Description:  "Sent after a subscription purchase is fulfilled.",
 		Category:     "subscription",
 		Optional:     false,
-		Placeholders: append(append([]string{}, notificationEmailCommonPlaceholders...), "subscription_group", "subscription_days", "expiry_time", "order_id"),
+		Placeholders: append(append([]string{}, notificationEmailCommonPlaceholders...), "subscription_plan", "subscription_group", "subscription_days", "expiry_time"),
 	},
 	NotificationEmailEventSubscriptionExpiryReminder: {
 		Event:        NotificationEmailEventSubscriptionExpiryReminder,
@@ -1220,20 +1222,20 @@ var notificationEmailOfficialTemplates = map[string]map[string]notificationEmail
 	},
 	NotificationEmailEventSubscriptionPurchaseSuccess: {
 		notificationEmailDefaultLocale: {
-			Subject: "[{{site_name}}] Subscription purchase successful",
+			Subject: "[{{site_name}}] Subscription purchase successful - {{subscription_plan}}",
 			HTML: notificationEmailCard("#2563eb", "Subscription activated", `
 <p>Hello {{recipient_name}},</p>
-<p>Your subscription for <strong>{{subscription_group}}</strong> has been activated for <strong>{{subscription_days}}</strong> days.</p>
-<p>Expiry time: <strong>{{expiry_time}}</strong></p>
-<p>Order ID: {{order_id}}</p>`),
+<p>Your subscription plan <strong>{{subscription_plan}}</strong> has been activated for <strong>{{subscription_days}}</strong> days.</p>
+<p>Subscription group: <strong>{{subscription_group}}</strong></p>
+<p>Expiry time: <strong>{{expiry_time}}</strong></p>`),
 		},
 		notificationEmailLocaleChinese: {
-			Subject: "[{{site_name}}] 订阅购买成功",
+			Subject: "[{{site_name}}] 订阅购买成功 - {{subscription_plan}}",
 			HTML: notificationEmailCard("#2563eb", "订阅已开通", `
 <p>{{recipient_name}}，您好：</p>
-<p>您的 <strong>{{subscription_group}}</strong> 订阅已成功开通，有效期 <strong>{{subscription_days}}</strong> 天。</p>
-<p>到期时间：<strong>{{expiry_time}}</strong></p>
-<p>订单号：{{order_id}}</p>`),
+<p>您订购的套餐 <strong>{{subscription_plan}}</strong> 已成功开通，有效期 <strong>{{subscription_days}}</strong> 天。</p>
+<p>订阅分组：<strong>{{subscription_group}}</strong></p>
+<p>到期时间：<strong>{{expiry_time}}</strong></p>`),
 		},
 	},
 	NotificationEmailEventSubscriptionExpiryReminder: {

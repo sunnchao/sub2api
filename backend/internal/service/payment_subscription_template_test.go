@@ -645,4 +645,23 @@ func TestPaymentSubscriptionTemplate_LifecycleStackRenewRefund(t *testing.T) {
 	require.NoError(t, err)
 	tplMapAfterClear := cfgSvc.GetPlanTemplateMap(ctx, []*dbent.SubscriptionPlan{plan})
 	require.Empty(t, tplMapAfterClear)
+
+	// P7: Subscription purchase notification email shows plan title & exact fulfilled subscription expiry without leaking raw order ID.
+	settingRepo := newNotificationEmailMemorySettingRepo()
+	smtpServer := startNotificationEmailTestSMTPServer(t)
+	require.NoError(t, settingRepo.SetMultiple(ctx, smtpServer.settings()))
+	emailSvc := NewEmailService(settingRepo, nil)
+	notifSvc := NewNotificationEmailService(settingRepo, emailSvc)
+	notifSvc.RememberRecipientLocale(ctx, u.ID, u.Email, "zh-CN")
+	paySvc.SetNotificationEmailService(notifSvc)
+
+	require.NoError(t, paySvc.sendSubscriptionPurchaseSuccessNotification(ctx, order2))
+	require.Equal(t, int64(1), smtpServer.messageCount())
+	body := smtpServer.lastMessageBody(t)
+	require.Contains(t, body, "Starter Monthly")
+	require.Contains(t, body, "Claude Standard")
+	require.Contains(t, body, reloadedSub2.ExpiresAt.Format("2006-01-02 15:04"))
+	require.NotContains(t, body, "订单号")
+	require.NotContains(t, body, "Order ID")
+	require.NotContains(t, body, order2.OutTradeNo)
 }

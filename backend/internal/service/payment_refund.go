@@ -215,18 +215,20 @@ func (s *PaymentService) PrepareRefund(ctx context.Context, oid int64, amt float
 	if !psSliceContains(ok, o.Status) {
 		return nil, nil, infraerrors.BadRequest("INVALID_STATUS", "order status does not allow refund")
 	}
-	// Check provider instance allows admin refund
-	inst, instErr := s.getRefundOrderProviderInstance(ctx, o)
-	if instErr != nil {
-		slog.Warn("refund: provider instance lookup failed", "orderID", oid, "error", instErr)
-		return nil, nil, infraerrors.InternalServer("PROVIDER_LOOKUP_FAILED", "failed to look up payment provider for this order")
-	}
-	if inst == nil {
-		// Legacy order without provider_instance_id — block refund
-		return nil, nil, infraerrors.Forbidden("REFUND_DISABLED", "refund is not available for this order")
-	}
-	if !inst.RefundEnabled {
-		return nil, nil, infraerrors.Forbidden("REFUND_DISABLED", "refund is not enabled for this provider")
+	// Check provider instance allows admin refund (balance-paid orders refund directly back to user balance)
+	if o.PaymentType != payment.TypeBalance {
+		inst, instErr := s.getRefundOrderProviderInstance(ctx, o)
+		if instErr != nil {
+			slog.Warn("refund: provider instance lookup failed", "orderID", oid, "error", instErr)
+			return nil, nil, infraerrors.InternalServer("PROVIDER_LOOKUP_FAILED", "failed to look up payment provider for this order")
+		}
+		if inst == nil {
+			// Legacy order without provider_instance_id — block refund
+			return nil, nil, infraerrors.Forbidden("REFUND_DISABLED", "refund is not available for this order")
+		}
+		if !inst.RefundEnabled {
+			return nil, nil, infraerrors.Forbidden("REFUND_DISABLED", "refund is not enabled for this provider")
+		}
 	}
 	if math.IsNaN(amt) || math.IsInf(amt, 0) {
 		return nil, nil, infraerrors.BadRequest("INVALID_AMOUNT", "invalid refund amount")
@@ -358,6 +360,9 @@ func (s *PaymentService) ExecuteRefund(ctx context.Context, p *RefundPlan) (*Ref
 }
 
 func (s *PaymentService) gwRefund(ctx context.Context, p *RefundPlan) (*payment.RefundResponse, error) {
+	if p.Order.PaymentType == payment.TypeBalance {
+		return s.refundBalancePaidOrder(ctx, p)
+	}
 	if p.Order.PaymentTradeNo == "" {
 		s.writeAuditLog(ctx, p.Order.ID, "REFUND_NO_TRADE_NO", "admin", map[string]any{"detail": "skipped"})
 		return &payment.RefundResponse{Status: payment.ProviderStatusSuccess}, nil

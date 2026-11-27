@@ -21,6 +21,7 @@ const VISIBLE_METHOD_ALIASES = {
 export type VisiblePaymentMethod = 'alipay' | 'wxpay' | 'stripe' | 'airwallex'
 export type StripeVisibleMethod = 'alipay' | 'wechat_pay'
 export type PaymentLaunchKind =
+  | 'instant_completed'
   | 'qr_waiting'
   | 'alipay_deep_link'
   | 'redirect_waiting'
@@ -174,6 +175,14 @@ export function decidePaymentLaunch(
     resumeToken: result.resume_token || '',
     alipayMobilePrecreateDeepLink: result.alipay_mobile_precreate_deep_link === true,
   }, context.now)
+
+  if (result.result_type === 'completed' || String(result.status || '').toUpperCase() === 'COMPLETED') {
+    return {
+      kind: 'instant_completed',
+      paymentState: baseState,
+      recovery: baseState,
+    }
+  }
 
   if (visibleMethod === 'airwallex' && baseState.clientSecret && baseState.intentId) {
     if (!context.airwallexRouteUrl) {

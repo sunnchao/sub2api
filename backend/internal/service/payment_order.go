@@ -53,6 +53,9 @@ func (s *PaymentService) CreateOrder(ctx context.Context, req CreateOrderRequest
 	if s.notificationEmailService != nil {
 		s.notificationEmailService.RememberRecipientLocale(ctx, req.UserID, user.Email, req.Locale)
 	}
+	if strings.EqualFold(strings.TrimSpace(req.PaymentType), payment.TypeBalance) {
+		return s.createSubscriptionOrderWithBalance(ctx, req, user, plan)
+	}
 	feeRate := cfg.RechargeFeeRate
 	methodCurrency := payment.DefaultPaymentCurrency
 	if s.configService != nil {

@@ -19,7 +19,7 @@ export type OrderStatus =
   | 'REFUNDED'
   | 'REFUND_FAILED'
 
-export type PaymentType = 'alipay' | 'wxpay' | 'alipay_direct' | 'wxpay_direct' | 'stripe' | 'easypay' | 'airwallex'
+export type PaymentType = 'alipay' | 'wxpay' | 'alipay_direct' | 'wxpay_direct' | 'stripe' | 'easypay' | 'airwallex' | 'balance'
 
 export type OrderType = 'balance' | 'subscription'
 
@@ -197,7 +197,7 @@ export interface CreateOrderRequest {
   is_mobile?: boolean
 }
 
-export type CreateOrderResultType = 'order_created' | 'oauth_required' | 'jsapi_ready'
+export type CreateOrderResultType = 'order_created' | 'oauth_required' | 'jsapi_ready' | 'completed'
 
 export interface WechatOAuthInfo {
   authorize_url?: string
@@ -230,6 +230,7 @@ export interface CreateOrderResult {
   pay_amount: number
   fee_rate: number
   bonus_amount?: number
+  status?: OrderStatus
   expires_at: string
   result_type?: CreateOrderResultType
   payment_type?: string

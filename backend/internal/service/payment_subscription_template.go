@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	dbent "github.com/Wei-Shaw/sub2api/ent"
 	"github.com/Wei-Shaw/sub2api/internal/payment"
@@ -268,4 +269,32 @@ func (s *PaymentService) resolveOrderRefundSubscription(ctx context.Context, o *
 		return nil, ErrSubscriptionNotFound
 	}
 	return s.subscriptionSvc.GetActiveSubscription(ctx, o.UserID, *o.SubscriptionGroupID)
+}
+
+// enrichSubscriptionPurchaseNotificationVariables populates subscription_plan (plan name ->
+// template name -> group name) and resolves the exact fulfilled subscription's expiry_time
+// so subscription purchase emails display the purchased plan title instead of raw order IDs.
+func (s *PaymentService) enrichSubscriptionPurchaseNotificationVariables(ctx context.Context, o *dbent.PaymentOrder, variables map[string]string) {
+	if o == nil || variables == nil {
+		return
+	}
+	planTitle := ""
+	if o.PlanID != nil && *o.PlanID > 0 && s.configService != nil {
+		if plan, err := s.configService.GetPlan(ctx, *o.PlanID); err == nil && plan != nil {
+			planTitle = firstNonEmpty(strings.TrimSpace(plan.Name), strings.TrimSpace(plan.ProductName))
+		}
+	}
+	if sub, err := s.resolveOrderRefundSubscription(ctx, o); err == nil && sub != nil {
+		variables["expiry_time"] = sub.ExpiresAt.Format("2006-01-02 15:04")
+		if planTitle == "" {
+			planTitle = strings.TrimSpace(sub.TemplateName)
+		}
+	}
+	if planTitle == "" {
+		planTitle = strings.TrimSpace(variables["subscription_group"])
+	}
+	if planTitle == "" {
+		planTitle = "Subscription"
+	}
+	variables["subscription_plan"] = planTitle
 }

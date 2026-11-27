@@ -211,7 +211,9 @@ function refreshUserBalanceForSuccessfulOrder(nextOrder: ResolvedOrder | null): 
   if (!nextOrder || userBalanceRefreshStarted || normalizeOrderStatus(nextOrder.status) !== 'COMPLETED') {
     return
   }
-  if ('order_type' in nextOrder && nextOrder.order_type !== 'balance') {
+  const isBalanceOrder = 'order_type' in nextOrder && nextOrder.order_type === 'balance'
+  const isPaidWithBalance = 'payment_type' in nextOrder && nextOrder.payment_type === 'balance'
+  if ('order_type' in nextOrder && !isBalanceOrder && !isPaidWithBalance) {
     return
   }
 

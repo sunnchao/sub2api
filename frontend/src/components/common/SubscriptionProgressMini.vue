@@ -46,7 +46,7 @@
           >
             <div class="mb-2 flex items-center justify-between">
               <span class="text-sm font-medium text-gray-900 dark:text-white">
-                {{ subscription.group?.name || `Group #${subscription.group_id}` }}
+                {{ subscription.template_name || subscription.group?.name || `Group #${subscription.group_id}` }}
               </span>
               <span
                 v-if="subscription.expires_at"
@@ -72,9 +72,9 @@
 
               <!-- Progress bars for limited subscriptions -->
               <template v-else>
-                <div v-if="subscription.group?.hourly_limit_usd" class="flex items-center gap-2">
+                <div v-if="effectiveLimits(subscription).hourly_limit_usd" class="flex items-center gap-2">
                   <span class="w-8 flex-shrink-0 text-[10px] text-gray-500">
-                    {{ t('subscriptionProgress.hourly', { hours: subscription.group?.hourly_window_hours || 5 }) }}
+                    {{ t('subscriptionProgress.hourly', { hours: effectiveLimits(subscription).hourly_window_hours }) }}
                   </span>
                   <div class="h-1.5 min-w-0 flex-1 rounded-full bg-gray-200 dark:bg-dark-600">
                     <div
@@ -82,25 +82,25 @@
                       :class="
                         getProgressBarClass(
                           subscription.hourly_usage_usd,
-                          subscription.group?.hourly_limit_usd
+                          effectiveLimits(subscription).hourly_limit_usd
                         )
                       "
                       :style="{
                         width: getProgressWidth(
                           subscription.hourly_usage_usd,
-                          subscription.group?.hourly_limit_usd
+                          effectiveLimits(subscription).hourly_limit_usd
                         )
                       }"
                     ></div>
                   </div>
                   <span class="w-24 flex-shrink-0 text-right text-[10px] text-gray-500">
                     {{
-                      formatUsage(subscription.hourly_usage_usd, subscription.group?.hourly_limit_usd)
+                      formatUsage(subscription.hourly_usage_usd, effectiveLimits(subscription).hourly_limit_usd)
                     }}
                   </span>
                 </div>
 
-                <div v-if="subscription.group?.daily_limit_usd" class="flex items-center gap-2">
+                <div v-if="effectiveLimits(subscription).daily_limit_usd" class="flex items-center gap-2">
                   <span class="w-8 flex-shrink-0 text-[10px] text-gray-500">{{
                     t('subscriptionProgress.daily')
                   }}</span>
@@ -110,25 +110,25 @@
                       :class="
                         getProgressBarClass(
                           subscription.daily_usage_usd,
-                          subscription.group?.daily_limit_usd
+                          effectiveLimits(subscription).daily_limit_usd
                         )
                       "
                       :style="{
                         width: getProgressWidth(
                           subscription.daily_usage_usd,
-                          subscription.group?.daily_limit_usd
+                          effectiveLimits(subscription).daily_limit_usd
                         )
                       }"
                     ></div>
                   </div>
                   <span class="w-24 flex-shrink-0 text-right text-[10px] text-gray-500">
                     {{
-                      formatUsage(subscription.daily_usage_usd, subscription.group?.daily_limit_usd)
+                      formatUsage(subscription.daily_usage_usd, effectiveLimits(subscription).daily_limit_usd)
                     }}
                   </span>
                 </div>
 
-                <div v-if="subscription.group?.weekly_limit_usd" class="flex items-center gap-2">
+                <div v-if="effectiveLimits(subscription).weekly_limit_usd" class="flex items-center gap-2">
                   <span class="w-8 flex-shrink-0 text-[10px] text-gray-500">{{
                     t('subscriptionProgress.weekly')
                   }}</span>
@@ -138,25 +138,25 @@
                       :class="
                         getProgressBarClass(
                           subscription.weekly_usage_usd,
-                          subscription.group?.weekly_limit_usd
+                          effectiveLimits(subscription).weekly_limit_usd
                         )
                       "
                       :style="{
                         width: getProgressWidth(
                           subscription.weekly_usage_usd,
-                          subscription.group?.weekly_limit_usd
+                          effectiveLimits(subscription).weekly_limit_usd
                         )
                       }"
                     ></div>
                   </div>
                   <span class="w-24 flex-shrink-0 text-right text-[10px] text-gray-500">
                     {{
-                      formatUsage(subscription.weekly_usage_usd, subscription.group?.weekly_limit_usd)
+                      formatUsage(subscription.weekly_usage_usd, effectiveLimits(subscription).weekly_limit_usd)
                     }}
                   </span>
                 </div>
 
-                <div v-if="subscription.group?.monthly_limit_usd" class="flex items-center gap-2">
+                <div v-if="effectiveLimits(subscription).monthly_limit_usd" class="flex items-center gap-2">
                   <span class="w-8 flex-shrink-0 text-[10px] text-gray-500">{{
                     t('subscriptionProgress.monthly')
                   }}</span>
@@ -166,13 +166,13 @@
                       :class="
                         getProgressBarClass(
                           subscription.monthly_usage_usd,
-                          subscription.group?.monthly_limit_usd
+                          effectiveLimits(subscription).monthly_limit_usd
                         )
                       "
                       :style="{
                         width: getProgressWidth(
                           subscription.monthly_usage_usd,
-                          subscription.group?.monthly_limit_usd
+                          effectiveLimits(subscription).monthly_limit_usd
                         )
                       }"
                     ></div>
@@ -181,7 +181,7 @@
                     {{
                       formatUsage(
                         subscription.monthly_usage_usd,
-                        subscription.group?.monthly_limit_usd
+                        effectiveLimits(subscription).monthly_limit_usd
                       )
                     }}
                   </span>
@@ -236,29 +236,50 @@ const displaySubscriptions = computed(() => {
   })
 })
 
+function effectiveLimits(sub: UserSubscription) {
+  if (sub.has_custom_limits) {
+    return {
+      hourly_limit_usd: sub.hourly_limit_usd ?? null,
+      hourly_window_hours: sub.hourly_window_hours || 5,
+      daily_limit_usd: sub.daily_limit_usd ?? null,
+      weekly_limit_usd: sub.weekly_limit_usd ?? null,
+      monthly_limit_usd: sub.monthly_limit_usd ?? null,
+    }
+  }
+  return {
+    hourly_limit_usd: sub.group?.hourly_limit_usd ?? null,
+    hourly_window_hours: sub.group?.hourly_window_hours || 5,
+    daily_limit_usd: sub.group?.daily_limit_usd ?? null,
+    weekly_limit_usd: sub.group?.weekly_limit_usd ?? null,
+    monthly_limit_usd: sub.group?.monthly_limit_usd ?? null,
+  }
+}
+
 function getMaxUsagePercentage(sub: UserSubscription): number {
+  const limits = effectiveLimits(sub)
   const percentages: number[] = []
-  if (sub.group?.hourly_limit_usd) {
-    percentages.push(((sub.hourly_usage_usd || 0) / sub.group.hourly_limit_usd) * 100)
+  if (limits.hourly_limit_usd) {
+    percentages.push(((sub.hourly_usage_usd || 0) / limits.hourly_limit_usd) * 100)
   }
-  if (sub.group?.daily_limit_usd) {
-    percentages.push(((sub.daily_usage_usd || 0) / sub.group.daily_limit_usd) * 100)
+  if (limits.daily_limit_usd) {
+    percentages.push(((sub.daily_usage_usd || 0) / limits.daily_limit_usd) * 100)
   }
-  if (sub.group?.weekly_limit_usd) {
-    percentages.push(((sub.weekly_usage_usd || 0) / sub.group.weekly_limit_usd) * 100)
+  if (limits.weekly_limit_usd) {
+    percentages.push(((sub.weekly_usage_usd || 0) / limits.weekly_limit_usd) * 100)
   }
-  if (sub.group?.monthly_limit_usd) {
-    percentages.push(((sub.monthly_usage_usd || 0) / sub.group.monthly_limit_usd) * 100)
+  if (limits.monthly_limit_usd) {
+    percentages.push(((sub.monthly_usage_usd || 0) / limits.monthly_limit_usd) * 100)
   }
   return percentages.length > 0 ? Math.max(...percentages) : 0
 }
 
 function isUnlimited(sub: UserSubscription): boolean {
+  const limits = effectiveLimits(sub)
   return (
-    !sub.group?.hourly_limit_usd &&
-    !sub.group?.daily_limit_usd &&
-    !sub.group?.weekly_limit_usd &&
-    !sub.group?.monthly_limit_usd
+    !limits.hourly_limit_usd &&
+    !limits.daily_limit_usd &&
+    !limits.weekly_limit_usd &&
+    !limits.monthly_limit_usd
   )
 }
 

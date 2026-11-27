@@ -534,10 +534,10 @@ func (s *PaymentService) sendBalanceRechargeSuccessNotification(ctx context.Cont
 
 func (s *PaymentService) sendSubscriptionPurchaseSuccessNotification(ctx context.Context, o *dbent.PaymentOrder) error {
 	variables := map[string]string{
+		"subscription_plan":  "Subscription",
 		"subscription_group": "Subscription",
 		"subscription_days":  "",
 		"expiry_time":        "",
-		"order_id":           strconv.FormatInt(o.ID, 10),
 	}
 	if o.SubscriptionDays != nil {
 		variables["subscription_days"] = strconv.Itoa(*o.SubscriptionDays)
@@ -554,6 +554,7 @@ func (s *PaymentService) sendSubscriptionPurchaseSuccessNotification(ctx context
 			}
 		}
 	}
+	s.enrichSubscriptionPurchaseNotificationVariables(ctx, o, variables)
 	return s.notificationEmailService.Send(ctx, NotificationEmailSendInput{
 		Event:          NotificationEmailEventSubscriptionPurchaseSuccess,
 		RecipientEmail: o.UserEmail,

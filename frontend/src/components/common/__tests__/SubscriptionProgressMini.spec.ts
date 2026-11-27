@@ -20,4 +20,37 @@ describe('subscription expiry calendar labels', () => {
     await w.get('button').trigger('click')
     expect(w.text()).toContain('subscriptionProgress.' + label)
   })
+
+  it('shows hourly limit before daily, weekly, and monthly limits including custom template snapshots', async () => {
+    const expires = new Date(2026, 8, 25, 12)
+    store.activeSubscriptions = [{
+      id: 2,
+      group_id: 1,
+      template_name: 'Token Plan Pro',
+      has_custom_limits: true,
+      hourly_limit_usd: 18,
+      hourly_window_hours: 5,
+      hourly_usage_usd: 2,
+      daily_limit_usd: 50,
+      daily_usage_usd: 5,
+      weekly_limit_usd: 144,
+      weekly_usage_usd: 10,
+      monthly_limit_usd: 288,
+      monthly_usage_usd: 20,
+      expires_at: expires.toISOString(),
+      group: { name: 'Standard' },
+    }]
+    const w = mount(SubscriptionProgressMini, { global: { stubs: { Icon: true, RouterLink: true } } })
+    await w.get('button').trigger('click')
+    const text = w.text()
+    expect(text).toContain('Token Plan Pro')
+    const hourlyIdx = text.indexOf('subscriptionProgress.hourly')
+    const dailyIdx = text.indexOf('subscriptionProgress.daily')
+    const weeklyIdx = text.indexOf('subscriptionProgress.weekly')
+    const monthlyIdx = text.indexOf('subscriptionProgress.monthly')
+    expect(hourlyIdx).toBeGreaterThan(-1)
+    expect(dailyIdx).toBeGreaterThan(hourlyIdx)
+    expect(weeklyIdx).toBeGreaterThan(dailyIdx)
+    expect(monthlyIdx).toBeGreaterThan(weeklyIdx)
+  })
 })

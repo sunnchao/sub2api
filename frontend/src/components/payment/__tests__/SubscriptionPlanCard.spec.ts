@@ -22,6 +22,10 @@ const i18n = createI18n({
           quota: "Quota",
           rate: "Rate",
           unlimited: "Unlimited",
+          hourlyLimit: "{hours}h Limit",
+          dailyLimit: "Daily",
+          weeklyLimit: "Weekly",
+          monthlyLimit: "Monthly",
         },
         subscribeNow: "Subscribe now",
       },
@@ -147,5 +151,25 @@ describe("SubscriptionPlanCard", () => {
       "justify-end",
     ]));
     expect(badge?.element.parentElement?.textContent).toContain("/ 30days");
+  });
+
+  it("renders hourly limit before daily, weekly, and monthly limits", () => {
+    const text = mountPlanCard("openai", {
+      hourly_limit_usd: 18,
+      hourly_window_hours: 5,
+      daily_limit_usd: 50,
+      weekly_limit_usd: 144,
+      monthly_limit_usd: 288,
+    }).text();
+
+    const hourlyIdx = text.indexOf("5h Limit");
+    const dailyIdx = text.indexOf("Daily");
+    const weeklyIdx = text.indexOf("Weekly");
+    const monthlyIdx = text.indexOf("Monthly");
+
+    expect(hourlyIdx).toBeGreaterThan(-1);
+    expect(dailyIdx).toBeGreaterThan(hourlyIdx);
+    expect(weeklyIdx).toBeGreaterThan(dailyIdx);
+    expect(monthlyIdx).toBeGreaterThan(weeklyIdx);
   });
 });

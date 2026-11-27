@@ -84,6 +84,38 @@ func TestNotificationEmailTemplateRejectsUnsupportedPlaceholder(t *testing.T) {
 	require.Contains(t, err.Error(), "unsupported placeholder")
 }
 
+func TestSubscriptionPurchaseSuccessTemplateShowsPlanTitleWithoutOrderID(t *testing.T) {
+	ctx := context.Background()
+	svc := NewNotificationEmailService(newNotificationEmailMemorySettingRepo(), nil)
+
+	for _, locale := range []string{"en", "zh"} {
+		tmpl, err := svc.GetTemplate(ctx, NotificationEmailEventSubscriptionPurchaseSuccess, locale)
+		require.NoError(t, err)
+		require.Contains(t, tmpl.Placeholders, "subscription_plan")
+		require.NotContains(t, tmpl.Placeholders, "order_id")
+		require.Contains(t, tmpl.Subject, "{{subscription_plan}}")
+		require.Contains(t, tmpl.HTML, "{{subscription_plan}}")
+		require.NotContains(t, tmpl.HTML, "{{order_id}}")
+
+		preview, err := svc.PreviewTemplate(ctx, NotificationEmailPreviewInput{
+			Event:  NotificationEmailEventSubscriptionPurchaseSuccess,
+			Locale: locale,
+			Variables: map[string]string{
+				"subscription_plan":  "Claude 旗舰月卡",
+				"subscription_group": "Claude Standard",
+				"subscription_days":  "30",
+				"expiry_time":        "2026-12-27 10:00",
+			},
+		})
+		require.NoError(t, err)
+		require.Contains(t, preview.Subject, "Claude 旗舰月卡")
+		require.Contains(t, preview.HTML, "Claude 旗舰月卡")
+		require.Contains(t, preview.HTML, "Claude Standard")
+		require.NotContains(t, preview.HTML, "Order ID")
+		require.NotContains(t, preview.HTML, "订单号")
+	}
+}
+
 func TestNotificationEmailAuthTemplatesAreListedAndPreviewable(t *testing.T) {
 	ctx := context.Background()
 	svc := NewNotificationEmailService(newNotificationEmailMemorySettingRepo(), nil)

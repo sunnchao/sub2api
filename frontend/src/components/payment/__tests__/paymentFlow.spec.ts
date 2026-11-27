@@ -118,6 +118,47 @@ describe('decidePaymentLaunch', () => {
     expect(decision.paymentState.orderType).toBe('subscription')
   })
 
+  it('returns instant_completed for completed account balance subscription orders', () => {
+    const decision = decidePaymentLaunch(createOrderResult({
+      order_id: 202,
+      amount: 29,
+      pay_amount: 29,
+      currency: 'USD',
+      payment_type: 'balance',
+      out_trade_no: 'sub2_bal_202',
+      status: 'COMPLETED',
+      result_type: 'completed',
+    }), {
+      visibleMethod: 'balance',
+      orderType: 'subscription',
+      isMobile: false,
+    })
+
+    expect(decision.kind).toBe('instant_completed')
+    expect(decision.paymentState.orderId).toBe(202)
+    expect(decision.paymentState.paymentType).toBe('balance')
+    expect(decision.paymentState.currency).toBe('USD')
+    expect(decision.paymentState.orderType).toBe('subscription')
+  })
+
+  it('keeps payment_type=balance and target_subscription_id in buildCreateOrderPayload', () => {
+    const payload = buildCreateOrderPayload({
+      amount: 29,
+      paymentType: 'balance',
+      orderType: 'subscription',
+      planId: 7,
+      targetSubscriptionId: 42,
+      origin: 'https://example.com',
+      isMobile: false,
+      isWechatBrowser: false,
+    })
+
+    expect(payload.payment_type).toBe('balance')
+    expect(payload.order_type).toBe('subscription')
+    expect(payload.plan_id).toBe(7)
+    expect(payload.target_subscription_id).toBe(42)
+  })
+
   it('routes Airwallex client secrets through the hosted Airwallex page', () => {
     const decision = decidePaymentLaunch(createOrderResult({
       client_secret: 'awx_cs',
