@@ -61,6 +61,47 @@ func (repo multiGroupGatewaySubscriptions) GetActiveByUserIDAndGroupID(_ context
 	}, nil
 }
 
+type multiSubGatewaySubscriptions struct {
+	service.UserSubscriptionRepository
+	subs []service.UserSubscription
+}
+
+func (repo multiSubGatewaySubscriptions) GetActiveByUserIDAndGroupID(_ context.Context, userID, groupID int64) (*service.UserSubscription, error) {
+	for i := range repo.subs {
+		if repo.subs[i].UserID == userID && repo.subs[i].GroupID == groupID && repo.subs[i].Status == service.SubscriptionStatusActive {
+			cp := repo.subs[i]
+			return &cp, nil
+		}
+	}
+	return nil, service.ErrSubscriptionNotFound
+}
+
+func (repo multiSubGatewaySubscriptions) ListActiveByUserIDAndGroupID(_ context.Context, userID, groupID int64) ([]service.UserSubscription, error) {
+	var out []service.UserSubscription
+	for _, s := range repo.subs {
+		if s.UserID == userID && s.GroupID == groupID && s.Status == service.SubscriptionStatusActive {
+			out = append(out, s)
+		}
+	}
+	return out, nil
+}
+
+func (repo multiSubGatewaySubscriptions) ListActiveByUserIDAndTemplateID(_ context.Context, _, _ int64) ([]service.UserSubscription, error) {
+	return nil, nil
+}
+
+func (repo multiSubGatewaySubscriptions) FindLatestByUserIDAndTemplateID(_ context.Context, _, _ int64) (*service.UserSubscription, error) {
+	return nil, service.ErrSubscriptionNotFound
+}
+
+func (repo multiSubGatewaySubscriptions) UpsertSnapshot(_ context.Context, _ *service.UserSubscriptionSnapshot) error {
+	return nil
+}
+
+func (repo multiSubGatewaySubscriptions) GetSnapshotsBySubscriptionIDs(_ context.Context, _ []int64) (map[int64]*service.UserSubscriptionSnapshot, error) {
+	return nil, nil
+}
+
 type multiGroupGatewayRPM struct {
 	service.UserRPMCache
 	count int
@@ -73,12 +114,32 @@ func (rpm *multiGroupGatewayRPM) IncrementUserRPM(context.Context, int64) (int, 
 
 type multiGroupGatewayAccounts struct {
 	service.AccountRepository
-	groups []int64
+	groups            []int64
+	accountsByGroupID map[int64][]service.Account
 }
 
 func (repo *multiGroupGatewayAccounts) ListSchedulableByGroupIDAndPlatform(_ context.Context, groupID int64, _ string) ([]service.Account, error) {
 	repo.groups = append(repo.groups, groupID)
 	return nil, nil
+}
+
+func (repo *multiGroupGatewayAccounts) ListSchedulableByGroupIDAndPlatforms(_ context.Context, groupID int64, platforms []string) ([]service.Account, error) {
+	repo.groups = append(repo.groups, groupID)
+	accounts := repo.accountsByGroupID[groupID]
+	if len(accounts) == 0 {
+		return nil, nil
+	}
+	allowed := make(map[string]bool, len(platforms))
+	for _, p := range platforms {
+		allowed[p] = true
+	}
+	out := make([]service.Account, 0, len(accounts))
+	for _, acc := range accounts {
+		if allowed[acc.Platform] {
+			out = append(out, acc)
+		}
+	}
+	return out, nil
 }
 
 type multiGroupGatewayAudit struct {
@@ -110,13 +171,15 @@ func (store *multiGroupGatewayTaskStore) Save(context.Context, *service.ImageTas
 }
 
 type multiGroupGatewayFixture struct {
-	key      *service.APIKey
-	keys     *multiGroupGatewayRepo
-	accounts *multiGroupGatewayAccounts
-	balance  float64
-	rpm      *multiGroupGatewayRPM
-	audit    securityaudit.PromptEngine
-	tasks    *service.ImageTaskService
+	key               *service.APIKey
+	keys              *multiGroupGatewayRepo
+	accounts          *multiGroupGatewayAccounts
+	accountsByGroupID map[int64][]service.Account
+	multiSubs         []service.UserSubscription
+	balance           float64
+	rpm               *multiGroupGatewayRPM
+	audit             securityaudit.PromptEngine
+	tasks             *service.ImageTaskService
 }
 
 func (fixture *multiGroupGatewayFixture) router(t *testing.T) *gin.Engine {
@@ -124,9 +187,12 @@ func (fixture *multiGroupGatewayFixture) router(t *testing.T) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	cfg := &config.Config{RunMode: config.RunModeStandard, Gateway: config.GatewayConfig{MaxBodySize: 1 << 20, TextMaxBodySize: 1 << 20}}
 	fixture.keys = &multiGroupGatewayRepo{key: fixture.key}
-	fixture.accounts = &multiGroupGatewayAccounts{}
+	fixture.accounts = &multiGroupGatewayAccounts{accountsByGroupID: fixture.accountsByGroupID}
 	userRepo := multiGroupGatewayBalance{balance: fixture.balance}
-	subRepo := multiGroupGatewaySubscriptions{}
+	var subRepo service.UserSubscriptionRepository = multiGroupGatewaySubscriptions{}
+	if len(fixture.multiSubs) > 0 {
+		subRepo = multiSubGatewaySubscriptions{subs: fixture.multiSubs}
+	}
 	api := service.NewAPIKeyService(fixture.keys, userRepo, nil, subRepo, nil, nil, cfg)
 	var rpmCache service.UserRPMCache
 	if fixture.rpm != nil {
@@ -138,9 +204,10 @@ func (fixture *multiGroupGatewayFixture) router(t *testing.T) *gin.Engine {
 	t.Cleanup(subscriptions.Stop)
 	concurrency := service.NewConcurrencyService(nil)
 	openAIService := service.NewOpenAIGatewayService(fixture.accounts, nil, nil, nil, nil, nil, nil, cfg, nil, nil, nil, nil, billing, nil, &service.DeferredService{}, nil, nil, nil, nil, nil, nil, nil)
+	geminiCompatService := service.NewGeminiMessagesCompatService(fixture.accounts, nil, nil, nil, nil, nil, nil, nil, cfg)
 	audit := securityaudit.NewCoordinator(nil, fixture.audit)
 	openAI := handler.ProvideOpenAIGatewayHandler(openAIService, nil, concurrency, billing, api, nil, nil, nil, nil, nil, cfg, audit, nil)
-	gateway := handler.ProvideGatewayHandler(&service.GatewayService{}, openAIService, nil, nil, nil, concurrency, billing, nil, api, nil, nil, nil, nil, cfg, nil, audit, nil, nil)
+	gateway := handler.ProvideGatewayHandler(&service.GatewayService{}, openAIService, geminiCompatService, nil, nil, concurrency, billing, nil, api, nil, nil, nil, nil, cfg, nil, audit, nil, nil)
 	router := gin.New()
 	RegisterGatewayRoutes(router, &handler.Handlers{
 		Gateway: gateway, OpenAIGateway: openAI, AsyncImage: handler.NewAsyncImageHandler(fixture.tasks, openAI),
@@ -266,4 +333,84 @@ func TestMultiGroupGatewayResponsesWebSocketSelectsFromFirstFrame(t *testing.T) 
 			require.Equal(t, scenario.wantGroup, <-groups)
 		})
 	}
+}
+
+func TestMultiGroupGatewayCompositeGeminiListModels(t *testing.T) {
+	now := time.Now()
+	geminiAccount := service.Account{
+		ID:       501,
+		Platform: service.PlatformGemini,
+		Type:     service.AccountTypeAPIKey,
+		Status:   service.StatusActive,
+		Credentials: map[string]any{
+			"model_mapping": map[string]any{
+				"gemini-2.5-pro": "gemini-2.5-pro",
+			},
+		},
+	}
+
+	t.Run("single_composite_group_with_subscription_and_balance", func(t *testing.T) {
+		composite := &service.Group{
+			ID:               51,
+			Name:             "token-plan",
+			Platform:         service.PlatformComposite,
+			Status:           service.StatusActive,
+			SubscriptionType: service.SubscriptionTypeStandard,
+		}
+		key, _ := makeMultiGroupBaseKey(50, composite)
+		fixture := &multiGroupGatewayFixture{
+			key:     key,
+			balance: key.User.Balance,
+			multiSubs: []service.UserSubscription{{
+				ID:               5001,
+				UserID:           key.User.ID,
+				GroupID:          composite.ID,
+				Status:           service.SubscriptionStatusActive,
+				ExpiresAt:        now.Add(time.Hour),
+				DailyWindowStart: &now, WeeklyWindowStart: &now, MonthlyWindowStart: &now,
+			}},
+			accountsByGroupID: map[int64][]service.Account{
+				composite.ID: {geminiAccount},
+			},
+		}
+		router := fixture.router(t)
+		req := httptest.NewRequest(http.MethodGet, "/v1beta/models", nil)
+		req.Header.Set("x-goog-api-key", key.Key)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+		require.Contains(t, w.Body.String(), `"models/gemini-2.5-pro"`)
+	})
+
+	t.Run("multi_group_composite_and_anthropic", func(t *testing.T) {
+		composite := &service.Group{
+			ID:       52,
+			Name:     "token-plan",
+			Platform: service.PlatformComposite,
+			Status:   service.StatusActive,
+		}
+		anthropic := &service.Group{
+			ID:       53,
+			Name:     "claude-group",
+			Platform: service.PlatformAnthropic,
+			Status:   service.StatusActive,
+		}
+		key, _ := makeMultiGroupBaseKey(50, composite, anthropic)
+		fixture := &multiGroupGatewayFixture{
+			key:     key,
+			balance: key.User.Balance,
+			accountsByGroupID: map[int64][]service.Account{
+				composite.ID: {geminiAccount},
+			},
+		}
+		router := fixture.router(t)
+		req := httptest.NewRequest(http.MethodGet, "/v1beta/models", nil)
+		req.Header.Set("x-goog-api-key", key.Key)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+		require.Contains(t, w.Body.String(), `"models/gemini-2.5-pro"`)
+	})
 }

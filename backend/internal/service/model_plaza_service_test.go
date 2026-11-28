@@ -58,6 +58,25 @@ func TestListPlazaGroups_GroupCentricAggregation(t *testing.T) {
 	require.Equal(t, "claude-sonnet", out[0].Models[1].Name)
 }
 
+func TestListPlazaGroups_PropagatesShowInModelPlaza(t *testing.T) {
+	ch := plazaPricedChannel(1, "chA", []int64{10, 11}, "anthropic", "claude-sonnet")
+	groups := []Group{
+		{ID: 10, Name: "sub-shown", Platform: "anthropic", SubscriptionType: SubscriptionTypeSubscription, IsExclusive: true, ShowInModelPlaza: true, RateMultiplier: 1},
+		{ID: 11, Name: "sub-hidden", Platform: "anthropic", SubscriptionType: SubscriptionTypeSubscription, IsExclusive: true, ShowInModelPlaza: false, RateMultiplier: 1},
+	}
+	svc := newPlazaService([]Channel{ch}, groups, nil)
+	out, err := svc.ListGroups(context.Background())
+	require.NoError(t, err)
+	require.Len(t, out, 2)
+
+	byID := map[int64]PlazaGroup{}
+	for _, g := range out {
+		byID[g.ID] = g
+	}
+	require.True(t, byID[10].ShowInModelPlaza)
+	require.False(t, byID[11].ShowInModelPlaza)
+}
+
 func TestListPlazaGroups_Fable51HasNoImplicitReasoningMultiplier(t *testing.T) {
 	ch := plazaPricedChannel(1, "ch", []int64{10}, "anthropic", "claude-fable-5-1")
 	svc := newPlazaService([]Channel{ch}, []Group{{ID: 10, Platform: "anthropic"}}, nil)

@@ -76,6 +76,38 @@ func TestFilterPlazaVisibleGroups_RestrictionDoesNotAffectAnonymous(t *testing.T
 	require.ElementsMatch(t, []int64{1, 3}, ids)
 }
 
+func TestFilterPlazaVisibleGroups_ExclusiveShowInModelPlazaShowcase(t *testing.T) {
+	groups := []service.PlazaGroup{
+		{ID: 1, Name: "public-standard", Platform: "anthropic", SubscriptionType: "standard", RateMultiplier: 1},
+		{ID: 2, Name: "exclusive-sub-hidden", Platform: "anthropic", SubscriptionType: "subscription", IsExclusive: true, ShowInModelPlaza: false, RateMultiplier: 1},
+		{ID: 3, Name: "exclusive-sub-shown", Platform: "composite", SubscriptionType: "subscription", IsExclusive: true, ShowInModelPlaza: true, RateMultiplier: 1},
+	}
+
+	// 匿名用户：公开分组 + 开启广场展示的专属订阅分组可见；未开启的专属订阅分组仍隐藏。
+	anonVisible := filterPlazaVisibleGroups(groups, nil, false)
+	anonIDs := make([]int64, 0, len(anonVisible))
+	for _, g := range anonVisible {
+		anonIDs = append(anonIDs, g.ID)
+	}
+	require.ElementsMatch(t, []int64{1, 3}, anonIDs)
+
+	// 已登录但未订阅/未授权用户（空授权集）：同样可以看到开启广场展示的专属订阅分组。
+	authedVisible := filterPlazaVisibleGroups(groups, map[int64]struct{}{}, false)
+	authedIDs := make([]int64, 0, len(authedVisible))
+	for _, g := range authedVisible {
+		authedIDs = append(authedIDs, g.ID)
+	}
+	require.ElementsMatch(t, []int64{1, 3}, authedIDs)
+
+	// 开启公开分组限制的受限用户：仍然只看已授权分组，不被 ShowInModelPlaza 绕过。
+	restrictedVisible := filterPlazaVisibleGroups(groups, map[int64]struct{}{2: {}}, true)
+	restrictedIDs := make([]int64, 0, len(restrictedVisible))
+	for _, g := range restrictedVisible {
+		restrictedIDs = append(restrictedIDs, g.ID)
+	}
+	require.ElementsMatch(t, []int64{2}, restrictedIDs)
+}
+
 func TestModelPlazaHandler_NilSettingServiceFailsClosed404(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	h := &ModelPlazaHandler{} // settingService == nil → fail-closed

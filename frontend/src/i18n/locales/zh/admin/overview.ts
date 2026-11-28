@@ -959,6 +959,12 @@ export default {
         no: '否'
       },
       exclusive: '专属',
+      showInModelPlaza: '在模型广场展示',
+      showInModelPlazaHint: '开启后，未订阅或未授权用户也可以在模型广场查看该分组的模型与定价（仍无法直接绑定或调用）',
+      showInModelPlazaPublicHint: '公开分组默认已在模型广场展示；仅当分组为「专属」时需要开启此开关',
+      showInModelPlazaEnabled: '展示',
+      showInModelPlazaHidden: '不展示',
+      plazaVisibleBadge: '广场可见',
       exclusiveHint: '专属分组，可以手动指定给特定用户',
       exclusiveTooltip: {
         title: '什么是专属分组？',

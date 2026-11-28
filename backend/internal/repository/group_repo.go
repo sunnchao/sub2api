@@ -80,6 +80,11 @@ func (r *groupRepository) Create(ctx context.Context, groupIn *service.Group) er
 	if err := createGroupRecord(ctx, r.client, groupIn); err != nil {
 		return err
 	}
+	if groupIn.ShowInModelPlaza {
+		if err := saveGroupModelPlazaVisibility(ctx, r.plazaSQLExecutor(), groupIn.ID, true); err != nil {
+			return err
+		}
+	}
 	if err := enqueueSchedulerOutbox(ctx, r.sql, service.SchedulerOutboxEventGroupChanged, nil, &groupIn.ID, nil); err != nil {
 		logger.LegacyPrintf("repository.group", "[SchedulerOutbox] enqueue group create failed: group=%d err=%v", groupIn.ID, err)
 	}
@@ -202,7 +207,9 @@ func (r *groupRepository) FindByDuplicateOperationID(ctx context.Context, operat
 	if err != nil {
 		return nil, fmt.Errorf("find group duplicate operation: %w", err)
 	}
-	return groupEntityToService(row), nil
+	out := groupEntityToService(row)
+	hydrateSingleGroupModelPlazaVisibility(ctx, r.plazaSQLExecutor(), out)
+	return out, nil
 }
 
 // CreateFromSource atomically persists a copied group, clones the source
@@ -227,6 +234,11 @@ func (r *groupRepository) CreateFromSource(ctx context.Context, groupIn *service
 
 	if err := createGroupRecord(ctx, txClient, groupIn); err != nil {
 		return err
+	}
+	if groupIn.ShowInModelPlaza {
+		if err := saveGroupModelPlazaVisibility(ctx, txClient, groupIn.ID, true); err != nil {
+			return err
+		}
 	}
 	result, err := txClient.ExecContext(
 		ctx,
@@ -284,7 +296,9 @@ func (r *groupRepository) GetByIDLite(ctx context.Context, id int64) (*service.G
 	if err != nil {
 		return nil, translatePersistenceError(err, service.ErrGroupNotFound, nil)
 	}
-	return groupEntityToService(m), nil
+	out := groupEntityToService(m)
+	hydrateSingleGroupModelPlazaVisibility(ctx, r.plazaSQLExecutor(), out)
+	return out, nil
 }
 
 func (r *groupRepository) Update(ctx context.Context, groupIn *service.Group) error {
@@ -462,6 +476,9 @@ func (r *groupRepository) Update(ctx context.Context, groupIn *service.Group) er
 	if err != nil {
 		return translatePersistenceError(err, service.ErrGroupNotFound, service.ErrGroupExists)
 	}
+	if err := saveGroupModelPlazaVisibility(ctx, r.plazaSQLExecutor(), groupIn.ID, groupIn.ShowInModelPlaza); err != nil {
+		return err
+	}
 	groupIn.UpdatedAt = updated.UpdatedAt
 	if err := enqueueSchedulerOutbox(ctx, r.sql, service.SchedulerOutboxEventGroupChanged, nil, &groupIn.ID, nil); err != nil {
 		logger.LegacyPrintf("repository.group", "[SchedulerOutbox] enqueue group update failed: group=%d err=%v", groupIn.ID, err)
@@ -556,6 +573,7 @@ func (r *groupRepository) listWithFiltersQuery(ctx context.Context, q *dbent.Gro
 			outGroups[i].RateLimitedAccountCount = c.RateLimited
 		}
 	}
+	hydrateGroupModelPlazaVisibility(ctx, r.plazaSQLExecutor(), outGroups)
 
 	return outGroups, paginationResultFromTotal(int64(total), params), nil
 }
@@ -643,6 +661,7 @@ func (r *groupRepository) listWithAccountCountSort(ctx context.Context, q *dbent
 			outGroups[idx] = *g
 		}
 	}
+	hydrateGroupModelPlazaVisibility(ctx, r.plazaSQLExecutor(), outGroups)
 
 	return outGroups, paginationResultFromTotal(int64(total), params), nil
 }
@@ -727,6 +746,7 @@ func (r *groupRepository) ListActive(ctx context.Context) ([]service.Group, erro
 			outGroups[i].RateLimitedAccountCount = c.RateLimited
 		}
 	}
+	hydrateGroupModelPlazaVisibility(ctx, r.plazaSQLExecutor(), outGroups)
 
 	return outGroups, nil
 }
@@ -800,6 +820,7 @@ func (r *groupRepository) ListActiveByPlatform(ctx context.Context, platform str
 			outGroups[i].RateLimitedAccountCount = c.RateLimited
 		}
 	}
+	hydrateGroupModelPlazaVisibility(ctx, r.plazaSQLExecutor(), outGroups)
 
 	return outGroups, nil
 }

@@ -364,6 +364,19 @@ func (d *multiGroupDispatcher) Wrap(handler gin.HandlerFunc) gin.HandlerFunc {
 	}
 }
 
+func (d *multiGroupDispatcher) prepareCandidateAdmission(c *gin.Context) bool {
+	if !middleware.CheckGroupModelAllowlist(c) {
+		return false
+	}
+	if _, forced := middleware.GetForcePlatformFromContext(c); !forced {
+		if d.isGemini {
+			return applyCompositeGeminiTargetPlatform(c, d.resolver)
+		}
+		return applyCompositeTargetPlatform(c, d.resolver)
+	}
+	return true
+}
+
 func (d *multiGroupDispatcher) invokeCandidate(
 	c *gin.Context,
 	originalWriter gin.ResponseWriter,
@@ -375,19 +388,8 @@ func (d *multiGroupDispatcher) invokeCandidate(
 		c.Writer = originalWriter
 	}()
 
-	if !middleware.CheckGroupModelAllowlist(c) {
+	if !d.prepareCandidateAdmission(c) {
 		return rw
-	}
-	if _, forced := middleware.GetForcePlatformFromContext(c); !forced {
-		if d.isGemini {
-			if !applyCompositeGeminiTargetPlatform(c, d.resolver) {
-				return rw
-			}
-		} else {
-			if !applyCompositeTargetPlatform(c, d.resolver) {
-				return rw
-			}
-		}
 	}
 	handler(c)
 	return rw
@@ -438,7 +440,7 @@ func (d *multiGroupDispatcher) WrapModels(handler gin.HandlerFunc) gin.HandlerFu
 			func() {
 				c.Writer = rec
 				defer func() { c.Writer = originalWriter }()
-				if middleware.CheckGroupModelAllowlist(c) {
+				if d.prepareCandidateAdmission(c) {
 					handler(c)
 				}
 			}()

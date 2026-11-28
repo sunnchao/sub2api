@@ -312,3 +312,33 @@ func TestMultiGroupDispatcher_AggregatesModelsAcrossGroups(t *testing.T) {
 	require.Equal(t, "shared-model", resp.Data[1].ID)
 	require.Equal(t, "gpt-5", resp.Data[2].ID)
 }
+
+func TestMultiGroupDispatcher_WrapModelsAppliesCompositeGeminiTargetPlatform(t *testing.T) {
+	composite := &service.Group{ID: 1, Name: "token-plan", Platform: service.PlatformComposite, Status: service.StatusActive}
+	anthropic := &service.Group{ID: 2, Name: "claude-only", Platform: service.PlatformAnthropic, Status: service.StatusActive}
+	baseKey, cands := makeMultiGroupBaseKey(7, composite, anthropic)
+
+	seenResolved := make(map[int64]string)
+	router := newMultiGroupTestRouter(cands, baseKey, true, func(r *gin.Engine, d *multiGroupDispatcher) {
+		r.Use(compositeGeminiTargetPlatformMiddleware(nil))
+		r.GET("/v1beta/models", d.WrapModels(func(c *gin.Context) {
+			activeKey, _ := middleware.GetAPIKeyFromContext(c)
+			platform, _ := service.ResolvedTargetPlatformFromContext(c.Request.Context())
+			seenResolved[activeKey.Group.ID] = platform
+			if platform != service.PlatformGemini && activeKey.Group.Platform != service.PlatformGemini {
+				c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"code": 400, "message": "API key group platform is not gemini", "status": "INVALID_ARGUMENT"}})
+				return
+			}
+			c.JSON(http.StatusOK, gin.H{"models": []gin.H{{"name": "models/gemini-2.5-pro"}}})
+		}))
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/v1beta/models", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	require.Equal(t, service.PlatformGemini, seenResolved[composite.ID])
+	require.Empty(t, seenResolved[anthropic.ID], "composite target platform must not leak to subsequent non-composite candidates")
+	require.Contains(t, w.Body.String(), `"models/gemini-2.5-pro"`)
+}

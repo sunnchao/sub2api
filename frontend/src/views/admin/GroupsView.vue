@@ -287,12 +287,21 @@
             >
           </template>
 
-          <template #cell-is_exclusive="{ value }">
-            <span :class="['badge', value ? 'badge-primary' : 'badge-gray']">
-              {{
-                value ? t("admin.groups.exclusive") : t("admin.groups.public")
-              }}
-            </span>
+          <template #cell-is_exclusive="{ value, row }">
+            <div class="inline-flex flex-wrap items-center gap-1">
+              <span :class="['badge', value ? 'badge-primary' : 'badge-gray']">
+                {{
+                  value ? t("admin.groups.exclusive") : t("admin.groups.public")
+                }}
+              </span>
+              <span
+                v-if="value && row.show_in_model_plaza"
+                data-testid="group-plaza-visible-badge"
+                class="badge bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
+              >
+                {{ t("admin.groups.plazaVisibleBadge") }}
+              </span>
+            </div>
           </template>
 
           <template #cell-account_count="{ row }">
@@ -722,6 +731,54 @@
                   ? t("admin.groups.exclusive")
                   : t("admin.groups.public")
               }}
+            </span>
+          </div>
+        </div>
+        <!-- Show in Model Plaza (for exclusive / subscription groups) -->
+        <div
+          v-if="
+            createForm.is_exclusive ||
+            createForm.subscription_type === 'subscription'
+          "
+          data-testid="create-show-in-model-plaza-section"
+          class="rounded-lg border border-gray-200 bg-gray-50/70 p-3 dark:border-dark-600 dark:bg-dark-800/60"
+        >
+          <div class="flex items-center justify-between gap-3">
+            <div class="min-w-0">
+              <span
+                class="block text-sm font-medium text-gray-700 dark:text-gray-300"
+              >
+                {{ t("admin.groups.showInModelPlaza") }}
+              </span>
+              <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                {{
+                  createForm.is_exclusive
+                    ? t("admin.groups.showInModelPlazaHint")
+                    : t("admin.groups.showInModelPlazaPublicHint")
+                }}
+              </p>
+            </div>
+            <div
+              v-if="createForm.is_exclusive"
+              class="flex shrink-0 items-center gap-2"
+            >
+              <Toggle
+                v-model="createForm.show_in_model_plaza"
+                data-testid="create-show-in-model-plaza-toggle"
+              />
+              <span class="text-xs text-gray-500 dark:text-gray-400">
+                {{
+                  createForm.show_in_model_plaza
+                    ? t("admin.groups.showInModelPlazaEnabled")
+                    : t("admin.groups.showInModelPlazaHidden")
+                }}
+              </span>
+            </div>
+            <span
+              v-else
+              class="badge shrink-0 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
+            >
+              {{ t("admin.groups.showInModelPlazaEnabled") }}
             </span>
           </div>
         </div>
@@ -2353,6 +2410,54 @@
                   ? t("admin.groups.exclusive")
                   : t("admin.groups.public")
               }}
+            </span>
+          </div>
+        </div>
+        <!-- Show in Model Plaza (for exclusive / subscription groups) -->
+        <div
+          v-if="
+            editForm.is_exclusive ||
+            editForm.subscription_type === 'subscription'
+          "
+          data-testid="edit-show-in-model-plaza-section"
+          class="rounded-lg border border-gray-200 bg-gray-50/70 p-3 dark:border-dark-600 dark:bg-dark-800/60"
+        >
+          <div class="flex items-center justify-between gap-3">
+            <div class="min-w-0">
+              <span
+                class="block text-sm font-medium text-gray-700 dark:text-gray-300"
+              >
+                {{ t("admin.groups.showInModelPlaza") }}
+              </span>
+              <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                {{
+                  editForm.is_exclusive
+                    ? t("admin.groups.showInModelPlazaHint")
+                    : t("admin.groups.showInModelPlazaPublicHint")
+                }}
+              </p>
+            </div>
+            <div
+              v-if="editForm.is_exclusive"
+              class="flex shrink-0 items-center gap-2"
+            >
+              <Toggle
+                v-model="editForm.show_in_model_plaza"
+                data-testid="edit-show-in-model-plaza-toggle"
+              />
+              <span class="text-xs text-gray-500 dark:text-gray-400">
+                {{
+                  editForm.show_in_model_plaza
+                    ? t("admin.groups.showInModelPlazaEnabled")
+                    : t("admin.groups.showInModelPlazaHidden")
+                }}
+              </span>
+            </div>
+            <span
+              v-else
+              class="badge shrink-0 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
+            >
+              {{ t("admin.groups.showInModelPlazaEnabled") }}
             </span>
           </div>
         </div>
@@ -4964,6 +5069,7 @@ const createForm = reactive({
   platform: "anthropic" as GroupPlatform,
   rate_multiplier: 1.0,
   is_exclusive: false,
+  show_in_model_plaza: false,
   subscription_type: "standard" as SubscriptionType,
   daily_limit_usd: null as number | null,
   weekly_limit_usd: null as number | null,
@@ -5333,6 +5439,7 @@ const editForm = reactive({
   platform: "anthropic" as GroupPlatform,
   rate_multiplier: 1.0,
   is_exclusive: false,
+  show_in_model_plaza: false,
   status: "active" as "active" | "inactive",
   subscription_type: "standard" as SubscriptionType,
   daily_limit_usd: null as number | null,
@@ -5813,6 +5920,7 @@ const closeCreateModal = () => {
   createForm.platform = "anthropic";
   createForm.rate_multiplier = 1.0;
   createForm.is_exclusive = false;
+  createForm.show_in_model_plaza = false;
   createForm.subscription_type = "standard";
   createForm.daily_limit_usd = null;
   createForm.weekly_limit_usd = null;
@@ -6114,6 +6222,7 @@ const handleEdit = async (group: AdminGroup) => {
   editForm.platform = group.platform;
   editForm.rate_multiplier = group.rate_multiplier;
   editForm.is_exclusive = group.is_exclusive;
+  editForm.show_in_model_plaza = group.show_in_model_plaza ?? false;
   editForm.status = group.status;
   editForm.subscription_type = group.subscription_type || "standard";
   editForm.daily_limit_usd = group.daily_limit_usd;

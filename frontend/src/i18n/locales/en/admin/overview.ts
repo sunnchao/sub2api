@@ -993,6 +993,12 @@ export default {
       groupUpdatedSuccess: 'Group updated successfully',
       groupDeletedSuccess: 'Group deleted successfully',
       rateMultiplierHint: 'Cost multiplier for this group (e.g., 1.5 = 150% of base cost)',
+      showInModelPlaza: 'Show in Model Plaza',
+      showInModelPlazaHint: 'When enabled, unsubscribed or unauthorized users can preview this group\'s models and pricing in Model Plaza (still cannot bind or invoke it directly).',
+      showInModelPlazaPublicHint: 'Public groups are already shown in Model Plaza by default; this toggle applies when Exclusive is enabled.',
+      showInModelPlazaEnabled: 'Visible',
+      showInModelPlazaHidden: 'Hidden',
+      plazaVisibleBadge: 'Plaza',
       exclusiveHint: 'Exclusive group, manually assign to specific users',
       exclusiveTooltip: {
         title: 'What is an exclusive group?',
