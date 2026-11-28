@@ -1318,6 +1318,7 @@ function generateRoutedCodexFiles(
     zhipu: 'glm-4.7',
     deepseek: 'deepseek-v4-pro',
     minimax: 'MiniMax-M3',
+    qwen: 'qwen3.8-max',
     opencode_go: 'glm-5.3',
     composite: 'gpt-6.1-sol'
   }
@@ -1333,6 +1334,7 @@ function generateRoutedCodexFiles(
     zhipu: 'Zhipu',
     deepseek: 'DeepSeek',
     minimax: 'MiniMax',
+    qwen: 'Qwen',
     opencode_go: 'OpenCode',
     typesafe: 'TypeSafe / Jev',
     command_code: 'Command Code',

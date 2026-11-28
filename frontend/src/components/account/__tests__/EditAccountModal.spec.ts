@@ -605,6 +605,36 @@ describe('EditAccountModal', () => {
     })
   })
 
+  it('preserves a Qwen account mode and custom endpoints on save', async () => {
+    const account = buildAccount()
+    account.platform = 'qwen'
+    account.credentials = {
+      api_key: 'sk-sp-test',
+      account_mode: 'token_sg',
+      api_protocol: 'adaptive',
+      base_url: 'https://relay.example.com/v1',
+      api_base_urls: {
+        chat_completions: 'https://relay.example.com/v1',
+        anthropic: 'https://relay.example.com/apps/anthropic'
+      }
+    }
+    updateAccountMock.mockReset().mockResolvedValue(account)
+    checkMixedChannelRiskMock.mockReset().mockResolvedValue({ has_risk: false })
+
+    const wrapper = mountModal(account)
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateAccountMock).toHaveBeenCalledTimes(1)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials).toMatchObject({
+      account_mode: 'token_sg',
+      api_protocol: 'adaptive',
+      api_base_urls: {
+        chat_completions: 'https://relay.example.com/v1',
+        anthropic: 'https://relay.example.com/apps/anthropic'
+      }
+    })
+  })
+
   describe('providers using the generic form', () => {
     beforeEach(() => {
       setPlatformCatalog({

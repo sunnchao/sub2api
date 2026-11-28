@@ -424,6 +424,11 @@ func (s *RateLimitService) HandleUpstreamError(ctx context.Context, account *Acc
 			return false
 		}
 	}
+	if account.IsQwen() && (statusCode == http.StatusPaymentRequired || statusCode == http.StatusTooManyRequests) {
+		if handled, disable := s.handleQwenUpstreamError(ctx, account, statusCode, responseBody, upstreamMsg); handled {
+			return disable
+		}
+	}
 	if account.IsBedrock() {
 		if handled, disable := s.handleBedrockUpstreamError(ctx, account, statusCode, upstreamMsg, firstRequestedModel(requestedModel)); handled {
 			return disable

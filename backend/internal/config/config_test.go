@@ -971,6 +971,18 @@ func TestLoadDefaultSecurityToggles(t *testing.T) {
 		"api.kimi.ai",
 		"api.moonshot.ai",
 		"api.moonshot.cn",
+		"token-plan.cn-beijing.maas.aliyuncs.com",
+		"token-plan.ap-southeast-1.maas.aliyuncs.com",
+		"coding.dashscope.aliyuncs.com",
+		"coding-intl.dashscope.aliyuncs.com",
+		"dashscope.aliyuncs.com",
+		"dashscope-intl.aliyuncs.com",
+		"dashscope-us.aliyuncs.com",
+		"cn-hongkong.dashscope.aliyuncs.com",
+		"token-plan.maas.qianwenaiapi.com",
+		"token-plan.maas.qwencloudapi.com",
+		"maas.qianwenaiapi.com",
+		"maas.qwencloudapi.com",
 	}
 	hostSet := make(map[string]struct{}, len(cfg.Security.URLAllowlist.UpstreamHosts))
 	for _, h := range cfg.Security.URLAllowlist.UpstreamHosts {

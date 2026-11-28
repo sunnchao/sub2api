@@ -52,6 +52,7 @@ const (
 	PlatformTypeSafe    = domain.PlatformTypeSafe
 	PlatformCommandCode = domain.PlatformCommandCode
 	PlatformCline       = domain.PlatformCline
+	PlatformQwen        = domain.PlatformQwen
 	PlatformComposite   = domain.PlatformComposite
 	// PlatformKiro is retained for unsupported-platform threshold tests and legacy
 	// account rows. Scheduling-threshold evaluation never pauses kiro accounts.
@@ -92,6 +93,18 @@ const (
 	DefaultCommandCodeBaseURL = "https://api.commandcode.ai/provider/v1"
 	// Cline API：只提供 Chat Completions（{base}/chat/completions）与模型列表。
 	DefaultClineBaseURL = "https://api.cline.bot/api/v1"
+	// Qwen / 阿里云百炼 / 千问 AI 平台 / QwenCloud 各模式默认 OpenAI 兼容基址。
+	DefaultQwenTokenPlanCNBaseURL      = "https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1"
+	DefaultQwenTokenPlanSGBaseURL      = "https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1"
+	DefaultQwenCodingPlanCNBaseURL     = "https://coding.dashscope.aliyuncs.com/v1"
+	DefaultQwenCodingPlanSGBaseURL     = "https://coding-intl.dashscope.aliyuncs.com/v1"
+	DefaultQwenPayGCNBaseURL           = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+	DefaultQwenPayGSGBaseURL           = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
+	DefaultQwenCloudTokenPlanCNBaseURL = "https://token-plan.maas.qianwenaiapi.com/compatible-mode/v1"
+	DefaultQwenCloudTokenPlanSGBaseURL = "https://token-plan.maas.qwencloudapi.com/compatible-mode/v1"
+	DefaultQwenCloudPayGCNBaseURL      = "https://maas.qianwenaiapi.com/compatible-mode/v1"
+	DefaultQwenCloudPayGSGBaseURL      = "https://maas.qwencloudapi.com/compatible-mode/v1"
+	DefaultQwenTestModel               = "qwen3.6-plus"
 )
 
 // 国产供应商 Anthropic 协议端点的默认 base_url（上游路径为 {base}/v1/messages）。
@@ -107,6 +120,13 @@ const (
 	DefaultOpenCodeZenAnthropicBaseURL = "https://opencode.ai/zen"
 	// Command Code 的 Anthropic 端点为 /provider/v1/messages（Claude 系模型只在此端点提供）。
 	DefaultCommandCodeAnthropicBaseURL = "https://api.commandcode.ai/provider"
+	// Qwen / 阿里云百炼各模式默认 Anthropic 兼容基址（上游路径为 {base}/v1/messages）。
+	DefaultQwenTokenPlanCNAnthropicBaseURL  = "https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic"
+	DefaultQwenTokenPlanSGAnthropicBaseURL  = "https://token-plan.ap-southeast-1.maas.aliyuncs.com/apps/anthropic"
+	DefaultQwenCodingPlanCNAnthropicBaseURL = "https://coding.dashscope.aliyuncs.com/apps/anthropic"
+	DefaultQwenCodingPlanSGAnthropicBaseURL = "https://coding-intl.dashscope.aliyuncs.com/apps/anthropic"
+	DefaultQwenPayGCNAnthropicBaseURL       = "https://dashscope.aliyuncs.com/apps/anthropic"
+	DefaultQwenPayGSGAnthropicBaseURL       = "https://dashscope-intl.aliyuncs.com/apps/anthropic"
 )
 
 // IsCNProvider 报告 platform 是否为国产 OpenAI 兼容供应商（kimi/zhipu/deepseek/minimax），

@@ -37,7 +37,10 @@ const (
 	PlatformCommandCode = "command_code"
 	// PlatformCline 是 Cline API（多模型聚合，OpenAI 兼容 Chat Completions；按量积分计费，
 	// 另有 ClinePass 订阅）。
-	PlatformCline     = "cline"
+	PlatformCline = "cline"
+	// PlatformQwen 是 Qwen / 阿里云百炼 / 千问 AI 平台（多协议 API Key 供应商：
+	// Token Plan、Coding Plan、按量计费）。
+	PlatformQwen      = "qwen"
 	PlatformComposite = "composite"
 )
 

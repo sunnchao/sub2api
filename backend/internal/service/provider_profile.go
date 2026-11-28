@@ -221,6 +221,73 @@ var providerProfiles = map[string]*ProviderProfile{
 			},
 		},
 	},
+	PlatformQwen: {
+		Platform:         PlatformQwen,
+		DefaultMode:      "token_cn",
+		Routing:          ProviderRoutingByInbound,
+		DefaultTestModel: DefaultQwenTestModel,
+		// 覆盖阿里云百炼（Token Plan / Coding Plan / 按量 × 北京/新加坡）与
+		// 千问 AI 平台 / QwenCloud（Token Plan / 按量 × 中国/国际）；各模式按需支持
+		// OpenAI Chat Completions 与 Anthropic 原生直通，Responses 入站统一桥接至 CC。
+		Modes: map[string]ProviderEndpoints{
+			"token_cn": {
+				BaseURLs: map[string]string{
+					APIProtocolChatCompletions: DefaultQwenTokenPlanCNBaseURL,
+					APIProtocolAnthropic:       DefaultQwenTokenPlanCNAnthropicBaseURL,
+				},
+			},
+			"token_sg": {
+				BaseURLs: map[string]string{
+					APIProtocolChatCompletions: DefaultQwenTokenPlanSGBaseURL,
+					APIProtocolAnthropic:       DefaultQwenTokenPlanSGAnthropicBaseURL,
+				},
+			},
+			"coding_cn": {
+				BaseURLs: map[string]string{
+					APIProtocolChatCompletions: DefaultQwenCodingPlanCNBaseURL,
+					APIProtocolAnthropic:       DefaultQwenCodingPlanCNAnthropicBaseURL,
+				},
+			},
+			"coding_sg": {
+				BaseURLs: map[string]string{
+					APIProtocolChatCompletions: DefaultQwenCodingPlanSGBaseURL,
+					APIProtocolAnthropic:       DefaultQwenCodingPlanSGAnthropicBaseURL,
+				},
+			},
+			"payg_cn": {
+				BaseURLs: map[string]string{
+					APIProtocolChatCompletions: DefaultQwenPayGCNBaseURL,
+					APIProtocolAnthropic:       DefaultQwenPayGCNAnthropicBaseURL,
+				},
+			},
+			"payg_sg": {
+				BaseURLs: map[string]string{
+					APIProtocolChatCompletions: DefaultQwenPayGSGBaseURL,
+					APIProtocolAnthropic:       DefaultQwenPayGSGAnthropicBaseURL,
+				},
+			},
+			"qwencloud_token_cn": {
+				BaseURLs: map[string]string{
+					APIProtocolChatCompletions: DefaultQwenCloudTokenPlanCNBaseURL,
+				},
+			},
+			"qwencloud_token_sg": {
+				BaseURLs: map[string]string{
+					APIProtocolChatCompletions: DefaultQwenCloudTokenPlanSGBaseURL,
+				},
+			},
+			"qwencloud_payg_cn": {
+				BaseURLs: map[string]string{
+					APIProtocolChatCompletions: DefaultQwenCloudPayGCNBaseURL,
+				},
+			},
+			"qwencloud_payg_sg": {
+				BaseURLs: map[string]string{
+					APIProtocolChatCompletions: DefaultQwenCloudPayGSGBaseURL,
+				},
+			},
+		},
+	},
 }
 
 // LookupProviderProfile 返回 platform 对应的多协议供应商 profile；非此类平台返回 nil。

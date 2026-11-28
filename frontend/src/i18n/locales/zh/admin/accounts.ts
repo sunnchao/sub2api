@@ -328,8 +328,22 @@ export default {
         zhipu: 'Zhipu GLM',
         deepseek: 'DeepSeek',
         minimax: 'MiniMax',
+        qwen: 'Qwen',
         opencode_go: 'OpenCode',
         typesafe: 'TypeSafe / Jev',
+      },
+      qwenModes: {
+        tokenCn: '百炼 Token Plan — 中国',
+        tokenSg: '百炼 Token Plan — 新加坡',
+        codingCn: '百炼 Coding Plan — 中国',
+        codingSg: '百炼 Coding Plan — 新加坡',
+        paygCn: '百炼按量计费 — 中国',
+        paygSg: '百炼按量计费 — 新加坡',
+        qwencloudTokenCn: '千问AI平台 Token Plan — 中国',
+        qwencloudTokenSg: 'QwenCloud Token Plan — 国际',
+        qwencloudPaygCn: '千问AI平台按量 — 中国',
+        qwencloudPaygSg: 'QwenCloud 按量 — 国际',
+        hint: '请使用与所选套餐和地域对应的 API Key；工作空间专属域名或其他地域（如美国/香港）可直接编辑下方协议端点地址。百炼 Token Plan 与 Coding Plan 仅限官方支持的交互式编程工具，请遵守阿里云相关条款。',
       },
       cnProviders: {
         accountMode: {

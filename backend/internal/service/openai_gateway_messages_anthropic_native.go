@@ -73,6 +73,13 @@ func (s *OpenAIGatewayService) forwardAnthropicViaNativeAnthropicEndpoint(
 		billingModel,
 	)
 
+	// 阿里云百炼 / MaaS Anthropic 兼容层把 output_config.effort 映射为 reasoning_effort、
+	// thinking.budget_tokens 映射为 thinking_budget，而 Qwen 引擎两者互斥会直接返回 400。
+	// 在保留日志 reasoningEffort 之后，移除冲突的 output_config.effort。
+	if normalized, changed := normalizeQwenAnthropicThinkingEffortConflict(account, body); changed {
+		body = normalized
+	}
+
 	// 与 Anthropic 平台 passthrough 相同的 pre-filter：剥离空文本块与上游
 	// 无法接受的 web-search 历史块（GLM/Kimi/DeepSeek 对 server_tool_use 400）。
 	body = StripEmptyTextBlocks(body)

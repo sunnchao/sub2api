@@ -739,8 +739,34 @@ describe('CreateAccountModal OpenAI long-context billing', () => {
     const wrapper = mountModal()
     const labels = (testid: string) =>
       wrapper.get(`[data-testid="${testid}"]`).findAll('button').map(button => button.text().trim())
-    expect(labels('platform-row-cn')).toEqual(['Kimi', 'Zhipu GLM', 'DeepSeek', 'MiniMax'])
+    expect(labels('platform-row-cn')).toEqual(['Kimi', 'Zhipu GLM', 'DeepSeek', 'MiniMax', 'Qwen'])
     expect(labels('platform-row-aggregators')).toEqual(['OpenCode', 'Command Code', 'Cline'])
+  })
+
+  it('creates a Qwen Token Plan account with default Bailian protocol endpoints', async () => {
+    const wrapper = mountModal()
+    await wrapper.get('[data-testid="platform-button-qwen"]').trigger('click')
+    await wrapper.get('form#create-account-form input[type="text"]').setValue('qwen-cn')
+    await wrapper.get('form#create-account-form input[type="password"]').setValue('sk-sp-test')
+
+    await wrapper.get('form#create-account-form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(createAccountMock).toHaveBeenCalledTimes(1)
+    expect(createAccountMock.mock.calls[0]?.[0]).toMatchObject({
+      platform: 'qwen',
+      type: 'apikey',
+      credentials: {
+        api_key: 'sk-sp-test',
+        account_mode: 'token_cn',
+        api_protocol: 'adaptive',
+        base_url: 'https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1',
+        api_base_urls: {
+          chat_completions: 'https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1',
+          anthropic: 'https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic',
+        },
+      },
+    })
   })
 
   it('creates a Cline account without an account type and with only the Chat Completions endpoint', async () => {

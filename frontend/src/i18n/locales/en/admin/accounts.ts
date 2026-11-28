@@ -114,8 +114,22 @@ export default {
         zhipu: 'Zhipu GLM',
         deepseek: 'DeepSeek',
         minimax: 'MiniMax',
+        qwen: 'Qwen',
         opencode_go: 'OpenCode',
         typesafe: 'TypeSafe / Jev',
+      },
+      qwenModes: {
+        tokenCn: 'Bailian Token Plan — China',
+        tokenSg: 'Bailian Token Plan — Singapore',
+        codingCn: 'Bailian Coding Plan — China',
+        codingSg: 'Bailian Coding Plan — Singapore',
+        paygCn: 'Bailian Pay-as-you-go — China',
+        paygSg: 'Bailian Pay-as-you-go — Singapore',
+        qwencloudTokenCn: 'QianwenAI Token Plan — China',
+        qwencloudTokenSg: 'QwenCloud Token Plan — Intl',
+        qwencloudPaygCn: 'QianwenAI Pay-as-you-go — China',
+        qwencloudPaygSg: 'QwenCloud Pay-as-you-go — Intl',
+        hint: 'Use the API key matching the selected plan and region. Edit protocol base URLs for workspace-specific domains or other regions (e.g. US/HK). Token Plan and Coding Plan are restricted to supported interactive coding tools per Alibaba Cloud terms.',
       },
       cnProviders: {
         accountMode: {
