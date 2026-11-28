@@ -413,4 +413,54 @@ func TestMultiGroupGatewayCompositeGeminiListModels(t *testing.T) {
 		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 		require.Contains(t, w.Body.String(), `"models/gemini-2.5-pro"`)
 	})
+
+	t.Run("single_composite_group_with_multiple_subscriptions", func(t *testing.T) {
+		composite := &service.Group{
+			ID:               54,
+			Name:             "token-plan",
+			Platform:         service.PlatformComposite,
+			Status:           service.StatusActive,
+			SubscriptionType: service.SubscriptionTypeSubscription,
+		}
+		key, _ := makeMultiGroupBaseKey(50, composite)
+		fixture := &multiGroupGatewayFixture{
+			key:     key,
+			balance: 0,
+			multiSubs: []service.UserSubscription{
+				{
+					ID: 5011, UserID: key.User.ID, GroupID: composite.ID,
+					Status: service.SubscriptionStatusActive, ExpiresAt: now.Add(time.Hour),
+					DailyWindowStart: &now, WeeklyWindowStart: &now, MonthlyWindowStart: &now,
+				},
+				{
+					ID: 5012, UserID: key.User.ID, GroupID: composite.ID,
+					Status: service.SubscriptionStatusActive, ExpiresAt: now.Add(2 * time.Hour),
+					DailyWindowStart: &now, WeeklyWindowStart: &now, MonthlyWindowStart: &now,
+				},
+			},
+			accountsByGroupID: map[int64][]service.Account{
+				composite.ID: {{
+					ID:       134,
+					Platform: service.PlatformGemini,
+					Type:     service.AccountTypeAPIKey,
+					Status:   service.StatusActive,
+					Credentials: map[string]any{
+						"api_key":  "test-key",
+						"base_url": "https://bearlab.ai",
+						"model_mapping": map[string]any{
+							"gemini-3.8-flash": "[AIS]gemini-3.8-flash",
+						},
+					},
+				}},
+			},
+		}
+		router := fixture.router(t)
+		req := httptest.NewRequest(http.MethodGet, "/v1beta/models", nil)
+		req.Header.Set("x-goog-api-key", key.Key)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+		require.Contains(t, w.Body.String(), `"models/gemini-3.8-flash"`)
+	})
 }

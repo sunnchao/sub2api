@@ -92,10 +92,11 @@ func (s *GeminiMessagesCompatService) forwardClaudeBodyAsChatCompletions(
 		return nil, s.writeChatCompletionsError(c, http.StatusBadRequest, "invalid_request_error", "model is required")
 	}
 
-	mappedModel := req.Model
+	mappedModel, accountMapped := req.Model, false
 	if account.Type == AccountTypeAPIKey || account.Type == AccountTypeServiceAccount {
-		mappedModel = account.GetMappedModel(req.Model)
+		mappedModel, accountMapped = account.ResolveMappedModel(req.Model)
 	}
+	trustedMapped := accountMapped || isTrustedMappedGeminiModel(ctx)
 
 	geminiReq, err := convertClaudeMessagesToGeminiGenerateContent(claudeBody, mappedModel)
 	if err != nil {
@@ -121,6 +122,7 @@ func (s *GeminiMessagesCompatService) forwardClaudeBodyAsChatCompletions(
 	buildReq, requestIDHeader := s.buildGeminiChatCompletionsUpstreamRequestFunc(
 		account,
 		mappedModel,
+		trustedMapped,
 		geminiReq,
 		clientStream,
 		useUpstreamStream,
@@ -325,6 +327,7 @@ func (s *GeminiMessagesCompatService) forwardClaudeBodyAsChatCompletions(
 func (s *GeminiMessagesCompatService) buildGeminiChatCompletionsUpstreamRequestFunc(
 	account *Account,
 	mappedModel string,
+	trustedMapped bool,
 	geminiReq []byte,
 	clientStream bool,
 	useUpstreamStream bool,
@@ -347,7 +350,7 @@ func (s *GeminiMessagesCompatService) buildGeminiChatCompletionsUpstreamRequestF
 			if clientStream {
 				action = "streamGenerateContent"
 			}
-			fullURL, err := buildGeminiAIStudioModelActionURL(normalizedBaseURL, mappedModel, action, clientStream)
+			fullURL, err := buildGeminiAIStudioMappedModelActionURL(normalizedBaseURL, mappedModel, action, clientStream, trustedMapped)
 			if err != nil {
 				return nil, "", err
 			}
@@ -420,7 +423,7 @@ func (s *GeminiMessagesCompatService) buildGeminiChatCompletionsUpstreamRequestF
 				return nil, "", err
 			}
 
-			fullURL, err := buildGeminiAIStudioModelActionURL(normalizedBaseURL, mappedModel, action, useUpstreamStream)
+			fullURL, err := buildGeminiAIStudioMappedModelActionURL(normalizedBaseURL, mappedModel, action, useUpstreamStream, trustedMapped)
 			if err != nil {
 				return nil, "", err
 			}

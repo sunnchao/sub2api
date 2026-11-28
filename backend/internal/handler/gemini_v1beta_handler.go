@@ -360,8 +360,13 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 		return
 	}
 	urlModel := modelName
+	adminMappedModel := false
 	if resolvedModel, ok := service.ResolvedUpstreamModelFromContext(c.Request.Context()); ok && strings.TrimSpace(resolvedModel) != "" {
-		modelName = strings.TrimSpace(resolvedModel)
+		trimmedResolved := strings.TrimSpace(resolvedModel)
+		if trimmedResolved != modelName {
+			adminMappedModel = true
+		}
+		modelName = trimmedResolved
 	}
 	if !middleware.HasForcePlatform(c) && servesCompositeAntigravityGemini(apiKey, effectivePlatform) && !isAntigravityGeminiModel(modelName) {
 		googleError(c, http.StatusBadRequest, "API key group platform is not gemini")
@@ -405,6 +410,7 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 
 	if channelMapping.Mapped {
 		modelName = channelMapping.MappedModel
+		adminMappedModel = true
 	}
 
 	// 引用显式缓存的请求只能发往持有该缓存的账号，且不参与会话粘性与换号。
@@ -746,6 +752,9 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 		// 5) forward (根据平台分流)
 		var result *service.ForwardResult
 		requestCtx := c.Request.Context()
+		if adminMappedModel {
+			requestCtx = service.WithTrustedMappedGeminiModel(requestCtx)
+		}
 		if fs.SwitchCount > 0 {
 			requestCtx = service.WithAccountSwitchCount(requestCtx, fs.SwitchCount, h.metadataBridgeEnabled())
 		}

@@ -195,7 +195,16 @@ func (s *GeminiMessagesCompatService) ForwardGetModel(ctx context.Context, accou
 		return nil, errors.New("account is nil")
 	}
 	if !account.IsVertexServiceAccount() {
-		return s.forwardGeminiModelsGET(ctx, account, "/v1beta/models/"+model)
+		mappedModel, accountMapped := model, false
+		if account.Type == AccountTypeAPIKey {
+			mappedModel, accountMapped = account.ResolveMappedModel(model)
+		}
+		trustedMapped := accountMapped || isTrustedMappedGeminiModel(ctx)
+		modelPath, err := buildGeminiAIStudioMappedModelPath(mappedModel, trustedMapped)
+		if err != nil {
+			return nil, err
+		}
+		return s.forwardGeminiModelsValidatedGET(ctx, account, modelPath)
 	}
 	if account.IsVertexAPIKey() {
 		return geminiModelsJSONResult(http.StatusOK, gemini.FallbackModel(model))
@@ -231,13 +240,16 @@ func (s *GeminiMessagesCompatService) forwardGeminiModelsGET(ctx context.Context
 	if !ok || sanitizedPath == "" {
 		return nil, errors.New("invalid path")
 	}
+	return s.forwardGeminiModelsValidatedGET(ctx, account, sanitizedPath)
+}
 
+func (s *GeminiMessagesCompatService) forwardGeminiModelsValidatedGET(ctx context.Context, account *Account, validatedPath string) (*UpstreamHTTPResult, error) {
 	baseURL := account.GetGeminiBaseURL(geminicli.AIStudioBaseURL)
 	normalizedBaseURL, err := s.validateUpstreamBaseURL(baseURL)
 	if err != nil {
 		return nil, err
 	}
-	fullURL := strings.TrimRight(normalizedBaseURL, "/") + sanitizedPath
+	fullURL := strings.TrimRight(normalizedBaseURL, "/") + validatedPath
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fullURL, nil)
 	if err != nil {

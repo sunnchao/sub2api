@@ -547,10 +547,11 @@ func (s *GeminiMessagesCompatService) Forward(ctx context.Context, c *gin.Contex
 	}
 
 	originalModel := req.Model
-	mappedModel := req.Model
+	mappedModel, accountMapped := req.Model, false
 	if account.Type == AccountTypeAPIKey || account.Type == AccountTypeServiceAccount {
-		mappedModel = account.GetMappedModel(req.Model)
+		mappedModel, accountMapped = account.ResolveMappedModel(req.Model)
 	}
+	trustedMapped := accountMapped || isTrustedMappedGeminiModel(ctx)
 
 	geminiReq, err := convertClaudeMessagesToGeminiGenerateContent(body, mappedModel)
 	if err != nil {
@@ -595,7 +596,7 @@ func (s *GeminiMessagesCompatService) Forward(ctx context.Context, c *gin.Contex
 			if req.Stream {
 				action = "streamGenerateContent"
 			}
-			fullURL, err := buildGeminiAIStudioModelActionURL(normalizedBaseURL, mappedModel, action, req.Stream)
+			fullURL, err := buildGeminiAIStudioMappedModelActionURL(normalizedBaseURL, mappedModel, action, req.Stream, trustedMapped)
 			if err != nil {
 				return nil, "", err
 			}
@@ -669,7 +670,7 @@ func (s *GeminiMessagesCompatService) Forward(ctx context.Context, c *gin.Contex
 					return nil, "", err
 				}
 
-				fullURL, err := buildGeminiAIStudioModelActionURL(normalizedBaseURL, mappedModel, action, useUpstreamStream)
+				fullURL, err := buildGeminiAIStudioMappedModelActionURL(normalizedBaseURL, mappedModel, action, useUpstreamStream, trustedMapped)
 				if err != nil {
 					return nil, "", err
 				}
@@ -1124,10 +1125,11 @@ func (s *GeminiMessagesCompatService) ForwardNative(ctx context.Context, c *gin.
 	// `thoughtSignature` to avoid frequent INVALID_ARGUMENT 400s.
 	body = ensureGeminiFunctionCallThoughtSignatures(body)
 
-	mappedModel := originalModel
+	mappedModel, accountMapped := originalModel, false
 	if account.Type == AccountTypeAPIKey || account.Type == AccountTypeServiceAccount {
-		mappedModel = account.GetMappedModel(originalModel)
+		mappedModel, accountMapped = account.ResolveMappedModel(originalModel)
 	}
+	trustedMapped := accountMapped || isTrustedMappedGeminiModel(ctx)
 	if action != "countTokens" && geminiImageGenerationDenied(c, body, originalModel, mappedModel) {
 		return nil, s.writeGoogleError(c, http.StatusBadRequest, ImageGenerationPermissionMessage())
 	}
@@ -1165,7 +1167,7 @@ func (s *GeminiMessagesCompatService) ForwardNative(ctx context.Context, c *gin.
 				return nil, "", err
 			}
 
-			fullURL, err := buildGeminiAIStudioModelActionURL(normalizedBaseURL, mappedModel, upstreamAction, useUpstreamStream)
+			fullURL, err := buildGeminiAIStudioMappedModelActionURL(normalizedBaseURL, mappedModel, upstreamAction, useUpstreamStream, trustedMapped)
 			if err != nil {
 				return nil, "", err
 			}
@@ -1233,7 +1235,7 @@ func (s *GeminiMessagesCompatService) ForwardNative(ctx context.Context, c *gin.
 					return nil, "", err
 				}
 
-				fullURL, err := buildGeminiAIStudioModelActionURL(normalizedBaseURL, mappedModel, upstreamAction, useUpstreamStream)
+				fullURL, err := buildGeminiAIStudioMappedModelActionURL(normalizedBaseURL, mappedModel, upstreamAction, useUpstreamStream, trustedMapped)
 				if err != nil {
 					return nil, "", err
 				}

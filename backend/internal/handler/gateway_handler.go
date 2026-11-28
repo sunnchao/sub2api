@@ -521,6 +521,9 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 					service.WithForwardGeminiSession(derefGroupID(apiKey.GroupID), sessionKey),
 				)
 			} else {
+				if channelMapping.Mapped {
+					requestCtx = service.WithTrustedMappedGeminiModel(requestCtx)
+				}
 				result, err = h.geminiCompatService.Forward(requestCtx, c, account, body)
 			}
 			if accountReleaseFunc != nil {

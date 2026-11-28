@@ -2410,12 +2410,11 @@ func (s *AccountTestService) testGeminiAccountConnection(c *gin.Context, account
 	}
 
 	// For static upstream credentials with model mapping, map the model
+	accountMapped := false
 	if account.Type == AccountTypeAPIKey || account.Type == AccountTypeServiceAccount {
-		mapping := account.GetModelMapping()
-		if len(mapping) > 0 {
-			if mappedModel, exists := mapping[testModelID]; exists {
-				testModelID = mappedModel
-			}
+		if mappedModel, matched := account.ResolveMappedModel(testModelID); matched {
+			testModelID = mappedModel
+			accountMapped = true
 		}
 	}
 
@@ -2435,7 +2434,7 @@ func (s *AccountTestService) testGeminiAccountConnection(c *gin.Context, account
 
 	switch account.Type {
 	case AccountTypeAPIKey:
-		req, err = s.buildGeminiAPIKeyRequest(ctx, account, testModelID, payload)
+		req, err = s.buildGeminiAPIKeyRequest(ctx, account, testModelID, accountMapped, payload)
 	case AccountTypeOAuth:
 		req, err = s.buildGeminiOAuthRequest(ctx, account, testModelID, payload)
 	case AccountTypeServiceAccount:
@@ -2535,7 +2534,7 @@ func antigravityConnectionTestModel(modelID string) string {
 }
 
 // buildGeminiAPIKeyRequest builds request for Gemini API Key accounts
-func (s *AccountTestService) buildGeminiAPIKeyRequest(ctx context.Context, account *Account, modelID string, payload []byte) (*http.Request, error) {
+func (s *AccountTestService) buildGeminiAPIKeyRequest(ctx context.Context, account *Account, modelID string, trustedMapped bool, payload []byte) (*http.Request, error) {
 	apiKey := account.GetCredential("api_key")
 	if strings.TrimSpace(apiKey) == "" {
 		return nil, fmt.Errorf("no API key available")
@@ -2551,7 +2550,7 @@ func (s *AccountTestService) buildGeminiAPIKeyRequest(ctx context.Context, accou
 	}
 
 	// Use streamGenerateContent for real-time feedback
-	fullURL, err := buildGeminiAIStudioModelActionURL(normalizedBaseURL, modelID, "streamGenerateContent", true)
+	fullURL, err := buildGeminiAIStudioMappedModelActionURL(normalizedBaseURL, modelID, "streamGenerateContent", true, trustedMapped)
 	if err != nil {
 		return nil, err
 	}

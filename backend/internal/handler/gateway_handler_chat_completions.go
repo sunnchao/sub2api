@@ -310,7 +310,11 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 				}
 				return
 			}
-			result, err = h.geminiCompatService.ForwardAsChatCompletions(c.Request.Context(), c, account, forwardBody)
+			ccCtx := c.Request.Context()
+			if channelMapping.Mapped {
+				ccCtx = service.WithTrustedMappedGeminiModel(ccCtx)
+			}
+			result, err = h.geminiCompatService.ForwardAsChatCompletions(ccCtx, c, account, forwardBody)
 		} else if shouldUseAntigravityCompat(account) {
 			if h.antigravityGatewayService == nil {
 				h.chatCompletionsErrorResponse(c, http.StatusBadGateway, "upstream_error", "Antigravity compatibility service is not configured")
