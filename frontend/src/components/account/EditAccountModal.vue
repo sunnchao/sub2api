@@ -414,6 +414,15 @@
                 </p>
               </div>
 
+              <ModelMappingBatchPanel
+                v-model:model-mappings="modelMappings"
+                v-model:allowed-models="allowedModels"
+                :platform="account?.platform || 'anthropic'"
+                :account-id="account?.id"
+                :show-upstream-sync="account.platform !== 'grok' || !account.id"
+                @upstream-sync-finished="refreshGrokDiagnostics"
+              />
+
               <div
                 v-if="account.platform === 'grok'"
                 class="mb-1.5 grid grid-cols-[minmax(0,1fr)_1rem_minmax(0,1.2fr)_2rem] gap-1.5 text-xs text-gray-500 dark:text-dark-400 sm:gap-2"
@@ -997,6 +1006,15 @@
               </p>
             </div>
 
+            <ModelMappingBatchPanel
+              v-model:model-mappings="modelMappings"
+              v-model:allowed-models="allowedModels"
+              :platform="account?.platform || 'anthropic'"
+              :account-id="account?.id"
+              :show-upstream-sync="account.platform !== 'grok' || !account.id"
+              @upstream-sync-finished="refreshGrokDiagnostics"
+            />
+
             <div
               v-if="account.platform === 'grok'"
               class="mb-1.5 grid grid-cols-[minmax(0,1fr)_1rem_minmax(0,1.2fr)_2rem] gap-1.5 text-xs text-gray-500 dark:text-dark-400 sm:gap-2"
@@ -1273,6 +1291,13 @@
               </p>
             </div>
 
+            <ModelMappingBatchPanel
+              v-model:model-mappings="modelMappings"
+              v-model:allowed-models="allowedModels"
+              :platform="account?.platform || 'anthropic'"
+              :account-id="account?.id"
+            />
+
             <!-- Model Mapping List -->
             <div v-if="modelMappings.length > 0" class="mb-3 space-y-2">
               <div
@@ -1474,6 +1499,12 @@
 
           <!-- Mapping Mode -->
           <div v-else class="space-y-3">
+            <ModelMappingBatchPanel
+              v-model:model-mappings="modelMappings"
+              v-model:allowed-models="allowedModels"
+              platform="anthropic"
+              :show-upstream-sync="false"
+            />
             <div v-for="(mapping, index) in modelMappings" :key="getModelMappingKey(mapping)" class="flex items-center gap-2">
               <input v-model="mapping.from" type="text" class="input flex-1" :placeholder="t('admin.accounts.fromModel')" />
               <span class="text-gray-400">→</span>
@@ -1601,6 +1632,13 @@
               {{ isSyncingAntigravityUpstream ? t('admin.accounts.syncUpstreamModelsLoading') : t('admin.accounts.syncUpstreamModels') }}
             </button>
           </div>
+
+          <ModelMappingBatchPanel
+            v-model:model-mappings="antigravityModelMappings"
+            :allow-whitelist-source="false"
+            platform="antigravity"
+            :account-id="account?.id"
+          />
 
           <div v-if="antigravityModelMappings.length > 0" class="mb-3 space-y-2">
             <div
@@ -3459,6 +3497,7 @@ import ProxySelector from '@/components/common/ProxySelector.vue'
 import ProxyAdBanner from '@/components/common/ProxyAdBanner.vue'
 import GroupSelector from '@/components/common/GroupSelector.vue'
 import ModelWhitelistSelector from '@/components/account/ModelWhitelistSelector.vue'
+import ModelMappingBatchPanel from '@/components/account/ModelMappingBatchPanel.vue'
 import GrokModelDiagnosticsPanel from '@/components/account/GrokModelDiagnosticsPanel.vue'
 import QuotaLimitCard from '@/components/account/QuotaLimitCard.vue'
 import GrokBaseUrlPresets from '@/components/account/GrokBaseUrlPresets.vue'

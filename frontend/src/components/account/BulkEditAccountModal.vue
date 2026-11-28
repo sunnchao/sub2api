@@ -458,6 +458,13 @@
                 </p>
               </div>
 
+              <ModelMappingBatchPanel
+                v-model:model-mappings="modelMappings"
+                v-model:allowed-models="allowedModels"
+                :platforms="targetSelectedPlatforms"
+                :show-upstream-sync="false"
+              />
+
               <!-- Model Mapping List -->
               <div v-if="modelMappings.length > 0" class="mb-3 space-y-2">
                 <div
@@ -1576,6 +1583,7 @@ import Select from '@/components/common/Select.vue'
 import ProxySelector from '@/components/common/ProxySelector.vue'
 import GroupSelector from '@/components/common/GroupSelector.vue'
 import ModelWhitelistSelector from '@/components/account/ModelWhitelistSelector.vue'
+import ModelMappingBatchPanel from '@/components/account/ModelMappingBatchPanel.vue'
 import Icon from '@/components/icons/Icon.vue'
 import {
   buildModelMappingObject as buildModelMappingPayload,
