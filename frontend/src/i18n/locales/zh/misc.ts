@@ -136,7 +136,8 @@ export default {
     resetIn: '{time} 后重置',
     quotaEndsIn: '额度将在 {time} 后结束',
     windowNotActive: '等待首次使用',
-    usageOf: '已用 {used} / {limit}'
+    usageOf: '已用 {used} / {limit}',
+    viewDetails: '查看明细'
   },
 
   // Onboarding Tour
@@ -338,6 +339,7 @@ export default {
     balanceDeductAmount: '本次余额扣除',
     balanceAfterPurchase: '支付后剩余余额',
     balanceInsufficientNotice: '账户余额不足，还差 {shortfall}',
+    expiringBalanceNotice: '使用余额支付时将优先抵扣限时余额；若发生退款，已过期限时额度将自动作废不退回。',
     goToRecharge: '去充值',
     methods: {
       easypay: '易支付',
@@ -432,6 +434,10 @@ export default {
     noPlans: '暂无可用订阅套餐',
     notAvailable: '充值功能暂未开放',
     billingUnavailable: '充值与订阅均暂未开放，请联系管理员。',
+    redeemStoreAlternativeHint: '也可以通过购买兑换码为账户充值',
+    redeemStoreOnlyTitle: '通过兑换码充值余额',
+    redeemStoreOnlyDesc: '当前在线支付暂未开启，您可以前往兑换商城购买兑换码后在站内即时兑换到账。',
+    haveRedeemCodeGoRedeem: '已有兑换码？去兑换',
     confirmSubscription: '确认订阅',
     confirmCancel: '确定要取消此订单吗？',
     amountTooLow: '最低金额为 {min}',

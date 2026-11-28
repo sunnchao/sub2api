@@ -34,6 +34,14 @@ type User struct {
 	// RPMLimit 用户级每分钟请求数上限（0 = 不限制），仅在所用分组未设置 rpm_limit 时作为兜底生效。
 	RPMLimit int `json:"rpm_limit"`
 
+	// 限时余额只读展示字段（由 handler 按需填充；未填充时不下发）。
+	// balance 始终表示数据库中的通用余额，写入接口不受这些字段影响。
+	ExpiringBalance       *float64   `json:"expiring_balance,omitempty"`
+	TotalAvailableBalance *float64   `json:"total_available_balance,omitempty"`
+	ExpiringFrozenBalance *float64   `json:"expiring_frozen_balance,omitempty"`
+	NearestExpiringAt     *time.Time `json:"nearest_expiring_at,omitempty"`
+	NearestExpiringAmount *float64   `json:"nearest_expiring_amount,omitempty"`
+
 	APIKeys       []APIKey           `json:"api_keys,omitempty"`
 	Subscriptions []UserSubscription `json:"subscriptions,omitempty"`
 }

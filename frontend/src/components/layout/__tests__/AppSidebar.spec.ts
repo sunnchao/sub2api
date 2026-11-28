@@ -73,11 +73,12 @@ describe('AppSidebar subscription feature flag', () => {
     expect(componentSource).toMatch(/path: '\/admin\/subscriptions'[^\n]*featureFlag: flagSubscription/)
   })
 
-  it('derives the purchase entry label from the site billing mode', () => {
-    expect(componentSource).toContain("import { resolveSiteBillingMode } from '@/utils/siteBillingMode'")
+  it('derives the purchase entry label and visibility from billing mode and redeem store fallback', () => {
+    expect(componentSource).toContain("import { canAccessPurchasePage, resolvePurchaseDisplayBillingMode } from '@/utils/redeemStore'")
     expect(componentSource).toMatch(/case 'recharge_only':\s*return t\('nav\.recharge'\)/)
     expect(componentSource).toMatch(/case 'subscription_only':\s*return t\('nav\.subscribe'\)/)
-    expect(componentSource).toMatch(/path: '\/purchase'[^\n]*label: purchaseNavLabel\.value/)
+    expect(componentSource).toMatch(/path: '\/purchase'[^\n]*label: purchaseNavLabel\.value[^\n]*featureFlag: flagPurchaseEntry/)
+    expect(componentSource).toMatch(/path: '\/orders'[^\n]*featureFlag: flagPayment/)
   })
 })
 

@@ -23,6 +23,16 @@ func APIKeyAuthGoogle(apiKeyService *service.APIKeyService, cfg *config.Config) 
 //
 // It is intended for Gemini native endpoints (/v1beta) to match Gemini SDK expectations.
 func APIKeyAuthWithSubscriptionGoogle(apiKeyService *service.APIKeyService, subscriptionService *service.SubscriptionService, cfg *config.Config) gin.HandlerFunc {
+	return apiKeyAuthWithSubscriptionGoogle(apiKeyService, subscriptionService, nil, cfg)
+}
+
+// APIKeyAuthWithSubscriptionGoogleWithBalanceReader behaves like APIKeyAuthWithSubscriptionGoogle
+// with an explicit balance reader.
+func APIKeyAuthWithSubscriptionGoogleWithBalanceReader(apiKeyService *service.APIKeyService, subscriptionService *service.SubscriptionService, balanceReader APIKeyAuthBalanceReader, cfg *config.Config) gin.HandlerFunc {
+	return apiKeyAuthWithSubscriptionGoogle(apiKeyService, subscriptionService, balanceReader, cfg)
+}
+
+func apiKeyAuthWithSubscriptionGoogle(apiKeyService *service.APIKeyService, subscriptionService *service.SubscriptionService, balanceReader APIKeyAuthBalanceReader, cfg *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if rejectInvalidAuthAbuse(c, apiKeyService) {
 			abortWithGoogleError(c, 429, "Too many invalid authentication attempts; retry later")
@@ -117,12 +127,14 @@ func APIKeyAuthWithSubscriptionGoogle(apiKeyService *service.APIKeyService, subs
 			return
 		}
 		if apiKey.HasMultipleGroups() {
+			c.Request = c.Request.WithContext(withAPIKeyAuthBalanceLookup(c.Request.Context(), balanceReader))
 			handleMultiGroupGoogleAuth(c, apiKeyService, subscriptionService, cfg, apiKey)
 			return
 		}
 		// 请求头覆写变量（{{user_id}} 等）的取值来源，与 APIKeyAuth 保持一致。
-		c.Request = c.Request.WithContext(service.WithHeaderOverrideRequestScope(
-			c.Request.Context(), apiKey.User.ID, apiKey.ID, apiKey.GroupID))
+		ctx := service.WithHeaderOverrideRequestScope(c.Request.Context(), apiKey.User.ID, apiKey.ID, apiKey.GroupID)
+		ctx = withAPIKeyAuthBalanceLookup(ctx, balanceReader)
+		c.Request = c.Request.WithContext(ctx)
 		if code, message, ok := validateAPIKeyGroupAvailable(apiKey); !ok {
 			service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonAPIKeyGroupUnavailable)
 			if code == "GROUP_DELETED" {
@@ -194,7 +206,12 @@ func APIKeyAuthWithSubscriptionGoogle(apiKeyService *service.APIKeyService, subs
 				c.Set(string(ContextKeyGroupCandidates), candidates)
 			}
 		} else {
-			if apiKeyBalanceBelowAuthThreshold(apiKey.User.Balance, cfg) {
+			insufficient, balErr := checkAPIKeyAuthBalance(c.Request.Context(), apiKey, cfg, balanceReader)
+			if balErr != nil {
+				abortWithGoogleError(c, 503, "Billing service temporarily unavailable. Please retry later.")
+				return
+			}
+			if insufficient {
 				abortWithGoogleError(c, 403, "Insufficient account balance")
 				return
 			}

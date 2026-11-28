@@ -424,7 +424,7 @@ import { FeatureFlags, resolveFeatureFlag } from '@/utils/featureFlags'
 import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { buildGatewayUrl } from '@/api/client'
-import { formatDateLocalInput } from '@/utils/format'
+import { formatDateLocalInput, formatDateTimeToMinute } from '@/utils/format'
 import { sanitizeUrl } from '@/utils/url'
 
 const { t, locale } = useI18n()
@@ -655,7 +655,7 @@ const ringItems = computed<RingItem[]>(() => {
       }
     }
     if (!data.subscription && data.balance != null) {
-      items.push({ title: t('keyUsage.walletBalance'), pct: 0, amount: usd(data.balance), isBalance: true, iconType: 'dollar' })
+      items.push({ title: t('keyUsage.walletBalance'), pct: 0, amount: signedUsd(data.balance), isBalance: true, iconType: 'dollar' })
     }
   }
 
@@ -785,6 +785,29 @@ const detailRows = computed<DetailRow[]>(() => {
       iconBg: 'bg-emerald-500/10', iconColor: 'text-emerald-500', iconSvg: ICON_SHIELD,
       label: t('keyUsage.remainingQuota'), value: data.remaining != null ? usd(data.remaining) : '-', valueClass: remainColor,
     })
+
+    if (Number(data.expiring_balance) > 0) {
+      rows.push({
+        iconBg: 'bg-primary-500/10', iconColor: 'text-primary-500', iconSvg: ICON_DOLLAR,
+        label: t('keyUsage.regularBalance'),
+        value: data.regular_balance != null ? signedUsd(data.regular_balance) : '-',
+        valueClass: '',
+      })
+      rows.push({
+        iconBg: 'bg-amber-500/10', iconColor: 'text-amber-500', iconSvg: ICON_DOLLAR,
+        label: t('keyUsage.expiringBalance'),
+        value: usd(data.expiring_balance),
+        valueClass: 'text-amber-600 dark:text-amber-400',
+      })
+      if (data.nearest_expiring_at) {
+        rows.push({
+          iconBg: 'bg-amber-500/10', iconColor: 'text-amber-500', iconSvg: ICON_CALENDAR,
+          label: t('keyUsage.nearestExpiring'),
+          value: formatDateTimeToMinute(data.nearest_expiring_at),
+          valueClass: '',
+        })
+      }
+    }
   }
 
   return rows
@@ -846,8 +869,21 @@ const showDailyUsage = computed(() => Boolean(resultData.value && Array.isArray(
 // ==================== Utility Functions ====================
 
 function usd(value: number | null | undefined): string {
-  if (value == null || value < 0) return '-'
-  return '$' + Number(value).toFixed(2)
+  if (value == null) return '-'
+  const num = Number(value)
+  if (!Number.isFinite(num) || num < 0) return '-'
+  return '$' + num.toFixed(2)
+}
+
+function signedUsd(value: number | null | undefined): string {
+  if (value == null) return '-'
+  const num = Number(value)
+  if (!Number.isFinite(num)) return '-'
+  const absFormatted = Math.abs(num).toFixed(2)
+  if (num < 0 && absFormatted !== '0.00') {
+    return '-$' + absFormatted
+  }
+  return '$' + absFormatted
 }
 
 function fmtNum(val: number | null | undefined): string {

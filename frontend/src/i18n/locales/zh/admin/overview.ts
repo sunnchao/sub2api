@@ -723,6 +723,9 @@ export default {
       // 余额变动记录
       balanceHistory: '充值记录',
       balanceHistoryTip: '点击查看充值记录',
+      expiringBalanceShort: '限时 ${amount}',
+      expiringBalanceHint: '当前有效限时余额（只读展示，扣费时按最早过期优先自动抵扣）',
+      expiringBalanceReadOnly: '含有效限时余额 ${amount}',
       columnAlwaysVisible: '该列固定显示，不可隐藏',
       // 平台用量明细（悬浮显示）
       platformBreakdown: '按平台拆分',

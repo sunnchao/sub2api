@@ -130,6 +130,9 @@ func RegisterAdminRoutes(
 		// 邀请返利（专属用户管理）
 		registerAffiliateRoutes(admin, h)
 
+		// 每日签到（配置、统计与流水）
+		registerCheckinRoutes(admin, h)
+
 		// New API 额度迁移配置与审计流水
 		registerNewAPIMigrationRoutes(admin, h)
 
@@ -151,6 +154,20 @@ func registerPromptAuditRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		promptAudit.POST("/events/batch-delete", h.Admin.PromptAudit.BatchDelete)
 		promptAudit.POST("/events/delete-preview", h.Admin.PromptAudit.DeletePreview)
 		promptAudit.POST("/events/delete-by-filter", h.Admin.PromptAudit.DeleteByFilter)
+	}
+}
+
+// registerCheckinRoutes 注册每日签到管理端路由（配置、统计与流水）。
+func registerCheckinRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	if h.Admin == nil || h.Admin.Checkin == nil {
+		return
+	}
+	checkin := admin.Group("/checkin")
+	{
+		checkin.GET("/config", h.Admin.Checkin.GetConfig)
+		checkin.PUT("/config", h.Admin.Checkin.UpdateConfig)
+		checkin.GET("/stats", h.Admin.Checkin.GetStats)
+		checkin.GET("/records", h.Admin.Checkin.ListRecords)
 	}
 }
 

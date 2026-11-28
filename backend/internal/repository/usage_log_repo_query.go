@@ -116,6 +116,10 @@ func (r *usageLogRepository) ListWithFilters(ctx context.Context, params paginat
 		conditions = append(conditions, fmt.Sprintf("group_id = $%d", len(args)+1))
 		args = append(args, filters.GroupID)
 	}
+	if filters.SubscriptionID > 0 {
+		conditions = append(conditions, fmt.Sprintf("subscription_id = $%d", len(args)+1))
+		args = append(args, filters.SubscriptionID)
+	}
 	if requestID := strings.TrimSpace(filters.RequestID); requestID != "" {
 		conditions = append(conditions, fmt.Sprintf("request_id = $%d", len(args)+1))
 		args = append(args, requestID)
@@ -435,7 +439,49 @@ func (r *usageLogRepository) loadSubscriptions(ctx context.Context, ids []int64)
 	for _, m := range models {
 		out[m.ID] = userSubscriptionEntityToService(m)
 	}
+	r.hydrateSubscriptionTemplateNames(ctx, ids, out)
 	return out, nil
+}
+
+func (r *usageLogRepository) hydrateSubscriptionTemplateNames(ctx context.Context, ids []int64, subs map[int64]*service.UserSubscription) {
+	if r.sql == nil || len(ids) == 0 || len(subs) == 0 {
+		return
+	}
+	placeholders := make([]string, len(ids))
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		placeholders[i] = fmt.Sprintf("$%d", i+1)
+		args[i] = id
+	}
+	query := fmt.Sprintf(
+		"SELECT subscription_id, template_id, template_name FROM user_subscription_snapshots WHERE subscription_id IN (%s)",
+		strings.Join(placeholders, ", "),
+	)
+	rows, err := r.sql.QueryContext(ctx, query, args...)
+	if err != nil {
+		// Gracefully degrade if snapshot table is absent in legacy/minimal test schemas.
+		return
+	}
+	defer func() { _ = rows.Close() }()
+	for rows.Next() {
+		var (
+			subID   int64
+			tplID   sql.NullInt64
+			tplName sql.NullString
+		)
+		if err := rows.Scan(&subID, &tplID, &tplName); err != nil {
+			continue
+		}
+		if sub, ok := subs[subID]; ok && sub != nil {
+			if tplID.Valid {
+				idVal := tplID.Int64
+				sub.TemplateID = &idVal
+			}
+			if tplName.Valid && strings.TrimSpace(tplName.String) != "" {
+				sub.TemplateName = strings.TrimSpace(tplName.String)
+			}
+		}
+	}
 }
 
 func scanUsageLog(scanner interface{ Scan(...any) error }) (*service.UsageLog, error) {

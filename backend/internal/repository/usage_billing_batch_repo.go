@@ -2,8 +2,11 @@ package repository
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"errors"
+	"fmt"
 	"math"
 	"sort"
 	"strings"
@@ -51,6 +54,7 @@ func (r *usageBillingRepository) ApplyBatch(ctx context.Context, cmds []*service
 		return nil, errors.New("usage billing repository db is nil")
 	}
 
+	ctx = r.withDialect(ctx)
 	userID, err := validateUsageBillingBatch(cmds)
 	if err != nil {
 		return nil, err
@@ -339,6 +343,22 @@ func applyUsageBillingBatchSubscriptions(ctx context.Context, tx *sql.Tx, cmds [
 	return nil
 }
 
+func usageBillingBatchAllocRefKey(cmds []*service.UsageBillingCommand, indexes []int) string {
+	if len(indexes) == 0 {
+		return ""
+	}
+	first := cmds[indexes[0]]
+	if len(indexes) == 1 {
+		return usageBillingAllocRefKey(first.RequestID, first.APIKeyID)
+	}
+	raw := fmt.Sprintf("batch:%d:%d:%s", len(indexes), first.APIKeyID, strings.TrimSpace(first.RequestID))
+	if len(raw) <= 128 {
+		return raw
+	}
+	sum := sha256.Sum256([]byte(raw))
+	return "batch:sha256:" + hex.EncodeToString(sum[:])
+}
+
 func applyUsageBillingBatchBalance(ctx context.Context, tx *sql.Tx, userID int64, cmds []*service.UsageBillingCommand, applied []bool, outcomes []service.UsageBillingBatchOutcome) error {
 	groups, _ := groupUsageBillingAmounts(cmds, applied, func(cmd *service.UsageBillingCommand) (int64, float64, bool) {
 		return userID, cmd.BalanceCost, true
@@ -348,27 +368,18 @@ func applyUsageBillingBatchBalance(ctx context.Context, tx *sql.Tx, userID int64
 		return nil
 	}
 
-	var newBalance decimal.Decimal
-	err := tx.QueryRowContext(ctx, `
-		UPDATE users
-		SET balance = balance - $1,
-			updated_at = NOW()
-		WHERE id = $2 AND deleted_at IS NULL
-		RETURNING balance
-	`, group.sum, userID).Scan(&newBalance)
-	if errors.Is(err, sql.ErrNoRows) {
-		return service.ErrUserNotFound
-	}
+	refKey := usageBillingBatchAllocRefKey(cmds, group.indexes)
+	res, err := DeductUserTotalBalanceTx(ctx, tx, userID, group.sum.InexactFloat64(), true, service.ExpiringAllocRefUsageBilling, refKey)
 	if err != nil {
 		return err
 	}
 
-	running := newBalance.Add(group.sum)
+	running := decimal.NewFromFloat(res.NewTotalBalance).Round(service.UsageBillingMonetaryScale).Add(group.sum)
 	for _, i := range group.indexes {
 		cost := usageBillingAmount(cmds[i].BalanceCost)
 		sufficient := running.GreaterThanOrEqual(cost)
 		running = running.Sub(cost)
-		balance := running.InexactFloat64()
+		balance, _ := running.Round(service.UsageBillingMonetaryScale).Float64()
 		outcomes[i].Result.NewBalance = &balance
 		outcomes[i].Result.BalanceOverdrafted = !sufficient
 	}

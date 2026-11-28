@@ -79,6 +79,9 @@ func (h *SettingHandler) GetPublicSettings(c *gin.Context) {
 		HideCcsImportButton:                 settings.HideCcsImportButton,
 		PurchaseSubscriptionEnabled:         settings.PurchaseSubscriptionEnabled,
 		PurchaseSubscriptionURL:             settings.PurchaseSubscriptionURL,
+		RedeemStoreURL:                      settings.RedeemStoreURL,
+		RedeemStoreOpenMode:                 settings.RedeemStoreOpenMode,
+		RedeemStoreLabel:                    settings.RedeemStoreLabel,
 		TableDefaultPageSize:                settings.TableDefaultPageSize,
 		TablePageSizeOptions:                settings.TablePageSizeOptions,
 		CustomMenuItems:                     dto.ParseUserVisibleMenuItems(settings.CustomMenuItems),
@@ -126,6 +129,8 @@ func (h *SettingHandler) GetPublicSettings(c *gin.Context) {
 		RiskControlEnabled: settings.RiskControlEnabled,
 
 		AllowUserViewErrorRequests: settings.AllowUserViewErrorRequests,
+
+		CheckinEnabled: settings.CheckinEnabled,
 	})
 }
 

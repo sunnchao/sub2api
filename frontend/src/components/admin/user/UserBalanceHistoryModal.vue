@@ -33,6 +33,13 @@
             <p class="text-xl font-bold text-gray-900 dark:text-white">
               ${{ user.balance?.toFixed(2) || '0.00' }}
             </p>
+            <p
+              v-if="(user.expiring_balance ?? 0) > 0"
+              data-testid="history-modal-expiring-balance"
+              class="mt-0.5 text-xs text-amber-600 dark:text-amber-300"
+            >
+              {{ t('admin.users.expiringBalanceReadOnly', { amount: Number(user.expiring_balance).toFixed(2) }) }}<template v-if="user.nearest_expiring_at"> ({{ formatDateTimeToMinute(user.nearest_expiring_at) }})</template>
+            </p>
           </div>
         </div>
         <!-- Row 2: notes + total recharged -->
@@ -175,7 +182,7 @@
 import { ref, computed, watch, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { adminAPI, type BalanceHistoryItem } from '@/api/admin'
-import { formatDateTime } from '@/utils/format'
+import { formatDateTime, formatDateTimeToMinute } from '@/utils/format'
 import type { AdminUser } from '@/types'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Select from '@/components/common/Select.vue'

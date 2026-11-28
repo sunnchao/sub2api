@@ -48,6 +48,7 @@ func ProvideAdminHandlers(
 	newAPIMigrationHandler *admin.NewAPIMigrationHandler,
 	complianceHandler *admin.ComplianceHandler,
 	auditLogHandler *admin.AuditLogHandler,
+	checkinHandler *admin.CheckinHandler,
 	upstreamBillingProbe *service.UpstreamBillingProbeService,
 	ollamaCloudUsage *service.OllamaCloudUsageService,
 	opencodeGoUsage *service.OpenCodeGoUsageService,
@@ -95,6 +96,7 @@ func ProvideAdminHandlers(
 		NewAPIMigration:        newAPIMigrationHandler,
 		Compliance:             complianceHandler,
 		AuditLog:               auditLogHandler,
+		Checkin:                checkinHandler,
 	}
 }
 
@@ -116,12 +118,14 @@ func ProvideGatewayHandler(
 	settingService *service.SettingService,
 	coordinator *securityaudit.Coordinator,
 	geminiCachedContentService *service.GeminiCachedContentService,
+	expiringBalanceService *service.ExpiringBalanceService,
 ) *GatewayHandler {
 	h := NewGatewayHandler(gatewayService, openAIGatewayService, geminiCompatService, antigravityGatewayService,
 		userService, concurrencyService, billingCacheService, usageService, apiKeyService, usageRecordWorkerPool,
 		errorPassthroughService, contentModerationService, userMsgQueueService, cfg, settingService)
 	h.securityAuditCoordinator = coordinator
 	h.geminiCachedContentService = geminiCachedContentService
+	h.SetExpiringBalanceService(expiringBalanceService)
 	return h
 }
 
@@ -160,6 +164,57 @@ func ProvideBatchImageHandler(
 	return h
 }
 
+// ProvideAuthHandler creates AuthHandler and injects the optional expiring balance service
+// so /api/v1/auth/me can expose the total available balance breakdown.
+func ProvideAuthHandler(
+	cfg *config.Config,
+	authService *service.AuthService,
+	userService *service.UserService,
+	settingService *service.SettingService,
+	promoService *service.PromoService,
+	redeemService *service.RedeemService,
+	totpService *service.TotpService,
+	userAttributeService *service.UserAttributeService,
+	expiringBalanceService *service.ExpiringBalanceService,
+) *AuthHandler {
+	h := NewAuthHandler(cfg, authService, userService, settingService, promoService, redeemService, totpService, userAttributeService)
+	h.SetExpiringBalanceService(expiringBalanceService)
+	return h
+}
+
+// ProvideUserHandler creates the user-facing UserHandler and injects the optional
+// expiring balance service so /api/v1/user/profile can expose the breakdown.
+func ProvideUserHandler(
+	userService *service.UserService,
+	authService *service.AuthService,
+	emailService *service.EmailService,
+	emailCache service.EmailCache,
+	affiliateService *service.AffiliateService,
+	userPlatformQuotaRepo service.UserPlatformQuotaRepository,
+	expiringBalanceService *service.ExpiringBalanceService,
+) *UserHandler {
+	h := NewUserHandler(userService, authService, emailService, emailCache, affiliateService, userPlatformQuotaRepo)
+	h.SetExpiringBalanceService(expiringBalanceService)
+	return h
+}
+
+// ProvideAdminUserHandler creates the admin UserHandler and injects the optional
+// expiring balance service for read-only balance breakdown in list/detail views.
+func ProvideAdminUserHandler(
+	adminService service.AdminService,
+	concurrencyService *service.ConcurrencyService,
+	userPlatformQuotaRepo service.UserPlatformQuotaRepository,
+	billingCache service.BillingCache,
+	totpService *service.TotpService,
+	userService *service.UserService,
+	settingService *service.SettingService,
+	expiringBalanceService *service.ExpiringBalanceService,
+) *admin.UserHandler {
+	h := admin.NewUserHandler(adminService, concurrencyService, userPlatformQuotaRepo, billingCache, totpService, userService, settingService)
+	h.SetExpiringBalanceService(expiringBalanceService)
+	return h
+}
+
 // ProvideSystemHandler creates admin.SystemHandler with UpdateService
 func ProvideSystemHandler(updateService *service.UpdateService, lockService *service.SystemOperationLockService) *admin.SystemHandler {
 	return admin.NewSystemHandler(updateService, lockService)
@@ -179,6 +234,19 @@ func ProvideAdminSettingHandler(settingService *service.SettingService, emailSer
 	h.SetAliyunCaptchaService(aliyunCaptchaService)
 	h.SetStepUpDeps(totpService, userService)
 	return h
+}
+
+// ProvideCheckinHandler creates the user-facing CheckinHandler and injects
+// the captcha verifier plus balance cache invalidators.
+func ProvideCheckinHandler(
+	checkinService *service.CheckinService,
+	authService *service.AuthService,
+	billingCacheService *service.BillingCacheService,
+	apiKeyService *service.APIKeyService,
+) *CheckinHandler {
+	checkinService.SetCaptchaVerifier(authService)
+	checkinService.SetCacheInvalidators(billingCacheService, apiKeyService)
+	return NewCheckinHandler(checkinService)
 }
 
 // ProvideHandlers creates the Handlers struct
@@ -206,6 +274,7 @@ func ProvideHandlers(
 	modelPlazaHandler *ModelPlazaHandler,
 	asyncImageHandler *AsyncImageHandler,
 	batchImageHandler *BatchImageHandler,
+	checkinHandler *CheckinHandler,
 	_ *service.IdempotencyCoordinator,
 	_ *service.IdempotencyCleanupService,
 	_ *service.OpenAIQuotaAutoResetService,
@@ -234,14 +303,15 @@ func ProvideHandlers(
 		ModelPlaza:       modelPlazaHandler,
 		AsyncImage:       asyncImageHandler,
 		BatchImage:       batchImageHandler,
+		Checkin:          checkinHandler,
 	}
 }
 
 // ProviderSet is the Wire provider set for all handlers
 var ProviderSet = wire.NewSet(
 	// Top-level handlers
-	NewAuthHandler,
-	NewUserHandler,
+	ProvideAuthHandler,
+	ProvideUserHandler,
 	NewMCPOAuthHandler,
 	NewAPIKeyHandler,
 	NewUsageHandler,
@@ -262,10 +332,11 @@ var ProviderSet = wire.NewSet(
 	NewModelPlazaHandler,
 	NewAsyncImageHandler,
 	ProvideBatchImageHandler,
+	ProvideCheckinHandler,
 
 	// Admin handlers
 	admin.NewDashboardHandler,
-	admin.NewUserHandler,
+	ProvideAdminUserHandler,
 	admin.NewGroupHandlerWithConfig,
 	admin.ProvideAccountHandler,
 	admin.NewAnnouncementHandler,
@@ -300,6 +371,7 @@ var ProviderSet = wire.NewSet(
 	admin.NewNewAPIMigrationHandler,
 	admin.NewComplianceHandler,
 	admin.NewAuditLogHandler,
+	admin.NewCheckinHandler,
 
 	// AdminHandlers and Handlers constructors
 	ProvideAdminHandlers,

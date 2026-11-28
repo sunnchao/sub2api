@@ -77,6 +77,20 @@
                 {{ t(`userSubscriptions.status.${subscription.status}`) }}
               </span>
               <button
+                type="button"
+                data-testid="subscription-view-details-btn"
+                class="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-dark-600 dark:bg-dark-700 dark:text-gray-200 dark:hover:bg-dark-600"
+                @click="router.push({
+                  path: '/usage',
+                  query: {
+                    subscription_id: String(subscription.id),
+                    billing_type: '1'
+                  }
+                })"
+              >
+                {{ t('userSubscriptions.viewDetails') }}
+              </button>
+              <button
                 v-if="subscription.status === 'active'"
                 :class="['rounded-lg px-3 py-1.5 text-xs font-semibold text-white transition-colors', platformButtonClass(subscription.group?.platform || '')]"
                 @click="router.push({

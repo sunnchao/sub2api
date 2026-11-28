@@ -27,9 +27,19 @@ type AuthHandler struct {
 	redeemService        *service.RedeemService
 	totpService          *service.TotpService
 	userAttributeService *service.UserAttributeService
+	// expiringBalanceService 可选：用于在用户资料响应中附带限时余额拆分。
+	expiringBalanceService *service.ExpiringBalanceService
 
 	dingTalkClientInstance *DingTalkClient
 	dingTalkClientMu       sync.Mutex
+}
+
+// SetExpiringBalanceService 注入限时余额服务（可选）。
+func (h *AuthHandler) SetExpiringBalanceService(svc *service.ExpiringBalanceService) {
+	if h == nil {
+		return
+	}
+	h.expiringBalanceService = svc
 }
 
 // NewAuthHandler creates a new AuthHandler
@@ -450,8 +460,11 @@ func (h *AuthHandler) GetCurrentUser(c *gin.Context) {
 		runMode = h.cfg.RunMode
 	}
 
+	profile := userProfileResponseFromService(user, identities)
+	applyExpiringBalanceToProfile(c.Request.Context(), h.expiringBalanceService, user, &profile)
+
 	response.Success(c, UserResponse{
-		userProfileResponse: userProfileResponseFromService(user, identities),
+		userProfileResponse: profile,
 		RunMode:             runMode,
 	})
 }

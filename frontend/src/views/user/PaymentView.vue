@@ -5,6 +5,61 @@
         <div class="h-8 w-8 animate-spin rounded-full border-4 border-primary-500 border-t-transparent"></div>
       </div>
       <template v-else>
+        <!-- Redeem-store-only mode when online payment is disabled but redeem store is configured -->
+        <template v-if="isRedeemStoreOnlyMode">
+          <div class="card p-5">
+            <p class="text-xs font-medium text-gray-400 dark:text-gray-500">{{ t('payment.rechargeAccount') }}</p>
+            <p class="mt-1 text-base font-semibold text-gray-900 dark:text-white">{{ user?.username || '' }}</p>
+            <p class="mt-0.5 text-sm font-medium text-green-600 dark:text-green-400">{{ t('payment.currentBalance') }}: {{ userBalance.toFixed(2) }}</p>
+            <p v-if="balanceInfo.expiringBalance > 0" class="mt-0.5 text-xs text-amber-600 dark:text-amber-300">
+              {{ t('common.regularBalance') }}: {{ formatPaymentAmount(balanceInfo.regularBalance, 'USD', localeCode) }} · {{ t('common.expiringBalance') }}: {{ formatPaymentAmount(balanceInfo.expiringBalance, 'USD', localeCode) }}
+            </p>
+          </div>
+          <div class="card p-8 text-center" data-testid="payment-redeem-store-only-card">
+            <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary-50 dark:bg-primary-900/30">
+              <Icon name="gift" size="lg" class="text-primary-600 dark:text-primary-400" />
+            </div>
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+              {{ t('payment.redeemStoreOnlyTitle') }}
+            </h2>
+            <p class="mx-auto mt-2 max-w-md text-sm text-gray-500 dark:text-gray-400">
+              {{ t('payment.redeemStoreOnlyDesc') }}
+            </p>
+            <div class="mt-6 flex flex-wrap items-center justify-center gap-3">
+              <a
+                v-if="redeemStore.openMode === 'new_tab'"
+                :href="redeemStore.url"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="btn btn-primary inline-flex items-center gap-1.5"
+                data-testid="payment-redeem-store-link"
+              >
+                <Icon name="gift" size="sm" />
+                <span>{{ redeemStoreButtonLabel }}</span>
+                <Icon name="externalLink" size="xs" :stroke-width="2" />
+              </a>
+              <button
+                v-else
+                type="button"
+                class="btn btn-primary inline-flex items-center gap-1.5"
+                data-testid="payment-redeem-store-modal-btn"
+                @click="showRedeemStoreModal = true"
+              >
+                <Icon name="gift" size="sm" />
+                <span>{{ redeemStoreButtonLabel }}</span>
+              </button>
+              <button
+                type="button"
+                class="btn btn-secondary inline-flex items-center gap-1.5"
+                data-testid="payment-go-redeem-btn"
+                @click="goToRedeemPage"
+              >
+                <span>{{ t('redeem.goToRedeem') }}</span>
+              </button>
+            </div>
+          </div>
+        </template>
+        <template v-else>
         <!-- Tab Switcher (hide during payment and subscription confirm) -->
         <div v-if="tabs.length > 1 && paymentPhase === 'select' && !selectedPlan" class="flex space-x-1 rounded-xl bg-gray-100 p-1 dark:bg-dark-800">
           <button v-for="tab in tabs" :key="tab.key"
@@ -43,7 +98,10 @@
             <div class="card p-5">
               <p class="text-xs font-medium text-gray-400 dark:text-gray-500">{{ t('payment.rechargeAccount') }}</p>
               <p class="mt-1 text-base font-semibold text-gray-900 dark:text-white">{{ user?.username || '' }}</p>
-              <p class="mt-0.5 text-sm font-medium text-green-600 dark:text-green-400">{{ t('payment.currentBalance') }}: {{ user?.balance?.toFixed(2) || '0.00' }}</p>
+              <p class="mt-0.5 text-sm font-medium text-green-600 dark:text-green-400">{{ t('payment.currentBalance') }}: {{ userBalance.toFixed(2) }}</p>
+              <p v-if="balanceInfo.expiringBalance > 0" class="mt-0.5 text-xs text-amber-600 dark:text-amber-300">
+                {{ t('common.regularBalance') }}: {{ formatPaymentAmount(balanceInfo.regularBalance, 'USD', localeCode) }} · {{ t('common.expiringBalance') }}: {{ formatPaymentAmount(balanceInfo.expiringBalance, 'USD', localeCode) }}
+              </p>
             </div>
             <div v-if="enabledMethods.length === 0" class="card py-16 text-center">
               <p class="text-gray-500 dark:text-gray-400">{{ t('payment.notAvailable') }}</p>
@@ -115,6 +173,48 @@
               <span v-else>{{ t('payment.createOrder') }} {{ formatSelectedPaymentAmount(totalAmount) }}</span>
             </button>
             </template>
+            <div
+              v-if="redeemStore.enabled"
+              class="card p-4"
+              data-testid="payment-redeem-store-entry"
+            >
+              <div class="flex flex-wrap items-center justify-between gap-3">
+                <div class="flex items-center gap-2.5 text-sm text-gray-600 dark:text-gray-300">
+                  <Icon name="gift" size="sm" class="shrink-0 text-primary-500 dark:text-primary-400" />
+                  <span>{{ t('payment.redeemStoreAlternativeHint') }}</span>
+                </div>
+                <div class="flex flex-wrap items-center gap-3">
+                  <button
+                    type="button"
+                    class="text-xs font-medium text-primary-600 hover:underline dark:text-primary-400"
+                    data-testid="payment-go-redeem-link"
+                    @click="goToRedeemPage"
+                  >
+                    {{ t('payment.haveRedeemCodeGoRedeem') }}
+                  </button>
+                  <a
+                    v-if="redeemStore.openMode === 'new_tab'"
+                    :href="redeemStore.url"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="btn btn-secondary btn-sm inline-flex items-center gap-1.5"
+                    data-testid="payment-redeem-store-link"
+                  >
+                    <span>{{ redeemStoreButtonLabel }}</span>
+                    <Icon name="externalLink" size="xs" :stroke-width="2" />
+                  </a>
+                  <button
+                    v-else
+                    type="button"
+                    class="btn btn-secondary btn-sm inline-flex items-center gap-1.5"
+                    data-testid="payment-redeem-store-modal-btn"
+                    @click="showRedeemStoreModal = true"
+                  >
+                    <span>{{ redeemStoreButtonLabel }}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
           </template>
           <!-- Subscribe Tab -->
           <template v-else-if="activeTab === 'subscription'">
@@ -258,6 +358,13 @@
                     <span class="text-gray-500 dark:text-gray-400">{{ t('payment.currentBalance') }}</span>
                     <span class="font-medium text-gray-900 dark:text-white">{{ formatPaymentAmount(userBalance, 'USD', localeCode) }}</span>
                   </div>
+                  <div v-if="balanceInfo.expiringBalance > 0" class="flex justify-between pl-2 text-xs text-gray-500 dark:text-gray-400">
+                    <span>{{ t('common.regularBalance') }} / {{ t('common.expiringBalance') }}</span>
+                    <span>
+                      {{ formatPaymentAmount(balanceInfo.regularBalance, 'USD', localeCode) }} /
+                      <span class="text-amber-600 dark:text-amber-300">{{ formatPaymentAmount(balanceInfo.expiringBalance, 'USD', localeCode) }}</span>
+                    </span>
+                  </div>
                   <div class="flex justify-between">
                     <span class="text-gray-500 dark:text-gray-400">{{ t('payment.balanceDeductAmount') }}</span>
                     <span class="font-medium text-gray-900 dark:text-white">-{{ formatPaymentAmount(selectedPlan.price, 'USD', localeCode) }}</span>
@@ -286,6 +393,13 @@
                     >
                       {{ t('payment.goToRecharge') }}
                     </button>
+                  </div>
+                  <div
+                    v-if="balanceInfo.expiringBalance > 0"
+                    data-testid="balance-expiring-notice"
+                    class="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200"
+                  >
+                    {{ t('payment.expiringBalanceNotice') }}
                   </div>
                 </div>
               </div>
@@ -363,6 +477,7 @@
             <div v-if="checkout.help_text" class="markdown-body w-full overflow-x-auto break-words" v-html="renderedHelpText"></div>
           </div>
         </div>
+        </template>
       </template>
     </div>
     <!-- Renewal Plan Selection Modal -->
@@ -390,6 +505,14 @@
         </div>
       </Transition>
     </Teleport>
+    <RedeemStoreModal
+      :show="showRedeemStoreModal"
+      :url="redeemStore.url"
+      :title="redeemStoreButtonLabel"
+      :show-redeem-action="true"
+      @close="showRedeemStoreModal = false"
+      @go-redeem="goToRedeemPage"
+    />
   </AppLayout>
 </template>
 
@@ -429,12 +552,15 @@ import {
 import { platformAccentBarClass, platformBadgeLightClass, platformBadgeClass, platformTextClass, platformLabel } from '@/utils/platformColors'
 import SubscriptionPlanCard from '@/components/payment/SubscriptionPlanCard.vue'
 import PaymentStatusPanel from '@/components/payment/PaymentStatusPanel.vue'
+import RedeemStoreModal from '@/components/user/RedeemStoreModal.vue'
 import Icon from '@/components/icons/Icon.vue'
+import { resolveRedeemStoreConfig } from '@/utils/redeemStore'
 import { DEFAULT_PAYMENT_CURRENCY, formatPaymentAmount, normalizePaymentCurrency } from '@/components/payment/currency'
 import { planValiditySuffix as validitySuffixOf } from '@/components/payment/validity'
 import type { PaymentMethodOption } from '@/components/payment/PaymentMethodSelector.vue'
 import { buildPaymentErrorToastMessage, describePaymentScenarioError } from './paymentUx'
 import { hasWechatResumeQuery, parseWechatResumeRoute, stripWechatResumeQuery } from './paymentWechatResume'
+import { resolveUserBalance } from '@/utils/balance'
 
 const i18n = useI18n()
 const { t } = i18n
@@ -696,6 +822,15 @@ const renderedBonusNotice = computed(() => {
 // 订阅功能开关（public settings 的 subscription_enabled，opt-out）。关闭后购买页只保留充值：
 // 不再渲染「订阅」tab，只剩单个 tab 时顶部切换器也随之隐藏。
 const subscriptionEnabled = computed(() => resolveFeatureFlag(appStore.cachedPublicSettings, FeatureFlags.subscription))
+const onlinePaymentEnabled = computed(() => resolveFeatureFlag(appStore.cachedPublicSettings, FeatureFlags.payment))
+const redeemStore = computed(() => resolveRedeemStoreConfig(appStore.cachedPublicSettings))
+const redeemStoreButtonLabel = computed(() => redeemStore.value.label || t('redeem.buyRedeemCode'))
+const isRedeemStoreOnlyMode = computed(() => !onlinePaymentEnabled.value && redeemStore.value.enabled)
+const showRedeemStoreModal = ref(false)
+
+function goToRedeemPage() {
+  router.push('/redeem')
+}
 
 const tabs = computed(() => {
   const result: { key: 'recharge' | 'subscription'; label: string }[] = []
@@ -760,7 +895,8 @@ const globalMaxAmount = computed(() => {
 })
 
 // Selected method's limits (for validation and error messages)
-const userBalance = computed(() => Number(user.value?.balance) || 0)
+const balanceInfo = computed(() => resolveUserBalance(user.value))
+const userBalance = computed(() => balanceInfo.value.totalAvailableBalance)
 const isBalanceMethod = computed(() => activeTab.value === 'subscription' && selectedMethod.value === 'balance')
 const selectedLimit = computed(() => visibleMethods.value[selectedMethod.value])
 const selectedCurrency = computed(() =>
@@ -1435,6 +1571,17 @@ async function resumeWechatPaymentFromQuery() {
 }
 
 onMounted(async () => {
+  if (!appStore.publicSettingsLoaded && !appStore.cachedPublicSettings && typeof appStore.fetchPublicSettings === 'function') {
+    try {
+      await appStore.fetchPublicSettings()
+    } catch {
+      // Fallback to checkout-info flow if public settings fetch fails
+    }
+  }
+  if (isRedeemStoreOnlyMode.value) {
+    loading.value = false
+    return
+  }
   try {
     const res = await paymentAPI.getCheckoutInfo()
     checkout.value = res.data

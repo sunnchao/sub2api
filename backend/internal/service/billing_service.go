@@ -94,6 +94,12 @@ type BillingCache interface {
 	BatchGetUserPlatformQuotaCache(ctx context.Context, keys []UserPlatformQuotaKey) ([]*UserPlatformQuotaCacheEntry, error)
 }
 
+// BillingCacheWithTTL is an optional extension interface implemented by billingCache
+// to persist user balance with an upper-bound TTL (e.g. clamped to nearest_expires_at).
+type BillingCacheWithTTL interface {
+	SetUserBalanceWithTTL(ctx context.Context, userID int64, balance float64, ttl time.Duration) error
+}
+
 // ModelPricing 模型价格配置（per-token价格，与LiteLLM格式一致）
 type ModelPricing struct {
 	// UltrafastMultiplier is model-owned and independent of operator Fast pricing.

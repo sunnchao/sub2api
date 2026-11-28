@@ -7705,6 +7705,8 @@
               </div>
             </div>
           </div>
+
+          <CheckinSettingsSection :captcha-configured="captchaMasterEnabled" />
         </div>
 
         <!-- Affiliate add/edit modal -->
@@ -8412,6 +8414,106 @@
             </div>
           </div>
 
+          <!-- 兑换商城设置（独立于在线支付总开关，关闭在线支付时依然可配置） -->
+          <div class="card" data-testid="redeem-store-settings-card">
+            <div
+              class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
+            >
+              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+                {{ t("admin.settings.payment.redeemStore.title") }}
+              </h2>
+              <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                {{ t("admin.settings.payment.redeemStore.description") }}
+              </p>
+            </div>
+            <div class="space-y-4 p-6">
+              <div>
+                <label class="input-label">
+                  {{ t("admin.settings.payment.redeemStore.url") }}
+                </label>
+                <input
+                  v-model="form.redeem_store_url"
+                  type="url"
+                  class="input font-mono text-sm"
+                  data-testid="redeem-store-url-input"
+                  :placeholder="
+                    t('admin.settings.payment.redeemStore.urlPlaceholder')
+                  "
+                />
+                <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                  {{ t("admin.settings.payment.redeemStore.urlHint") }}
+                </p>
+              </div>
+              <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <label class="input-label">
+                    {{ t("admin.settings.payment.redeemStore.openMode") }}
+                  </label>
+                  <div class="mt-1.5 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      data-testid="redeem-store-mode-new-tab"
+                      :class="[
+                        'rounded-lg border px-3 py-1.5 text-sm font-medium transition-all',
+                        form.redeem_store_open_mode === 'new_tab'
+                          ? 'border-primary-500 bg-primary-500 text-white shadow-sm'
+                          : 'border-gray-300 bg-white text-gray-600 hover:border-gray-400 hover:bg-gray-50 dark:border-dark-600 dark:bg-dark-800 dark:text-gray-300 dark:hover:border-dark-500',
+                      ]"
+                      @click="form.redeem_store_open_mode = 'new_tab'"
+                    >
+                      {{
+                        t("admin.settings.payment.redeemStore.openModeNewTab")
+                      }}
+                    </button>
+                    <button
+                      type="button"
+                      data-testid="redeem-store-mode-iframe"
+                      :class="[
+                        'rounded-lg border px-3 py-1.5 text-sm font-medium transition-all',
+                        form.redeem_store_open_mode === 'iframe'
+                          ? 'border-primary-500 bg-primary-500 text-white shadow-sm'
+                          : 'border-gray-300 bg-white text-gray-600 hover:border-gray-400 hover:bg-gray-50 dark:border-dark-600 dark:bg-dark-800 dark:text-gray-300 dark:hover:border-dark-500',
+                      ]"
+                      @click="form.redeem_store_open_mode = 'iframe'"
+                    >
+                      {{
+                        t("admin.settings.payment.redeemStore.openModeIframe")
+                      }}
+                    </button>
+                  </div>
+                  <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                    {{ t("admin.settings.payment.redeemStore.openModeHint") }}
+                  </p>
+                  <p
+                    v-if="form.redeem_store_open_mode === 'iframe'"
+                    class="mt-1.5 text-xs text-amber-600 dark:text-amber-400"
+                    data-testid="redeem-store-iframe-warning"
+                  >
+                    {{ t("admin.settings.payment.redeemStore.iframeWarning") }}
+                  </p>
+                </div>
+                <div>
+                  <label class="input-label">
+                    {{ t("admin.settings.payment.redeemStore.label") }}
+                  </label>
+                  <input
+                    v-model="form.redeem_store_label"
+                    type="text"
+                    maxlength="50"
+                    class="input"
+                    data-testid="redeem-store-label-input"
+                    :placeholder="
+                      t('admin.settings.payment.redeemStore.labelPlaceholder')
+                    "
+                  />
+                  <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                    {{ t("admin.settings.payment.redeemStore.labelHint") }}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <!-- 充值优惠阶梯（独立卡片，与服务商管理同级） -->
           <RechargeBonusTierEditor
             v-if="form.payment_enabled"
@@ -8944,6 +9046,12 @@ import { listPlatformIds } from "@/constants/platformCatalog";
 import { useI18n } from "vue-i18n";
 import { adminAPI } from "@/api";
 import {
+  isValidRedeemStoreUrl,
+  normalizeRedeemStoreOpenMode,
+  REDEEM_STORE_MAX_LABEL_LENGTH,
+  type RedeemStoreOpenMode,
+} from "@/utils/redeemStore";
+import {
   appendAuthSourceDefaultsToUpdateRequest,
   buildAuthSourceDefaultsState,
   normalizeAccountSchedulingThresholdsMap,
@@ -9006,6 +9114,7 @@ import {
 } from "@/utils/rechargeBonus";
 import RegistrationEmailBlacklistEditor from "@/components/admin/settings/RegistrationEmailBlacklistEditor.vue";
 import OpenAIFastPolicyUserSelector from "@/views/admin/settings/OpenAIFastPolicyUserSelector.vue";
+import CheckinSettingsSection from "@/views/admin/settings/CheckinSettingsSection.vue";
 import { useClipboard } from "@/composables/useClipboard";
 import {
   useStepUp,
@@ -9784,6 +9893,9 @@ const form = reactive<SettingsForm>({
   backend_mode_enabled: false,
   hide_ccs_import_button: false,
   payment_enabled: false,
+  redeem_store_url: "",
+  redeem_store_open_mode: "new_tab" as RedeemStoreOpenMode,
+  redeem_store_label: "",
   risk_control_enabled: false,
   cyber_policy_user_allowlist: "",
   cyber_session_block_enabled: false,
@@ -11077,6 +11189,11 @@ async function loadSettings() {
       settings.payment_recharge_bonus_mode,
     );
     form.payment_recharge_bonus_notice = settings.payment_recharge_bonus_notice || "";
+    form.redeem_store_url = (settings.redeem_store_url || "").trim();
+    form.redeem_store_open_mode = normalizeRedeemStoreOpenMode(
+      settings.redeem_store_open_mode,
+    );
+    form.redeem_store_label = (settings.redeem_store_label || "").trim();
     form.default_platform_quotas = normalizePlatformQuotasMap(settings.default_platform_quotas);
     form.account_scheduling_thresholds = normalizeAccountSchedulingThresholdsMap(
       settings.account_scheduling_thresholds,
@@ -11418,6 +11535,21 @@ async function saveSettings() {
     // Optional URL fields: auto-clear invalid values so they don't cause backend 400 errors
     if (!isValidHttpUrl(form.frontend_url)) form.frontend_url = "";
     if (!isValidHttpUrl(form.doc_url)) form.doc_url = "";
+    const trimmedRedeemStoreUrl = (form.redeem_store_url || "").trim();
+    if (trimmedRedeemStoreUrl && !isValidRedeemStoreUrl(trimmedRedeemStoreUrl)) {
+      appStore.showError(t("admin.settings.payment.redeemStore.urlInvalid"));
+      return;
+    }
+    const trimmedRedeemStoreLabel = (form.redeem_store_label || "").trim();
+    if ([...trimmedRedeemStoreLabel].length > REDEEM_STORE_MAX_LABEL_LENGTH) {
+      appStore.showError(t("admin.settings.payment.redeemStore.labelTooLong"));
+      return;
+    }
+    form.redeem_store_url = trimmedRedeemStoreUrl;
+    form.redeem_store_label = trimmedRedeemStoreLabel;
+    form.redeem_store_open_mode = normalizeRedeemStoreOpenMode(
+      form.redeem_store_open_mode,
+    );
     syncWeChatConnectMode();
     const wechatStoredMode = deriveWeChatConnectStoredMode(
       form.wechat_connect_open_enabled,
@@ -11667,6 +11799,9 @@ async function saveSettings() {
       ),
       // Payment configuration
       payment_enabled: form.payment_enabled,
+      redeem_store_url: form.redeem_store_url,
+      redeem_store_open_mode: form.redeem_store_open_mode,
+      redeem_store_label: form.redeem_store_label,
       risk_control_enabled: form.risk_control_enabled,
       cyber_policy_user_allowlist: form.cyber_policy_user_allowlist,
       cyber_session_block_enabled: form.cyber_session_block_enabled,

@@ -111,6 +111,64 @@ func ProvideBatchImageCleanupService(repo BatchImageRepository, accountRepo Acco
 	return svc
 }
 
+func ProvideBatchImagePublicService(
+	repo BatchImageRepository,
+	accountRepo AccountRepository,
+	groupRepo GroupRepository,
+	userGroupRateRepo UserGroupRateRepository,
+	queue BatchImageQueue,
+	pricing *BatchImageModelPricingResolver,
+	billingRepo UsageBillingRepository,
+	authCache APIKeyAuthCacheInvalidator,
+	billingCache *BillingCacheService,
+	tokenCache GeminiTokenCache,
+	cfg *config.Config,
+) *BatchImagePublicService {
+	svc := NewBatchImagePublicService(repo, accountRepo, groupRepo, userGroupRateRepo, queue, pricing, billingRepo, authCache, cfg)
+	svc.SetBillingCacheService(billingCache)
+	svc.SetTokenCache(tokenCache)
+	return svc
+}
+
+func ProvideBatchImageDownloadService(
+	repo BatchImageRepository,
+	accountRepo AccountRepository,
+	limiter BatchImageDownloadLimiter,
+	tokenCache GeminiTokenCache,
+	cfg *config.Config,
+) *BatchImageDownloadService {
+	svc := NewBatchImageDownloadService(repo, accountRepo, limiter, cfg)
+	svc.SetTokenCache(tokenCache)
+	return svc
+}
+
+func ProvideBatchImageCleanupServiceWithTokenCache(
+	repo BatchImageRepository,
+	accountRepo AccountRepository,
+	tokenCache GeminiTokenCache,
+	cfg *config.Config,
+) *BatchImageCleanupService {
+	svc := NewBatchImageCleanupService(repo, accountRepo, cfg)
+	svc.SetTokenCache(tokenCache)
+	svc.Start()
+	return svc
+}
+
+func ProvideBatchImageWorkerRuntimeWithBillingAndTokenCache(
+	repo BatchImageRepository,
+	accountRepo AccountRepository,
+	queue BatchImageQueue,
+	billingRepo UsageBillingRepository,
+	usageLogRepo UsageLogRepository,
+	pricing *BatchImageModelPricingResolver,
+	authCache APIKeyAuthCacheInvalidator,
+	billingCache *BillingCacheService,
+	tokenCache GeminiTokenCache,
+	cfg *config.Config,
+) *BatchImageWorkerRuntime {
+	return ProvideBatchImageWorkerRuntimeWithDeps(repo, accountRepo, queue, billingRepo, usageLogRepo, pricing, authCache, billingCache, tokenCache, cfg)
+}
+
 // ProvideOpenAIOAuthService creates OpenAIOAuthService with privacy/account enrichment support.
 func ProvideOpenAIOAuthService(
 	proxyRepo ProxyRepository,
@@ -832,6 +890,8 @@ func ProvideSettingService(scopedKeys ScopedAdminKeyRepository, settingRepo Sett
 }
 
 // ProvideBillingCacheService wires BillingCacheService with its RPM dependencies.
+// ProvideBillingCacheService 创建计费缓存服务，并注入限时余额仓储以把总可用余额
+// （通用 + 有效限时）纳入缓存与资格校验，同时用 nearest_expires_at 截断缓存 TTL。
 func ProvideBillingCacheService(
 	cache BillingCache,
 	userRepo UserRepository,
@@ -841,8 +901,13 @@ func ProvideBillingCacheService(
 	rateRepo UserGroupRateRepository,
 	cfg *config.Config,
 	userPlatformQuotaRepo UserPlatformQuotaRepository,
+	expiringRepo ExpiringBalanceRepository,
+	expiringSvc *ExpiringBalanceService,
 ) *BillingCacheService {
-	return NewBillingCacheService(cache, userRepo, subRepo, apiKeyRepo, rpmCache, rateRepo, cfg, userPlatformQuotaRepo)
+	svc := NewBillingCacheService(cache, userRepo, subRepo, apiKeyRepo, rpmCache, rateRepo, cfg, userPlatformQuotaRepo)
+	svc.SetExpiringBalanceRepo(expiringRepo)
+	svc.SetExpiringBalanceService(expiringSvc)
+	return svc
 }
 
 // ProvideAPIKeyService wires APIKeyService and connects rate-limit cache invalidation.
@@ -891,10 +956,10 @@ var ProviderSet = wire.NewSet(
 	ProvideImageStorageSettingService,
 	ProvideImageTaskService,
 	ProvideBatchImageModelPricingResolver,
-	NewBatchImagePublicService,
-	NewBatchImageDownloadService,
-	ProvideBatchImageCleanupService,
-	ProvideBatchImageWorkerRuntime,
+	ProvideBatchImagePublicService,
+	ProvideBatchImageDownloadService,
+	ProvideBatchImageCleanupServiceWithTokenCache,
+	ProvideBatchImageWorkerRuntimeWithBillingAndTokenCache,
 	wire.Bind(new(AccountRuntimeBlocker), new(*OpenAIGatewayService)),
 	NewOAuthService,
 	ProvideClaudeResetCreditService,
@@ -1000,7 +1065,26 @@ var ProviderSet = wire.NewSet(
 	ProvideUserPlatformQuotaUsageFlusher,
 	NewUsageBillingLaneCombiner,
 	ProvideUsageBillingRepository,
+
+	// 每日签到与限时余额
+	NewExpiringBalanceService,
+	NewCheckinService,
+	ProvideExpiringBalanceArchiver,
 )
+
+// ProvideExpiringBalanceArchiver 创建并启动限时余额过期归档器（每 5 分钟一批）。
+func ProvideExpiringBalanceArchiver(
+	repo ExpiringBalanceRepository,
+	billingCache *BillingCacheService,
+	apiKeyService *APIKeyService,
+	lockCache LeaderLockCache,
+	db *sql.DB,
+) *ExpiringBalanceArchiver {
+	svc := NewExpiringBalanceArchiver(repo, billingCache, apiKeyService, DefaultExpiringBalanceArchiveInterval, DefaultExpiringBalanceArchiveBatchSize)
+	svc.SetLeaderLock(lockCache, db)
+	svc.Start()
+	return svc
+}
 
 // ProvideUsageBillingRepository 以按用户合并结算的通道作为各服务使用的计费仓储。
 func ProvideUsageBillingRepository(lanes *UsageBillingLaneCombiner) UsageBillingRepository {
@@ -1028,9 +1112,10 @@ func ProvideBalanceNotifyService(emailService *EmailService, settingRepo Setting
 }
 
 // ProvidePaymentService creates PaymentService and attaches notification email delivery.
-func ProvidePaymentService(entClient *dbent.Client, registry *payment.Registry, loadBalancer payment.LoadBalancer, redeemService *RedeemService, subscriptionSvc *SubscriptionService, configService *PaymentConfigService, userRepo UserRepository, groupRepo GroupRepository, affiliateService *AffiliateService, notificationEmailService *NotificationEmailService) *PaymentService {
+func ProvidePaymentService(entClient *dbent.Client, registry *payment.Registry, loadBalancer payment.LoadBalancer, redeemService *RedeemService, subscriptionSvc *SubscriptionService, configService *PaymentConfigService, userRepo UserRepository, groupRepo GroupRepository, affiliateService *AffiliateService, notificationEmailService *NotificationEmailService, expiringRepo ExpiringBalanceRepository) *PaymentService {
 	svc := NewPaymentService(entClient, registry, loadBalancer, redeemService, subscriptionSvc, configService, userRepo, groupRepo, affiliateService)
 	svc.SetNotificationEmailService(notificationEmailService)
+	svc.SetExpiringBalanceRepo(expiringRepo)
 	return svc
 }
 

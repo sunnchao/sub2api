@@ -394,6 +394,11 @@ func (s *SettingService) SetOnUpdateCallback(callback func()) {
 	s.onUpdate = callback
 }
 
+// IsSimpleMode reports whether the application is running in simple mode.
+func (s *SettingService) IsSimpleMode() bool {
+	return s != nil && s.cfg != nil && s.cfg.RunMode == config.RunModeSimple
+}
+
 // NotifySettingsUpdated triggers the registered settings update callback so
 // side-channel settings writers (such as NewAPIMigrationService) invalidate SSR caches.
 func (s *SettingService) NotifySettingsUpdated() {

@@ -24,6 +24,7 @@ const appStore = vi.hoisted(() => ({
   publicSettingsLoaded: false,
   cachedPublicSettings: null as null | {
     payment_enabled?: boolean
+    redeem_store_url?: string
     risk_control_enabled?: boolean
     subscription_enabled?: boolean
     custom_menu_items?: []
@@ -208,5 +209,60 @@ describe('subscription route guard (opt-out flag)', () => {
     await navigation
 
     expect(next).toHaveBeenCalledWith('/admin/dashboard')
+  })
+})
+
+describe('purchase route guard redeem-store fallback', () => {
+  beforeEach(() => {
+    authStore.isAuthenticated = true
+    authStore.isAdmin = false
+    authStore.isSimpleMode = false
+    appStore.publicSettingsLoaded = true
+    appStore.fetchPublicSettings.mockReset()
+  })
+
+  it('allows /purchase when payment is disabled but a valid redeem store URL is configured', async () => {
+    appStore.cachedPublicSettings = {
+      payment_enabled: false,
+      redeem_store_url: 'https://shop.example.com/cards',
+    }
+
+    const { navigation, next } = runGuard(
+      { requiresPayment: true, allowRedeemStoreFallback: true },
+      '/purchase',
+    )
+    await navigation
+
+    expect(next).toHaveBeenCalledOnce()
+    expect(next).toHaveBeenCalledWith()
+  })
+
+  it('still redirects /purchase when payment is disabled and redeem store URL is empty', async () => {
+    appStore.cachedPublicSettings = {
+      payment_enabled: false,
+      redeem_store_url: '',
+    }
+
+    const { navigation, next } = runGuard(
+      { requiresPayment: true, allowRedeemStoreFallback: true },
+      '/purchase',
+    )
+    await navigation
+
+    expect(next).toHaveBeenCalledOnce()
+    expect(next).toHaveBeenCalledWith('/dashboard')
+  })
+
+  it('keeps /orders blocked when payment is disabled even if redeem store URL is configured', async () => {
+    appStore.cachedPublicSettings = {
+      payment_enabled: false,
+      redeem_store_url: 'https://shop.example.com/cards',
+    }
+
+    const { navigation, next } = runGuard({ requiresPayment: true }, '/orders')
+    await navigation
+
+    expect(next).toHaveBeenCalledOnce()
+    expect(next).toHaveBeenCalledWith('/dashboard')
   })
 })

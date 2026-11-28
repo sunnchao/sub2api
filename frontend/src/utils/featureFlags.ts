@@ -134,6 +134,11 @@ export const FeatureFlags = {
     mode: 'opt-in',
     label: 'Affiliate',
   }),
+  checkin: defineFlag({
+    key: 'checkin_enabled',
+    mode: 'opt-in',
+    label: 'Daily Check-in',
+  }),
   newApiMigration: defineFlag({
     key: 'new_api_migration_enabled',
     mode: 'opt-in',

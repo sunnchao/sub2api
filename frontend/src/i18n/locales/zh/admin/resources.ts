@@ -553,7 +553,7 @@ export default {
       billingTypeBalance: '钱包余额',
       billingTypeSubscription: '订阅套餐',
       billingMode: '计费模式',
-      billingModeToken: '按量',
+      billingModeToken: '按 Token',
       billingModePerRequest: '按次',
       billingModeImage: '按次(图片)',
       billingModeVideo: '按次(视频)',

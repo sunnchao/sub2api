@@ -106,6 +106,13 @@ func NewBatchImageDownloadService(repo BatchImageRepository, accountRepo Account
 	}
 }
 
+func (s *BatchImageDownloadService) SetTokenCache(tokenCache GeminiTokenCache) {
+	if s == nil {
+		return
+	}
+	s.ProviderRegistry.SetVertexTokenCache(tokenCache)
+}
+
 func (s *BatchImageDownloadService) OpenItemContent(ctx context.Context, owner BatchImageOwner, batchID string, customID string, imageIndex int) (*BatchImageContentStream, error) {
 	if imageIndex < 0 {
 		return nil, ErrBatchImageItemImageIndexOutOfRange

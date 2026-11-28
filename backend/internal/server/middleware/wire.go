@@ -1,6 +1,8 @@
 package middleware
 
 import (
+	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/google/wire"
 )
@@ -17,12 +19,24 @@ type AdminAuthMiddleware gin.HandlerFunc
 // APIKeyAuthMiddleware API Key 认证中间件类型
 type APIKeyAuthMiddleware gin.HandlerFunc
 
+// ProvideAPIKeyAuthMiddleware constructs the API Key auth middleware and registers
+// BillingCacheService as the global fallback balance reader (also used by Google/multi-sub auth).
+func ProvideAPIKeyAuthMiddleware(
+	apiKeyService *service.APIKeyService,
+	subscriptionService *service.SubscriptionService,
+	billingCacheService *service.BillingCacheService,
+	cfg *config.Config,
+) APIKeyAuthMiddleware {
+	SetAPIKeyAuthBalanceReader(billingCacheService)
+	return NewAPIKeyAuthMiddlewareWithBalanceReader(apiKeyService, subscriptionService, billingCacheService, cfg)
+}
+
 // ProviderSet 中间件层的依赖注入
 var ProviderSet = wire.NewSet(
 	NewJWTAuthMiddleware,
 	NewOptionalJWTAuthMiddleware,
 	NewAdminAuthMiddleware,
-	NewAPIKeyAuthMiddleware,
+	ProvideAPIKeyAuthMiddleware,
 	NewAuditLogMiddleware,
 	NewStepUpAuthMiddleware,
 )

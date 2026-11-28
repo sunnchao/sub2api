@@ -35,6 +35,16 @@ type UserHandler struct {
 	totpService           *service.TotpService                // 角色提升为管理员的 step-up 门控
 	userService           *service.UserService
 	settingService        *service.SettingService // step-up 功能开关
+	// expiringBalanceService 可选：用于在用户列表/详情中只读展示有效限时余额。
+	expiringBalanceService *service.ExpiringBalanceService
+}
+
+// SetExpiringBalanceService 注入限时余额服务（可选）。
+func (h *UserHandler) SetExpiringBalanceService(svc *service.ExpiringBalanceService) {
+	if h == nil {
+		return
+	}
+	h.expiringBalanceService = svc
 }
 
 // NewUserHandler creates a new admin user handler
@@ -195,6 +205,7 @@ func (h *UserHandler) List(c *gin.Context) {
 			out[i].CurrentConcurrency = info.CurrentConcurrency
 		}
 	}
+	h.applyExpiringBalanceToUsers(c.Request.Context(), users, out)
 
 	response.Paginated(c, out, total, page, pageSize)
 }
@@ -242,7 +253,58 @@ func (h *UserHandler) GetByID(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, adminUserResponse(c, user))
+	response.Success(c, h.adminUserResponseWithExpiring(c.Request.Context(), c, user))
+}
+
+// adminUserResponseWithExpiring 在标准 adminUserResponse 之上补充只读限时余额字段。
+// 受限密钥走字段白名单，保持原样以避免隐式扩大授权。
+func (h *UserHandler) adminUserResponseWithExpiring(ctx context.Context, c *gin.Context, user *service.User) any {
+	out := adminUserResponse(c, user)
+	if h.expiringBalanceService == nil || user == nil {
+		return out
+	}
+	adminUser, ok := out.(*dto.AdminUser)
+	if !ok {
+		return out
+	}
+	summary, err := h.expiringBalanceService.GetUserSummary(ctx, user.ID)
+	if err != nil {
+		return out
+	}
+	dto.ApplyExpiringBalanceToAdmin(adminUser, user.Balance, summary)
+	return adminUser
+}
+
+func (h *UserHandler) adminUserDTOWithExpiring(ctx context.Context, user *service.User) *dto.AdminUser {
+	adminUser := dto.UserFromServiceAdmin(user)
+	if h.expiringBalanceService == nil || user == nil || adminUser == nil {
+		return adminUser
+	}
+	summary, err := h.expiringBalanceService.GetUserSummary(ctx, user.ID)
+	if err != nil {
+		return adminUser
+	}
+	dto.ApplyExpiringBalanceToAdmin(adminUser, user.Balance, summary)
+	return adminUser
+}
+
+// applyExpiringBalanceToUsers 批量为用户列表补充只读限时余额字段。
+func (h *UserHandler) applyExpiringBalanceToUsers(ctx context.Context, users []service.User, out []UserWithConcurrency) {
+	if h.expiringBalanceService == nil || len(users) == 0 || len(out) != len(users) {
+		return
+	}
+	ids := make([]int64, 0, len(users))
+	for i := range users {
+		ids = append(ids, users[i].ID)
+	}
+	summaries, err := h.expiringBalanceService.GetUsersSummaryBatch(ctx, ids)
+	if err != nil {
+		return
+	}
+	for i := range users {
+		summary := summaries[users[i].ID]
+		dto.ApplyExpiringBalanceToAdmin(&out[i].AdminUser, users[i].Balance, summary)
+	}
 }
 
 // BindAuthIdentity manually binds a canonical auth identity to a user.
@@ -318,7 +380,7 @@ func (h *UserHandler) Create(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, dto.UserFromServiceAdmin(user))
+	response.Success(c, h.adminUserDTOWithExpiring(c.Request.Context(), user))
 }
 
 // Update handles updating a user
@@ -379,7 +441,7 @@ func (h *UserHandler) Update(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, dto.UserFromServiceAdmin(user))
+	response.Success(c, h.adminUserDTOWithExpiring(c.Request.Context(), user))
 }
 
 // Delete handles deleting a user
@@ -427,7 +489,7 @@ func (h *UserHandler) UpdateBalance(c *gin.Context) {
 		if execErr != nil {
 			return nil, execErr
 		}
-		return dto.UserFromServiceAdmin(user), nil
+		return h.adminUserDTOWithExpiring(ctx, user), nil
 	}, func(data any) any {
 		// 成功确认不隐式授予用户资料或余额读取权限；缓存重放也必须经过此边界。
 		if adminaccess.RestrictedFromContext(c.Request.Context()) != nil {

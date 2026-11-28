@@ -44,6 +44,7 @@ type AdminHandlers struct {
 	NewAPIMigration        *admin.NewAPIMigrationHandler
 	Compliance             *admin.ComplianceHandler
 	AuditLog               *admin.AuditLogHandler
+	Checkin                *admin.CheckinHandler
 }
 
 // Handlers contains all HTTP handlers
@@ -71,6 +72,7 @@ type Handlers struct {
 	ModelPlaza       *ModelPlazaHandler
 	AsyncImage       *AsyncImageHandler
 	BatchImage       *BatchImageHandler
+	Checkin          *CheckinHandler
 }
 
 // BuildInfo contains build-time information

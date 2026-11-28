@@ -139,7 +139,8 @@ export default {
     resetIn: 'Resets in {time}',
     quotaEndsIn: 'Quota ends in {time}',
     windowNotActive: 'Awaiting first use',
-    usageOf: '{used} of {limit}'
+    usageOf: '{used} of {limit}',
+    viewDetails: 'View Details'
   },
 
   // Onboarding Tour
@@ -314,6 +315,7 @@ export default {
     balanceDeductAmount: 'Balance Deduction',
     balanceAfterPurchase: 'Remaining Balance',
     balanceInsufficientNotice: 'Insufficient balance — {shortfall} short',
+    expiringBalanceNotice: 'Expiring balance is deducted first (FEFO); if refunded, expired lots are forfeited and not returned.',
     goToRecharge: 'Top Up',
     methods: {
       easypay: 'EasyPay',
@@ -408,6 +410,10 @@ export default {
     noPlans: 'No subscription plans available',
     notAvailable: 'Top-up is currently unavailable',
     billingUnavailable: 'Neither top-up nor subscriptions are currently available. Please contact the administrator.',
+    redeemStoreAlternativeHint: 'Or top up your account with a redeem code',
+    redeemStoreOnlyTitle: 'Top Up with a Redeem Code',
+    redeemStoreOnlyDesc: 'Online payment is currently disabled. Purchase a redeem code from the store and redeem it to credit your balance immediately.',
+    haveRedeemCodeGoRedeem: 'Already have a code? Redeem now',
     confirmSubscription: 'Confirm Subscription',
     confirmCancel: 'Are you sure you want to cancel this order?',
     amountTooLow: 'Minimum amount is {min}',

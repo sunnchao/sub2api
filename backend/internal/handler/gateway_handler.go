@@ -60,6 +60,16 @@ type GatewayHandler struct {
 	maxAccountSwitchesGemini   int
 	cfg                        *config.Config
 	settingService             *service.SettingService
+	// expiringBalanceService 可选：/v1/usage 返回总可用余额与限时余额拆分。
+	expiringBalanceService *service.ExpiringBalanceService
+}
+
+// SetExpiringBalanceService 注入限时余额服务（可选）。
+func (h *GatewayHandler) SetExpiringBalanceService(svc *service.ExpiringBalanceService) {
+	if h == nil {
+		return
+	}
+	h.expiringBalanceService = svc
 }
 
 // NewGatewayHandler creates a new GatewayHandler
@@ -1848,13 +1858,16 @@ func (h *GatewayHandler) usageUnrestricted(c *gin.Context, ctx context.Context, 
 		return
 	}
 
+	wallet := h.walletBalanceFields(ctx, latestUser.ID, latestUser.Balance)
 	resp := gin.H{
 		"mode":      "unrestricted",
 		"isValid":   true,
 		"planName":  "钱包余额",
-		"remaining": latestUser.Balance,
+		"remaining": wallet["balance"],
 		"unit":      "USD",
-		"balance":   latestUser.Balance,
+	}
+	for k, v := range wallet {
+		resp[k] = v
 	}
 	if usageData != nil {
 		resp["usage"] = usageData
@@ -2614,4 +2627,29 @@ func (h *GatewayHandler) getUserMsgQueueMode(account *service.Account, parsed *s
 		mode = h.cfg.Gateway.UserMessageQueue.GetEffectiveMode()
 	}
 	return mode
+}
+
+// walletBalanceFields 返回钱包余额模式下的余额字段。
+// balance 为总可用余额（通用 + 有效限时余额），并附带 regular_balance /
+// expiring_balance / nearest_expiring_at 供客户端展示拆分；未启用限时余额时
+// balance 与 regular_balance 都等于数据库中的通用余额。
+func (h *GatewayHandler) walletBalanceFields(ctx context.Context, userID int64, regularBalance float64) gin.H {
+	out := gin.H{
+		"balance":         regularBalance,
+		"regular_balance": regularBalance,
+	}
+	if h.expiringBalanceService == nil || userID <= 0 {
+		return out
+	}
+	summary, err := h.expiringBalanceService.GetUserSummary(ctx, userID)
+	if err != nil {
+		return out
+	}
+	expiring := service.QuantizeUsageBillingAmount(summary.ActiveBalance)
+	out["balance"] = service.QuantizeUsageBillingAmount(regularBalance + expiring)
+	out["expiring_balance"] = expiring
+	if summary.NearestExpiresAt != nil {
+		out["nearest_expiring_at"] = *summary.NearestExpiresAt
+	}
+	return out
 }

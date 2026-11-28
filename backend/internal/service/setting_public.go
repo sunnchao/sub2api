@@ -191,6 +191,9 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		SettingKeyHideCcsImportButton,
 		SettingKeyPurchaseSubscriptionEnabled,
 		SettingKeyPurchaseSubscriptionURL,
+		SettingKeyRedeemStoreURL,
+		SettingKeyRedeemStoreOpenMode,
+		SettingKeyRedeemStoreLabel,
 		SettingKeyTableDefaultPageSize,
 		SettingKeyTablePageSizeOptions,
 		SettingKeyCustomMenuItems,
@@ -243,6 +246,7 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		SettingKeyNewAPIMigrationEnabled,
 		SettingKeyRiskControlEnabled,
 		SettingKeyAllowUserViewErrorRequests,
+		SettingKeyCheckinEnabled,
 	}
 
 	settings, err := s.settingRepo.GetMultiple(ctx, keys)
@@ -336,6 +340,9 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		HideCcsImportButton:                 settings[SettingKeyHideCcsImportButton] == "true",
 		PurchaseSubscriptionEnabled:         settings[SettingKeyPurchaseSubscriptionEnabled] == "true",
 		PurchaseSubscriptionURL:             strings.TrimSpace(settings[SettingKeyPurchaseSubscriptionURL]),
+		RedeemStoreURL:                      strings.TrimSpace(settings[SettingKeyRedeemStoreURL]),
+		RedeemStoreOpenMode:                 NormalizeRedeemStoreOpenMode(settings[SettingKeyRedeemStoreOpenMode]),
+		RedeemStoreLabel:                    strings.TrimSpace(settings[SettingKeyRedeemStoreLabel]),
 		TableDefaultPageSize:                tableDefaultPageSize,
 		TablePageSizeOptions:                tablePageSizeOptions,
 		CustomMenuItems:                     settings[SettingKeyCustomMenuItems],
@@ -381,6 +388,8 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		RiskControlEnabled: settings[SettingKeyRiskControlEnabled] == "true",
 
 		AllowUserViewErrorRequests: settings[SettingKeyAllowUserViewErrorRequests] == "true",
+
+		CheckinEnabled: settings[SettingKeyCheckinEnabled] == "true",
 	}, nil
 }
 
@@ -598,6 +607,9 @@ type PublicSettingsInjectionPayload struct {
 	HideCcsImportButton                 bool                     `json:"hide_ccs_import_button"`
 	PurchaseSubscriptionEnabled         bool                     `json:"purchase_subscription_enabled"`
 	PurchaseSubscriptionURL             string                   `json:"purchase_subscription_url"`
+	RedeemStoreURL                      string                   `json:"redeem_store_url"`
+	RedeemStoreOpenMode                 string                   `json:"redeem_store_open_mode"`
+	RedeemStoreLabel                    string                   `json:"redeem_store_label"`
 	TableDefaultPageSize                int                      `json:"table_default_page_size"`
 	TablePageSizeOptions                []int                    `json:"table_page_size_options"`
 	CustomMenuItems                     json.RawMessage          `json:"custom_menu_items"`
@@ -649,6 +661,7 @@ type PublicSettingsInjectionPayload struct {
 	NewAPIMigrationEnabled        bool `json:"new_api_migration_enabled"`
 	RiskControlEnabled            bool `json:"risk_control_enabled"`
 	AllowUserViewErrorRequests    bool `json:"allow_user_view_error_requests"`
+	CheckinEnabled                bool `json:"checkin_enabled"`
 }
 
 // GetPublicSettingsForInjection returns public settings in a format suitable for HTML injection.
@@ -694,6 +707,9 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		HideCcsImportButton:                 settings.HideCcsImportButton,
 		PurchaseSubscriptionEnabled:         settings.PurchaseSubscriptionEnabled,
 		PurchaseSubscriptionURL:             settings.PurchaseSubscriptionURL,
+		RedeemStoreURL:                      settings.RedeemStoreURL,
+		RedeemStoreOpenMode:                 settings.RedeemStoreOpenMode,
+		RedeemStoreLabel:                    settings.RedeemStoreLabel,
 		TableDefaultPageSize:                settings.TableDefaultPageSize,
 		TablePageSizeOptions:                settings.TablePageSizeOptions,
 		CustomMenuItems:                     filterUserVisibleMenuItems(settings.CustomMenuItems),
@@ -735,6 +751,7 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		NewAPIMigrationEnabled:               settings.NewAPIMigrationEnabled,
 		RiskControlEnabled:                   settings.RiskControlEnabled,
 		AllowUserViewErrorRequests:           settings.AllowUserViewErrorRequests,
+		CheckinEnabled:                       settings.CheckinEnabled,
 	}, nil
 }
 
@@ -812,6 +829,11 @@ func (s *SettingService) GetFrameSrcOrigins(ctx context.Context) ([]string, erro
 	// purchase subscription URL
 	if settings.PurchaseSubscriptionEnabled {
 		addOrigin(settings.PurchaseSubscriptionURL)
+	}
+
+	// redeem store URL (only needed when embedded in iframe modal)
+	if settings.RedeemStoreURL != "" && settings.RedeemStoreOpenMode == RedeemStoreOpenModeIframe {
+		addOrigin(settings.RedeemStoreURL)
 	}
 
 	// all custom menu items (including admin-only, since CSP must allow all iframes)

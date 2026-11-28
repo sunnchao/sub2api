@@ -49,15 +49,8 @@ func (s *PaymentService) createSubscriptionOrderWithBalance(
 	txCtx := dbent.NewTxContext(ctx, tx)
 	txClient := tx.Client()
 
-	// 1. Atomically deduct user balance in USD; fails with ErrBalanceNegative when insufficient.
-	if _, err := s.userRepo.AdjustBalance(txCtx, req.UserID, -plan.Price); err != nil {
-		if errors.Is(err, ErrBalanceNegative) {
-			return nil, infraerrors.BadRequest("INSUFFICIENT_BALANCE", "insufficient account balance")
-		}
-		return nil, fmt.Errorf("deduct user balance for subscription: %w", err)
-	}
-
-	// 2. Create completed PaymentOrder with USD balance snapshot.
+	// 1. Create completed PaymentOrder with USD balance snapshot first so order.ID is
+	// available as the expiring-balance allocation refKey (all rolled back on error).
 	outTradeNo, err := s.allocateOutTradeNo(txCtx, tx)
 	if err != nil {
 		return nil, err
@@ -110,7 +103,8 @@ func (s *PaymentService) createSubscriptionOrderWithBalance(
 		return nil, fmt.Errorf("set balance order recharge code: %w", err)
 	}
 
-	// 3. Persist template / renewal target metadata and fulfill subscription within the same tx.
+	// 2. Persist template / renewal target metadata and fulfill subscription before deducting
+	// balance, preserving uniform lock order: user_subscriptions -> users -> user_expiring_balance_lots.
 	if err := s.persistOrderSubscriptionMetaInTx(txCtx, order.ID, plan.ID, req.TargetSubscriptionID); err != nil {
 		return nil, fmt.Errorf("persist balance order subscription meta: %w", err)
 	}
@@ -140,6 +134,35 @@ func (s *PaymentService) createSubscriptionOrderWithBalance(
 		s.recordLegacyFulfilledSubscriptionID(txCtx, order.ID, fulfilledSubID)
 	}
 
+	// 3. Atomically deduct user total balance in USD (FEFO expiring lots first, then users.balance).
+	var expiringAmountUsed, regularAmountUsed float64
+	if s.expiringBalanceRepo != nil {
+		deductRes, err := s.expiringBalanceRepo.DeductTotalBalance(
+			txCtx,
+			req.UserID,
+			plan.Price,
+			false,
+			ExpiringAllocRefPaymentOrder,
+			strconv.FormatInt(order.ID, 10),
+		)
+		if err != nil {
+			if errors.Is(err, ErrBalanceNegative) {
+				return nil, infraerrors.BadRequest("INSUFFICIENT_BALANCE", "insufficient account balance")
+			}
+			return nil, fmt.Errorf("deduct user balance for subscription: %w", err)
+		}
+		expiringAmountUsed = deductRes.ExpiringDeducted
+		regularAmountUsed = deductRes.RegularDeducted
+	} else {
+		if _, err := s.userRepo.AdjustBalance(txCtx, req.UserID, -plan.Price); err != nil {
+			if errors.Is(err, ErrBalanceNegative) {
+				return nil, infraerrors.BadRequest("INSUFFICIENT_BALANCE", "insufficient account balance")
+			}
+			return nil, fmt.Errorf("deduct user balance for subscription: %w", err)
+		}
+		regularAmountUsed = plan.Price
+	}
+
 	// 4. Write audit logs inside the same transaction.
 	assignDetail, _ := json.Marshal(map[string]any{
 		"groupID":        plan.GroupID,
@@ -157,10 +180,12 @@ func (s *PaymentService) createSubscriptionOrderWithBalance(
 	}
 
 	successDetail, _ := json.Marshal(map[string]any{
-		"rechargeCode":   order.RechargeCode,
-		"creditedAmount": order.Amount,
-		"payAmount":      order.PayAmount,
-		"paymentType":    payment.TypeBalance,
+		"rechargeCode":         order.RechargeCode,
+		"creditedAmount":       order.Amount,
+		"payAmount":            order.PayAmount,
+		"paymentType":          payment.TypeBalance,
+		"expiring_amount_used": expiringAmountUsed,
+		"regular_amount_used":  regularAmountUsed,
 	})
 	if _, err := txClient.PaymentAuditLog.Create().
 		SetOrderID(strconv.FormatInt(order.ID, 10)).
@@ -199,23 +224,81 @@ func (s *PaymentService) createSubscriptionOrderWithBalance(
 }
 
 // refundBalancePaidOrder credits the refunded USD amount back to the user's account balance
-// when an admin refunds a subscription order originally paid via account balance.
+// in LIFO order (regular balance first, then original active expiring lots; expired lots are
+// forfeited rather than converted into regular balance) when an admin refunds a subscription
+// order originally paid via account balance.
 func (s *PaymentService) refundBalancePaidOrder(ctx context.Context, p *RefundPlan) (*payment.RefundResponse, error) {
 	if p == nil || p.Order == nil {
 		return nil, errors.New("refund plan order is required")
 	}
-	if p.GatewayAmount > 0 {
-		if _, err := s.userRepo.AdjustBalance(ctx, p.Order.UserID, p.GatewayAmount); err != nil {
-			return nil, fmt.Errorf("credit refunded balance: %w", err)
-		}
-		s.invalidateRefundBalanceCache(ctx, p.Order.UserID)
-	}
 	refundID := fmt.Sprintf("BAL-REF-%d", p.Order.ID)
-	s.writeAuditLog(ctx, p.Order.ID, "BALANCE_REFUND_CREDITED", "admin", map[string]any{
-		"refundID": refundID,
-		"amount":   p.GatewayAmount,
-		"currency": balancePaymentCurrency,
-	})
+	var (
+		regularRefunded   float64
+		expiringRefunded  float64
+		expiringForfeited float64
+	)
+	if p.GatewayAmount > 0 {
+		if s.entClient == nil {
+			return nil, errors.New("payment service entClient is nil")
+		}
+		tx, err := s.entClient.Tx(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("begin balance refund tx: %w", err)
+		}
+		committed := false
+		defer func() {
+			if !committed {
+				_ = tx.Rollback()
+			}
+		}()
+
+		txCtx := dbent.NewTxContext(ctx, tx)
+		hasAlloc := false
+		if s.expiringBalanceRepo != nil {
+			var res RefundAllocResult
+			hasAlloc, res, err = s.expiringBalanceRepo.RefundPaymentOrderBalance(txCtx, p.Order.UserID, p.Order.ID, p.GatewayAmount)
+			if err != nil {
+				return nil, fmt.Errorf("refund balance order allocations: %w", err)
+			}
+			if hasAlloc {
+				regularRefunded = res.RegularRefunded
+				expiringRefunded = res.ExpiringRefunded
+				expiringForfeited = res.ExpiringForfeited
+			}
+		}
+		if !hasAlloc {
+			if _, err := s.userRepo.AdjustBalance(txCtx, p.Order.UserID, p.GatewayAmount); err != nil {
+				return nil, fmt.Errorf("credit refunded balance: %w", err)
+			}
+			regularRefunded = p.GatewayAmount
+		}
+
+		if err := createPaymentAuditLogTx(txCtx, tx.Client(), p.Order.ID, "BALANCE_REFUND_CREDITED", map[string]any{
+			"refundID":           refundID,
+			"amount":             p.GatewayAmount,
+			"currency":           balancePaymentCurrency,
+			"regular_refunded":   regularRefunded,
+			"expiring_refunded":  expiringRefunded,
+			"expiring_forfeited": expiringForfeited,
+		}); err != nil {
+			return nil, fmt.Errorf("record balance refund audit: %w", err)
+		}
+
+		if err := tx.Commit(); err != nil {
+			return nil, fmt.Errorf("commit balance refund tx: %w", err)
+		}
+		committed = true
+		s.invalidateRefundBalanceCache(ctx, p.Order.UserID)
+	} else {
+		s.writeAuditLog(ctx, p.Order.ID, "BALANCE_REFUND_CREDITED", "admin", map[string]any{
+			"refundID":           refundID,
+			"amount":             p.GatewayAmount,
+			"currency":           balancePaymentCurrency,
+			"regular_refunded":   0.0,
+			"expiring_refunded":  0.0,
+			"expiring_forfeited": 0.0,
+		})
+	}
 	return &payment.RefundResponse{
 		RefundID: refundID,
 		Status:   payment.ProviderStatusSuccess,

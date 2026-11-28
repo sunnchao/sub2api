@@ -22,6 +22,16 @@ type UserHandler struct {
 	emailCache            service.EmailCache
 	affiliateService      *service.AffiliateService
 	userPlatformQuotaRepo service.UserPlatformQuotaRepository
+	// expiringBalanceService 可选：用于在个人资料响应中附带限时余额拆分。
+	expiringBalanceService *service.ExpiringBalanceService
+}
+
+// SetExpiringBalanceService 注入限时余额服务（可选）。
+func (h *UserHandler) SetExpiringBalanceService(svc *service.ExpiringBalanceService) {
+	if h == nil {
+		return
+	}
+	h.expiringBalanceService = svc
 }
 
 // NewUserHandler creates a new UserHandler
@@ -535,7 +545,22 @@ func (h *UserHandler) buildUserProfileResponse(ctx context.Context, userID int64
 	if err != nil {
 		return userProfileResponse{}, err
 	}
-	return userProfileResponseFromService(user, identities), nil
+	resp := userProfileResponseFromService(user, identities)
+	applyExpiringBalanceToProfile(ctx, h.expiringBalanceService, user, &resp)
+	return resp, nil
+}
+
+// applyExpiringBalanceToProfile 为用户资料响应补充只读的限时余额拆分字段。
+// svc 为 nil（未启用签到/限时余额）时保持响应完全不变。
+func applyExpiringBalanceToProfile(ctx context.Context, svc *service.ExpiringBalanceService, user *service.User, profile *userProfileResponse) {
+	if svc == nil || user == nil || profile == nil {
+		return
+	}
+	summary, err := svc.GetUserSummary(ctx, user.ID)
+	if err != nil {
+		return
+	}
+	dto.ApplyExpiringBalance(&profile.User, user.Balance, summary)
 }
 
 func userProfileResponseFromService(user *service.User, identities service.UserIdentitySummarySet) userProfileResponse {

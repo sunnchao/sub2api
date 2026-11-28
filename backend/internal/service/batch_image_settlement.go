@@ -60,7 +60,15 @@ type BatchImageSettlementService struct {
 	UsageLogRepo UsageLogRepository
 	Pricing      BatchImagePricingResolver
 	AuthCache    APIKeyAuthCacheInvalidator
+	BillingCache BillingCacheInvalidator
 	Config       *config.Config
+}
+
+func (s *BatchImageSettlementService) SetBillingCacheService(billingCache BillingCacheInvalidator) {
+	if s == nil {
+		return
+	}
+	s.BillingCache = normalizeBillingCacheInvalidator(billingCache)
 }
 
 type BatchImageSettlementResult struct {
@@ -157,6 +165,7 @@ func (s *BatchImageSettlementService) Settle(ctx context.Context, batchID string
 		return nil, err
 	}
 	s.invalidateAuthCache(ctx, job.UserID)
+	s.invalidateBillingCache(ctx, job.UserID)
 
 	now := time.Now()
 	outputExpiresAt := now.Add(s.outputRetentionAfterTerminal())
@@ -231,6 +240,7 @@ func (s *BatchImageSettlementService) failExhaustedSettlement(ctx context.Contex
 		return ErrBatchImageSettlementBillingFailed.WithCause(err)
 	}
 	s.invalidateAuthCache(ctx, job.UserID)
+	s.invalidateBillingCache(ctx, job.UserID)
 	msg := strings.TrimSpace(message)
 	if msg == "" {
 		msg = "settlement billing retry limit reached"
@@ -289,6 +299,17 @@ func (s *BatchImageSettlementService) invalidateAuthCache(ctx context.Context, u
 	}
 }
 
+func (s *BatchImageSettlementService) invalidateBillingCache(ctx context.Context, userID int64) {
+	if s != nil && s.BillingCache != nil && userID > 0 {
+		if err := s.BillingCache.InvalidateUserBalance(ctx, userID); err != nil {
+			logger.L().Warn("batch_image.billing_cache_invalidate_failed",
+				zap.Int64("user_id", userID),
+				zap.Error(err),
+			)
+		}
+	}
+}
+
 func (s *BatchImageSettlementService) settlementUnitPrice(ctx context.Context, job *BatchImageJob) (float64, error) {
 	if job != nil && job.PricingSnapshotVersion >= 1 {
 		if job.BillableUnitPrice < 0 {
@@ -336,6 +357,19 @@ type BatchImagePipelineProcessor struct {
 	ProviderProcessor *BatchImageProviderProcessor
 	SettlementService *BatchImageSettlementService
 	RetryDelay        time.Duration
+}
+
+func (p *BatchImagePipelineProcessor) SetBillingCacheService(billingCache BillingCacheInvalidator) {
+	if p == nil {
+		return
+	}
+	billingCache = normalizeBillingCacheInvalidator(billingCache)
+	if p.ProviderProcessor != nil {
+		p.ProviderProcessor.SetBillingCacheService(billingCache)
+	}
+	if p.SettlementService != nil {
+		p.SettlementService.SetBillingCacheService(billingCache)
+	}
 }
 
 func (p *BatchImagePipelineProcessor) Process(ctx context.Context, batchID string) (BatchImageProcessResult, error) {

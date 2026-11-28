@@ -127,7 +127,9 @@ func (h *GatewayHandler) usageUnrestrictedWithMultiSub(
 	// For standard groups with active subscriptions, also expose current wallet balance for visibility.
 	if !isSubGroup && h.userService != nil {
 		if latestUser, err := h.userService.GetByID(ctx, subject.UserID); err == nil && latestUser != nil {
-			resp["balance"] = latestUser.Balance
+			for k, v := range h.walletBalanceFields(ctx, latestUser.ID, latestUser.Balance) {
+				resp[k] = v
+			}
 		}
 	}
 

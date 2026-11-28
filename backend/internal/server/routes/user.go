@@ -144,6 +144,18 @@ func RegisterUserRoutes(
 			}
 		}
 
+		// 每日签到（仅限 Web 登录态，不开放 API Key 调用）
+		if h.Checkin != nil {
+			checkin := authenticated.Group("/checkin")
+			{
+				checkin.GET("/status", h.Checkin.GetStatus)
+				checkin.POST("", h.Checkin.Checkin)
+				checkin.GET("/calendar", h.Checkin.GetCalendar)
+				checkin.GET("/records", h.Checkin.ListRecords)
+				checkin.GET("/lots", h.Checkin.ListLots)
+			}
+		}
+
 		// 用户订阅
 		subscriptions := authenticated.Group("/subscriptions")
 		{

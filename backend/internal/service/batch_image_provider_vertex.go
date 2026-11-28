@@ -142,6 +142,13 @@ func NewVertexBatchImageProviderFromConfig(cfg *config.Config, client VertexBatc
 	return NewVertexBatchImageProvider(NewVertexBatchImageProviderOptionsFromConfig(cfg), client, objectStore, tokenCache)
 }
 
+func (p *VertexBatchImageProvider) SetTokenCache(tokenCache GeminiTokenCache) {
+	if p == nil {
+		return
+	}
+	p.tokenCache = normalizeGeminiTokenCache(tokenCache)
+}
+
 func normalizeVertexBatchImageProviderOptions(opts VertexBatchImageProviderOptions) VertexBatchImageProviderOptions {
 	opts.ProjectID = strings.TrimSpace(opts.ProjectID)
 	opts.Location = strings.TrimSpace(opts.Location)

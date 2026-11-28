@@ -161,13 +161,24 @@ func expandGroupCandidates(
 	if group.IsSubscriptionType() {
 		if subscriptionService == nil {
 			// Legacy fallback when subscriptionService is not injected.
-			if apiKey != nil && apiKey.User != nil && apiKeyBalanceBelowAuthThreshold(apiKey.User.Balance, cfg) {
-				recordErr(&multiGroupAuthError{
-					Status:  http.StatusForbidden,
-					Code:    "INSUFFICIENT_BALANCE",
-					Message: "Insufficient account balance",
-				})
-				return nil, activeSubs, firstErr
+			if apiKey != nil && apiKey.User != nil {
+				insufficient, balErr := checkAPIKeyAuthBalance(ctx, apiKey, cfg, nil)
+				if balErr != nil {
+					recordErr(&multiGroupAuthError{
+						Status:  http.StatusServiceUnavailable,
+						Code:    "BILLING_SERVICE_ERROR",
+						Message: "Billing service temporarily unavailable. Please retry later.",
+					})
+					return nil, activeSubs, firstErr
+				}
+				if insufficient {
+					recordErr(&multiGroupAuthError{
+						Status:  http.StatusForbidden,
+						Code:    "INSUFFICIENT_BALANCE",
+						Message: "Insufficient account balance",
+					})
+					return nil, activeSubs, firstErr
+				}
 			}
 			candidates = append(candidates, GroupCandidate{Group: group})
 			return candidates, activeSubs, nil
@@ -185,12 +196,23 @@ func expandGroupCandidates(
 	// Standard group: if balance meets threshold, append trailing balance fallback candidate.
 	// If balance is insufficient and an active subscription already hit quota (429), firstErr
 	// remains 429 USAGE_LIMIT_EXCEEDED rather than overwriting with 403 INSUFFICIENT_BALANCE.
-	if apiKey != nil && apiKey.User != nil && apiKeyBalanceBelowAuthThreshold(apiKey.User.Balance, cfg) {
-		recordErr(&multiGroupAuthError{
-			Status:  http.StatusForbidden,
-			Code:    "INSUFFICIENT_BALANCE",
-			Message: "Insufficient account balance",
-		})
+	if apiKey != nil && apiKey.User != nil {
+		insufficient, balErr := checkAPIKeyAuthBalance(ctx, apiKey, cfg, nil)
+		if balErr != nil {
+			recordErr(&multiGroupAuthError{
+				Status:  http.StatusServiceUnavailable,
+				Code:    "BILLING_SERVICE_ERROR",
+				Message: "Billing service temporarily unavailable. Please retry later.",
+			})
+		} else if insufficient {
+			recordErr(&multiGroupAuthError{
+				Status:  http.StatusForbidden,
+				Code:    "INSUFFICIENT_BALANCE",
+				Message: "Insufficient account balance",
+			})
+		} else {
+			candidates = append(candidates, GroupCandidate{Group: group})
+		}
 	} else {
 		candidates = append(candidates, GroupCandidate{Group: group})
 	}

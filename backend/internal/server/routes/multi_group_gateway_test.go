@@ -140,7 +140,7 @@ func (fixture *multiGroupGatewayFixture) router(t *testing.T) *gin.Engine {
 	openAIService := service.NewOpenAIGatewayService(fixture.accounts, nil, nil, nil, nil, nil, nil, cfg, nil, nil, nil, nil, billing, nil, &service.DeferredService{}, nil, nil, nil, nil, nil, nil, nil)
 	audit := securityaudit.NewCoordinator(nil, fixture.audit)
 	openAI := handler.ProvideOpenAIGatewayHandler(openAIService, nil, concurrency, billing, api, nil, nil, nil, nil, nil, cfg, audit, nil)
-	gateway := handler.ProvideGatewayHandler(&service.GatewayService{}, openAIService, nil, nil, nil, concurrency, billing, nil, api, nil, nil, nil, nil, cfg, nil, audit, nil)
+	gateway := handler.ProvideGatewayHandler(&service.GatewayService{}, openAIService, nil, nil, nil, concurrency, billing, nil, api, nil, nil, nil, nil, cfg, nil, audit, nil, nil)
 	router := gin.New()
 	RegisterGatewayRoutes(router, &handler.Handlers{
 		Gateway: gateway, OpenAIGateway: openAI, AsyncImage: handler.NewAsyncImageHandler(fixture.tasks, openAI),

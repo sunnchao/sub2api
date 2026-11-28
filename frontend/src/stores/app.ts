@@ -349,6 +349,9 @@ export const useAppStore = defineStore('app', () => {
         compact_home_enabled: false,
         hide_ccs_import_button: false,
         payment_enabled: false,
+        redeem_store_url: '',
+        redeem_store_open_mode: 'new_tab',
+        redeem_store_label: '',
         table_default_page_size: 20,
         table_page_size_options: [10, 20, 50, 100],
         custom_menu_items: [],
@@ -379,6 +382,7 @@ export const useAppStore = defineStore('app', () => {
         risk_control_enabled: false,
         service_quota_enabled: false,
         affiliate_enabled: false,
+        checkin_enabled: false,
         allow_user_view_error_requests: false,
         mcp_enabled: false,
       })

@@ -62,6 +62,7 @@ export interface TrendParams {
   api_key_id?: number
   model?: string
   group_id?: number
+  subscription_id?: number | null
   request_type?: UsageRequestType
   stream?: boolean
   native_compaction_v2?: boolean | null
@@ -284,6 +285,7 @@ export async function getDashboardModels(params?: {
   model?: string
   model_source?: 'requested'
   group_id?: number
+  subscription_id?: number | null
   request_type?: UsageRequestType
   stream?: boolean
   native_compaction_v2?: boolean | null

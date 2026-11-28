@@ -10,7 +10,7 @@ import { useAppStore, useAuthStore, useSubscriptionStore, useAnnouncementStore, 
 import { getSetupStatus } from '@/api/setup'
 import { updateFavicon } from '@/utils/branding'
 import { FeatureFlags, isFeatureFlagEnabled } from '@/utils/featureFlags'
-import { resolveSiteBillingMode } from '@/utils/siteBillingMode'
+import { resolvePurchaseDisplayBillingMode } from '@/utils/redeemStore'
 
 const router = useRouter()
 const route = useRoute()
@@ -27,7 +27,7 @@ function updateDocumentTitle() {
     ...(authStore.isAdmin ? adminSettingsStore.customMenuItems : []),
   ]
   document.title = resolveRouteDocumentTitle(route, appStore.siteName, customMenuItems, {
-    billingMode: resolveSiteBillingMode(appStore.cachedPublicSettings),
+    billingMode: resolvePurchaseDisplayBillingMode(appStore.cachedPublicSettings),
   })
 }
 
@@ -51,6 +51,8 @@ watch(
     () => appStore.cachedPublicSettings?.custom_menu_items,
     () => appStore.cachedPublicSettings?.subscription_enabled,
     () => appStore.cachedPublicSettings?.payment_balance_disabled,
+    () => appStore.cachedPublicSettings?.payment_enabled,
+    () => appStore.cachedPublicSettings?.redeem_store_url,
     () => authStore.isAdmin,
     () => adminSettingsStore.customMenuItems,
   ],

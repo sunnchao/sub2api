@@ -12,7 +12,10 @@
         <div>
           <p class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('dashboard.balance') }}</p>
           <p class="text-xl font-bold text-emerald-600 dark:text-emerald-400">${{ formatBalance(balance) }}</p>
-          <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('common.available') }}</p>
+          <p v-if="(expiringBalance ?? 0) > 0" data-testid="stats-expiring-subline" class="text-xs text-amber-600 dark:text-amber-300">
+            {{ t('dashboard.expiringBalanceNote', { amount: formatBalance(expiringBalance ?? 0) }) }}<template v-if="nearestExpiringFormatted"> ({{ t('dashboard.nearestExpiringAt', { time: nearestExpiringFormatted }) }})</template>
+          </p>
+          <p v-else class="text-xs text-gray-500 dark:text-gray-400">{{ t('common.available') }}</p>
         </div>
       </div>
     </div>
@@ -228,6 +231,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Icon from '@/components/icons/Icon.vue'
+import { formatDateTimeToMinute } from '@/utils/format'
 import type { PlatformDashboardStats, UserDashboardStats as UserStatsType } from '@/api/usage'
 import type { PlatformQuotaItem } from '@/types'
 
@@ -246,8 +250,13 @@ const props = defineProps<{
   balance: number
   isSimple: boolean
   platformQuotas?: PlatformQuotaItem[] | null
+  expiringBalance?: number
+  nearestExpiringAt?: string | null
 }>()
 const { t } = useI18n()
+const nearestExpiringFormatted = computed(() =>
+  props.nearestExpiringAt ? formatDateTimeToMinute(props.nearestExpiringAt) : ''
+)
 
 const PLATFORM_LABELS: Record<string, string> = {
   anthropic: 'Claude',

@@ -78,18 +78,40 @@
             {{ formatHeaderMoney(availableBalance) }}
           </span>
           <span
+            v-if="expiringBalance > 0"
+            data-testid="header-expiring-badge"
+            class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/40 dark:text-amber-200"
+          >
+            <Icon name="clock" size="xs" />
+            {{ balanceExpiringShortLabel }}
+          </span>
+          <span
             v-if="frozenBalance > 0"
             class="rounded-full bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/40 dark:text-amber-200"
           >
             {{ balanceFrozenLabel }}
           </span>
           <div
-            class="pointer-events-none absolute right-0 top-full mt-2 hidden w-56 rounded-lg border border-gray-200 bg-white p-3 text-xs shadow-lg group-hover:block dark:border-dark-700 dark:bg-dark-800"
+            class="pointer-events-none absolute right-0 top-full mt-2 hidden w-64 rounded-lg border border-gray-200 bg-white p-3 text-xs shadow-lg group-hover:block dark:border-dark-700 dark:bg-dark-800"
           >
             <div class="flex items-center justify-between">
               <span class="text-gray-500 dark:text-dark-400">{{ balanceAvailableText }}</span>
               <span class="font-medium text-gray-900 dark:text-white">{{ formatHeaderMoney(availableBalance) }}</span>
             </div>
+            <template v-if="expiringBalance > 0">
+              <div class="mt-1.5 flex items-center justify-between pl-2 text-[11px]">
+                <span class="text-gray-400 dark:text-dark-400">{{ balanceRegularText }}</span>
+                <span class="font-medium text-gray-700 dark:text-gray-200">{{ formatHeaderMoney(regularBalance) }}</span>
+              </div>
+              <div class="mt-1 flex items-center justify-between pl-2 text-[11px]">
+                <span class="text-amber-600 dark:text-amber-300">{{ balanceExpiringText }}</span>
+                <span class="font-medium text-amber-700 dark:text-amber-200">{{ formatHeaderMoney(expiringBalance) }}</span>
+              </div>
+              <div v-if="nearestExpiringFormatted" class="mt-1 flex items-center justify-between pl-2 text-[11px]">
+                <span class="text-gray-400 dark:text-dark-400">{{ balanceNearestExpiringText }}</span>
+                <span class="font-mono text-gray-600 dark:text-gray-300">{{ nearestExpiringFormatted }}</span>
+              </div>
+            </template>
             <div class="mt-2 flex items-center justify-between">
               <span class="text-gray-500 dark:text-dark-400">{{ balanceFrozenText }}</span>
               <span class="font-medium text-amber-700 dark:text-amber-200">{{ formatHeaderMoney(frozenBalance) }}</span>
@@ -148,6 +170,15 @@
                 </div>
                 <div class="text-sm font-semibold text-primary-600 dark:text-primary-400">
                   {{ formatHeaderMoney(availableBalance) }}
+                </div>
+                <div v-if="expiringBalance > 0" class="mt-1 space-y-0.5 text-xs text-gray-500 dark:text-dark-400">
+                  <div>{{ balanceRegularText }}: {{ formatHeaderMoney(regularBalance) }}</div>
+                  <div class="text-amber-600 dark:text-amber-300">
+                    {{ balanceExpiringText }}: {{ formatHeaderMoney(expiringBalance) }}
+                  </div>
+                  <div v-if="nearestExpiringFormatted" class="text-[11px]">
+                    {{ balanceNearestExpiringText }}: {{ nearestExpiringFormatted }}
+                  </div>
                 </div>
                 <div v-if="frozenBalance > 0" class="mt-1 text-xs text-amber-600 dark:text-amber-300">
                   {{ balanceFrozenText }} {{ formatHeaderMoney(frozenBalance) }}
@@ -264,7 +295,9 @@ import Icon from '@/components/icons/Icon.vue'
 import { sanitizeUrl } from '@/utils/url'
 import { FeatureFlags, isFeatureFlagEnabled } from '@/utils/featureFlags'
 import { resolveRouteMetaKeys } from '@/router/title'
-import { resolveSiteBillingMode } from '@/utils/siteBillingMode'
+import { resolvePurchaseDisplayBillingMode } from '@/utils/redeemStore'
+import { resolveUserBalance } from '@/utils/balance'
+import { formatDateTimeToMinute } from '@/utils/format'
 
 const router = useRouter()
 const route = useRoute()
@@ -281,10 +314,24 @@ const contactInfo = computed(() => appStore.contactInfo)
 const docUrl = computed(() => sanitizeUrl(appStore.docUrl))
 const modelPlazaEnabled = computed(() => isFeatureFlagEnabled(FeatureFlags.modelPlaza))
 const avatarUrl = computed(() => user.value?.avatar_url?.trim() || '')
-const availableBalance = computed(() => Number(user.value?.balance || 0))
-const frozenBalance = computed(() => Number(user.value?.frozen_balance || 0))
-const totalBalance = computed(() => availableBalance.value + frozenBalance.value)
+const balanceInfo = computed(() => resolveUserBalance(user.value))
+const regularBalance = computed(() => balanceInfo.value.regularBalance)
+const expiringBalance = computed(() => balanceInfo.value.expiringBalance)
+const availableBalance = computed(() => balanceInfo.value.totalAvailableBalance)
+const frozenBalance = computed(() => balanceInfo.value.totalFrozenBalance)
+const totalBalance = computed(() => balanceInfo.value.totalBalance)
+const nearestExpiringFormatted = computed(() =>
+  balanceInfo.value.nearestExpiringAt ? formatDateTimeToMinute(balanceInfo.value.nearestExpiringAt) : ''
+)
 const balanceAvailableText = computed(() => t('common.availableBalance') === 'common.availableBalance' ? '可用余额' : t('common.availableBalance'))
+const balanceRegularText = computed(() => t('common.regularBalance') === 'common.regularBalance' ? '通用余额' : t('common.regularBalance'))
+const balanceExpiringText = computed(() => t('common.expiringBalance') === 'common.expiringBalance' ? '限时余额' : t('common.expiringBalance'))
+const balanceNearestExpiringText = computed(() => t('common.nearestExpiring') === 'common.nearestExpiring' ? '最近到期' : t('common.nearestExpiring'))
+const balanceExpiringShortLabel = computed(() => {
+  const amount = formatHeaderMoney(expiringBalance.value)
+  const translated = t('common.expiringShort', { amount })
+  return translated === 'common.expiringShort' ? `${balanceExpiringText.value} ${amount}` : translated
+})
 const balanceFrozenText = computed(() => t('common.frozenBalance') === 'common.frozenBalance' ? '冻结金额' : t('common.frozenBalance'))
 const balanceTotalText = computed(() => t('common.totalBalance') === 'common.totalBalance' ? '总余额' : t('common.totalBalance'))
 const balanceFrozenLabel = computed(() => `${balanceFrozenText.value} ${formatHeaderMoney(frozenBalance.value)}`)
@@ -318,7 +365,7 @@ const subscriptionFeatureEnabled = computed(() => isFeatureFlagEnabled(FeatureFl
 
 // /purchase 的标题/描述随站点计费模式切换，与 document.title 共用同一解析。
 const routeMetaKeys = computed(() => resolveRouteMetaKeys(route, {
-  billingMode: resolveSiteBillingMode(appStore.cachedPublicSettings),
+  billingMode: resolvePurchaseDisplayBillingMode(appStore.cachedPublicSettings),
 }))
 
 const pageTitle = computed(() => {

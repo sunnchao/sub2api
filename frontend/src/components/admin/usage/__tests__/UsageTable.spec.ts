@@ -1014,3 +1014,84 @@ describe('admin UsageTable username column', () => {
     expect(wrapper.get('[data-request-id="req-no-user"]').text()).toBe('-')
   })
 })
+
+describe('UsageTable billing source column and cost tooltip', () => {
+  const DataTableStubWithBillingType = {
+    props: ['data'],
+    template: `
+      <div>
+        <div v-for="row in data" :key="row.request_id" :data-request-id="row.request_id">
+          <slot name="cell-billing_type" :row="row" />
+          <slot name="cell-cost" :row="row" />
+        </div>
+      </div>
+    `,
+  }
+
+  it('shows balance vs subscription source badges and tooltip without raw subscription IDs', async () => {
+    const subRow = {
+      ...baseImageRow,
+      request_id: 'req-sub-1',
+      billing_type: 1,
+      billing_mode: 'token',
+      image_count: 0,
+      subscription_id: 987,
+      subscription: { id: 987, template_name: 'Token Plan Pro' },
+      group: { id: 3, name: 'Composite Group' },
+      actual_cost: 0.123456,
+      total_cost: 0.123456,
+    }
+    const balanceRow = {
+      ...baseImageRow,
+      request_id: 'req-bal-1',
+      billing_type: 0,
+      billing_mode: 'token',
+      image_count: 0,
+      subscription_id: null,
+      actual_cost: 0.05,
+      total_cost: 0.05,
+    }
+
+    const wrapper = mount(UsageTable, {
+      props: {
+        data: [subRow, balanceRow],
+        loading: false,
+        columns: [
+          { key: 'billing_type', label: 'Billing Source' },
+          { key: 'cost', label: 'Cost' },
+        ],
+      },
+      global: {
+        stubs: {
+          DataTable: DataTableStubWithBillingType,
+          EmptyState: true,
+          Icon: true,
+          Teleport: true,
+        },
+      },
+    })
+
+    const subCell = wrapper.get('[data-request-id="req-sub-1"]')
+    expect(subCell.get('[data-testid="billing-type-badge"]').text()).toBe('usage.billingSourceSubscription')
+    expect(subCell.get('[data-testid="billing-type-subscription-name"]').text()).toBe('Token Plan Pro')
+    expect(subCell.text()).not.toContain('#987')
+    expect(subCell.text()).not.toContain('987')
+
+    const balCell = wrapper.get('[data-request-id="req-bal-1"]')
+    expect(balCell.get('[data-testid="billing-type-badge"]').text()).toBe('usage.billingSourceBalance')
+    expect(balCell.find('[data-testid="billing-type-subscription-name"]').exists()).toBe(false)
+
+    // Hover subscription cost tooltip -> shows subscription source + plan name, no #987
+    await subCell.get('.group.relative').trigger('mouseenter')
+    const subTooltip = wrapper.get('[data-testid="cost-tooltip-billing-source"]')
+    expect(subTooltip.text()).toContain('usage.billingSourceSubscriptionFull (Token Plan Pro)')
+    expect(subTooltip.text()).not.toContain('987')
+    expect(wrapper.text()).toContain('usage.subscriptionBilled')
+
+    // Hover balance cost tooltip -> shows account balance source
+    await balCell.get('.group.relative').trigger('mouseenter')
+    const balTooltip = wrapper.get('[data-testid="cost-tooltip-billing-source"]')
+    expect(balTooltip.text()).toContain('usage.billingSourceBalanceFull')
+    expect(wrapper.text()).toContain('User billed')
+  })
+})

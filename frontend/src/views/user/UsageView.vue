@@ -120,6 +120,14 @@
               <label class="input-label">{{ t('admin.usage.billingType') }}</label>
               <Select v-model="filters.billing_type" :options="billingTypeOptions" @change="applyFilters" />
             </div>
+            <div
+              v-if="subscriptionFeatureEnabled && (mySubscriptions.length > 0 || filters.subscription_id != null)"
+              class="w-full sm:w-auto sm:min-w-[220px]"
+              data-testid="usage-subscription-filter"
+            >
+              <label class="input-label">{{ t('usage.subscriptionFilter') }}</label>
+              <Select v-model="filters.subscription_id" :options="subscriptionOptions" searchable @change="applyFilters" />
+            </div>
             <div class="w-full sm:w-auto sm:min-w-[200px]">
               <label class="input-label">{{ t('admin.usage.billingMode') }}</label>
               <Select v-model="filters.billing_mode" :options="billingModeOptions" @change="applyFilters" />
@@ -222,9 +230,11 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
 import { useAppStore } from '@/stores/app'
 import { FeatureFlags, resolveFeatureFlag } from '@/utils/featureFlags'
 import { keysAPI, usageAPI, userGroupsAPI } from '@/api'
+import subscriptionsAPI from '@/api/subscriptions'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import Select, { type SelectOption } from '@/components/common/Select.vue'
@@ -252,11 +262,13 @@ import type {
   UsageQueryParams,
   UsageStatsResponse,
   UserErrorRequest,
+  UserSubscription,
 } from '@/types'
 import type { Column } from '@/components/common/types'
 import { COMMON_ERROR_STATUS_CODES } from '@/utils/errorBadges'
 
 const { t } = useI18n()
+const route = useRoute()
 const appStore = useAppStore()
 
 type DistributionMetric = 'tokens' | 'actual_cost'
@@ -362,6 +374,7 @@ const errorViewEnabled = computed(() => appStore.cachedPublicSettings?.allow_use
 const filters = ref<UsageQueryParams>({
   start_date: startDate.value,
   end_date: endDate.value,
+  subscription_id: undefined,
   request_type: undefined,
   native_compaction_v2: null,
   billing_type: null,
@@ -410,6 +423,7 @@ const billingModeOptions = computed<SelectOption[]>(() => [
 
 const apiKeys = ref<ApiKey[]>([])
 const groups = ref<Group[]>([])
+const mySubscriptions = ref<UserSubscription[]>([])
 const modelOptionValues = ref<string[]>([])
 
 const apiKeyOptions = computed<SelectOption[]>(() => [
@@ -420,6 +434,25 @@ const groupOptions = computed<SelectOption[]>(() => [
   { value: null, label: t('admin.usage.allGroups') },
   ...groups.value.map((group) => ({ value: group.id, label: group.name })),
 ])
+const subscriptionOptions = computed<SelectOption[]>(() => {
+  const baseNameOf = (sub: UserSubscription) =>
+    sub.template_name?.trim() || sub.group?.name?.trim() || t('usage.billingSourceSubscription')
+  const nameCounts = new Map<string, number>()
+  for (const sub of mySubscriptions.value) {
+    const base = baseNameOf(sub)
+    nameCounts.set(base, (nameCounts.get(base) ?? 0) + 1)
+  }
+  return [
+    { value: null, label: t('usage.allSubscriptions') },
+    ...mySubscriptions.value.map((sub) => {
+      const base = baseNameOf(sub)
+      const duplicate = (nameCounts.get(base) ?? 0) > 1
+      const expDate = sub.expires_at ? formatLocalDate(new Date(sub.expires_at)) : ''
+      const label = duplicate && expDate ? `${base} (${expDate})` : base
+      return { value: sub.id, label }
+    }),
+  ]
+})
 const modelOptions = computed<SelectOption[]>(() => [
   { value: null, label: t('admin.usage.allModels') },
   ...modelOptionValues.value.map((model) => ({ value: model, label: model })),
@@ -430,6 +463,7 @@ const normalizedFilters = computed<UsageQueryParams>(() => {
   const legacyStream = requestType ? requestTypeToLegacyStream(requestType) : filters.value.stream
   return {
     ...filters.value,
+    subscription_id: filters.value.subscription_id ?? undefined,
     start_date: startDate.value,
     end_date: endDate.value,
     stream: legacyStream === null ? undefined : legacyStream,
@@ -565,6 +599,7 @@ const resetFilters = () => {
   filters.value = {
     start_date: range.start,
     end_date: range.end,
+    subscription_id: undefined,
     request_type: undefined,
     native_compaction_v2: null,
     billing_type: null,
@@ -681,6 +716,8 @@ const exportToCSV = async () => {
       'Inbound Endpoint',
       'IP Address',
       'Type',
+      'Billing Type',
+      'Subscription',
       'Billing Mode',
       'Input Tokens',
       'Output Tokens',
@@ -700,6 +737,8 @@ const exportToCSV = async () => {
       log.inbound_endpoint || '',
       log.ip_address || '',
       getRequestTypeExportText(log),
+      log.billing_type === 1 ? t('usage.billingSourceSubscription') : t('usage.billingSourceBalance'),
+      log.billing_type === 1 ? (log.subscription?.template_name?.trim() || log.group?.name?.trim() || '') : '',
       getBillingModeLabel(getDisplayBillingMode(log), t),
       log.input_tokens,
       log.output_tokens,
@@ -743,6 +782,7 @@ const allColumns = computed<Column[]>(() => [
   { key: 'ip_address', label: 'IP', sortable: false },
   { key: 'group', label: t('admin.usage.group'), sortable: false },
   { key: 'stream', label: t('usage.type'), sortable: false },
+  { key: 'billing_type', label: t('usage.billingSource'), sortable: false },
   { key: 'billing_mode', label: t('admin.usage.billingMode'), sortable: false },
   { key: 'tokens', label: t('usage.tokens'), sortable: false },
   { key: 'cost', label: t('usage.cost'), sortable: false },
@@ -850,14 +890,64 @@ const loadApiKeys = async () => {
 
 const loadFilterOptions = async () => {
   try {
-    const [keys, availableGroups] = await Promise.all([
+    const [keys, availableGroups, subs] = await Promise.all([
       loadApiKeys(),
       userGroupsAPI.getAvailable(),
+      subscriptionFeatureEnabled.value
+        ? subscriptionsAPI.getMySubscriptions().catch(() => [])
+        : Promise.resolve([]),
     ])
     apiKeys.value = keys
     groups.value = availableGroups
+    mySubscriptions.value = subs
   } catch (error) {
     console.error('Failed to load usage filter options:', error)
+  }
+}
+
+const getSingleQueryValue = (value: unknown): string | undefined => {
+  if (Array.isArray(value)) {
+    const first = value.find((item): item is string => typeof item === 'string' && item.length > 0)
+    return first
+  }
+  return typeof value === 'string' && value.length > 0 ? value : undefined
+}
+
+const applyRouteQueryFilters = () => {
+  const query = route?.query
+  if (!query) return
+  const subRaw = getSingleQueryValue(query.subscription_id)
+  const btRaw = getSingleQueryValue(query.billing_type)
+  const qStart = getSingleQueryValue(query.start_date)
+  const qEnd = getSingleQueryValue(query.end_date)
+
+  const subId = subRaw ? Number(subRaw) : NaN
+  const hasSubFilter = Number.isInteger(subId) && subId > 0
+  if (hasSubFilter) {
+    filters.value.subscription_id = subId
+    if (!qStart && !qEnd) {
+      const end = new Date()
+      const start = new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000)
+      startDate.value = formatLocalDate(start)
+      endDate.value = formatLocalDate(end)
+      filters.value.start_date = startDate.value
+      filters.value.end_date = endDate.value
+      granularity.value = getGranularityForRange(startDate.value, endDate.value)
+    }
+  }
+  if (btRaw === '0' || btRaw === '1') {
+    filters.value.billing_type = Number(btRaw)
+  }
+  if (qStart) {
+    startDate.value = qStart
+    filters.value.start_date = qStart
+  }
+  if (qEnd) {
+    endDate.value = qEnd
+    filters.value.end_date = qEnd
+  }
+  if (qStart || qEnd) {
+    granularity.value = getGranularityForRange(startDate.value, endDate.value)
   }
 }
 
@@ -922,6 +1012,7 @@ const switchToErrors = () => {
 onMounted(() => {
   loadSavedColumns()
   loadSavedErrColumns()
+  applyRouteQueryFilters()
   document.addEventListener('click', handleColumnClickOutside)
   void loadFilterOptions()
   refreshData()

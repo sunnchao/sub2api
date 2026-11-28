@@ -196,6 +196,12 @@ func (c *BatchImageBalanceHoldCommand) Normalize() {
 	if strings.TrimSpace(c.RequestFingerprint) == "" {
 		c.RequestFingerprint = buildBatchImageBalanceHoldFingerprint(c)
 	}
+	c.quantizeMonetaryFields()
+}
+
+func (c *BatchImageBalanceHoldCommand) quantizeMonetaryFields() {
+	c.HoldAmount = QuantizeUsageBillingAmount(c.HoldAmount)
+	c.ActualAmount = QuantizeUsageBillingAmount(c.ActualAmount)
 }
 
 func buildBatchImageBalanceHoldFingerprint(c *BatchImageBalanceHoldCommand) string {

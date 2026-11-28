@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
@@ -164,6 +165,9 @@ type UpdateSettingsRequest struct {
 	HideCcsImportButton         bool                  `json:"hide_ccs_import_button"`
 	PurchaseSubscriptionEnabled *bool                 `json:"purchase_subscription_enabled"`
 	PurchaseSubscriptionURL     *string               `json:"purchase_subscription_url"`
+	RedeemStoreURL              *string               `json:"redeem_store_url"`
+	RedeemStoreOpenMode         *string               `json:"redeem_store_open_mode"`
+	RedeemStoreLabel            *string               `json:"redeem_store_label"`
 	TableDefaultPageSize        int                   `json:"table_default_page_size"`
 	TablePageSizeOptions        []int                 `json:"table_page_size_options"`
 	CustomMenuItems             *[]dto.CustomMenuItem `json:"custom_menu_items"`
@@ -1265,6 +1269,45 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		}
 	}
 
+	// 兑换商城配置验证
+	redeemStoreURL := previousSettings.RedeemStoreURL
+	if req.RedeemStoreURL != nil {
+		redeemStoreURL = strings.TrimSpace(*req.RedeemStoreURL)
+	}
+	if redeemStoreURL != "" {
+		if len(redeemStoreURL) > service.MaxRedeemStoreURLLen {
+			response.BadRequest(c, "Redeem Store URL is too long (max 2048 characters)")
+			return
+		}
+		if err := config.ValidateAbsoluteHTTPURL(redeemStoreURL); err != nil {
+			response.BadRequest(c, "Redeem Store URL must be an absolute http(s) URL")
+			return
+		}
+	}
+
+	redeemStoreOpenMode := service.NormalizeRedeemStoreOpenMode(previousSettings.RedeemStoreOpenMode)
+	if req.RedeemStoreOpenMode != nil {
+		mode := strings.TrimSpace(*req.RedeemStoreOpenMode)
+		switch mode {
+		case "", service.RedeemStoreOpenModeNewTab:
+			redeemStoreOpenMode = service.RedeemStoreOpenModeNewTab
+		case service.RedeemStoreOpenModeIframe:
+			redeemStoreOpenMode = service.RedeemStoreOpenModeIframe
+		default:
+			response.BadRequest(c, "Redeem Store open mode must be new_tab or iframe")
+			return
+		}
+	}
+
+	redeemStoreLabel := previousSettings.RedeemStoreLabel
+	if req.RedeemStoreLabel != nil {
+		redeemStoreLabel = strings.TrimSpace(*req.RedeemStoreLabel)
+	}
+	if utf8.RuneCountInString(redeemStoreLabel) > service.MaxRedeemStoreLabelLen {
+		response.BadRequest(c, "Redeem Store label is too long (max 50 characters)")
+		return
+	}
+
 	// 自定义菜单项验证
 	const (
 		maxCustomMenuItems    = 20
@@ -1651,6 +1694,9 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		HideCcsImportButton:                    req.HideCcsImportButton,
 		PurchaseSubscriptionEnabled:            purchaseEnabled,
 		PurchaseSubscriptionURL:                purchaseURL,
+		RedeemStoreURL:                         redeemStoreURL,
+		RedeemStoreOpenMode:                    redeemStoreOpenMode,
+		RedeemStoreLabel:                       redeemStoreLabel,
 		TableDefaultPageSize:                   req.TableDefaultPageSize,
 		TablePageSizeOptions:                   req.TablePageSizeOptions,
 		CustomMenuItems:                        customMenuJSON,
@@ -2315,6 +2361,9 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		HideCcsImportButton:                                    updatedSettings.HideCcsImportButton,
 		PurchaseSubscriptionEnabled:                            updatedSettings.PurchaseSubscriptionEnabled,
 		PurchaseSubscriptionURL:                                updatedSettings.PurchaseSubscriptionURL,
+		RedeemStoreURL:                                         updatedSettings.RedeemStoreURL,
+		RedeemStoreOpenMode:                                    updatedSettings.RedeemStoreOpenMode,
+		RedeemStoreLabel:                                       updatedSettings.RedeemStoreLabel,
 		TableDefaultPageSize:                                   updatedSettings.TableDefaultPageSize,
 		TablePageSizeOptions:                                   updatedSettings.TablePageSizeOptions,
 		CustomMenuItems:                                        dto.ParseCustomMenuItems(updatedSettings.CustomMenuItems),

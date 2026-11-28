@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"reflect"
 	"strings"
 	"time"
 
@@ -45,10 +46,36 @@ func NewDefaultBatchImageProviderRegistry() *BatchImageProviderRegistry {
 }
 
 func NewBatchImageProviderRegistryFromConfig(cfg *config.Config) *BatchImageProviderRegistry {
+	return NewBatchImageProviderRegistryFromConfigWithTokenCache(cfg, nil)
+}
+
+func NewBatchImageProviderRegistryFromConfigWithTokenCache(cfg *config.Config, tokenCache GeminiTokenCache) *BatchImageProviderRegistry {
 	return NewBatchImageProviderRegistry(
 		NewGeminiAPIBatchImageProvider(nil),
-		NewVertexBatchImageProviderFromConfig(cfg, nil, nil, nil),
+		NewVertexBatchImageProviderFromConfig(cfg, nil, nil, normalizeGeminiTokenCache(tokenCache)),
 	)
+}
+
+func (r *BatchImageProviderRegistry) SetVertexTokenCache(tokenCache GeminiTokenCache) {
+	if r == nil {
+		return
+	}
+	if p, ok := r.providers[BatchImageProviderVertex]; ok {
+		if vp, ok := p.(*VertexBatchImageProvider); ok {
+			vp.SetTokenCache(tokenCache)
+		}
+	}
+}
+
+func normalizeGeminiTokenCache(cache GeminiTokenCache) GeminiTokenCache {
+	if cache == nil {
+		return nil
+	}
+	v := reflect.ValueOf(cache)
+	if v.Kind() == reflect.Pointer && v.IsNil() {
+		return nil
+	}
+	return cache
 }
 
 func (r *BatchImageProviderRegistry) Get(provider string) (BatchImageProvider, bool) {

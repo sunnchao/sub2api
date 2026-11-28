@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
+	"sync/atomic"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
@@ -22,9 +24,111 @@ const maxAPIKeyAuthorizationHeaderBytes = service.MaxAPIKeyCredentialBytes + 128
 // statusClientClosedRequest 非标准状态码 499：客户端在响应前断开。
 const statusClientClosedRequest = 499
 
+// APIKeyAuthBalanceReader reads total available user balance (regular + active expiring).
+// *service.BillingCacheService satisfies this interface.
+type APIKeyAuthBalanceReader interface {
+	GetUserBalance(ctx context.Context, userID int64) (float64, error)
+}
+
+type apiKeyAuthBalanceReaderHolder struct {
+	reader APIKeyAuthBalanceReader
+}
+
+var activeAPIKeyAuthBalanceReader atomic.Pointer[apiKeyAuthBalanceReaderHolder]
+
+func normalizeAPIKeyAuthBalanceReader(reader APIKeyAuthBalanceReader) APIKeyAuthBalanceReader {
+	if typedNil, ok := reader.(*service.BillingCacheService); ok && typedNil == nil {
+		return nil
+	}
+	return reader
+}
+
+// SetAPIKeyAuthBalanceReader sets the global fallback balance reader used by
+// NewAPIKeyAuthMiddleware and APIKeyAuthWithSubscriptionGoogle.
+func SetAPIKeyAuthBalanceReader(reader APIKeyAuthBalanceReader) {
+	reader = normalizeAPIKeyAuthBalanceReader(reader)
+	if reader == nil {
+		activeAPIKeyAuthBalanceReader.Store(nil)
+		return
+	}
+	activeAPIKeyAuthBalanceReader.Store(&apiKeyAuthBalanceReaderHolder{reader: reader})
+}
+
+func loadAPIKeyAuthBalanceReader(explicit APIKeyAuthBalanceReader) APIKeyAuthBalanceReader {
+	explicit = normalizeAPIKeyAuthBalanceReader(explicit)
+	if explicit != nil {
+		return explicit
+	}
+	if holder := activeAPIKeyAuthBalanceReader.Load(); holder != nil {
+		return holder.reader
+	}
+	return nil
+}
+
+type apiKeyAuthBalanceLookupCtxKey struct{}
+
+type apiKeyAuthBalanceLookup struct {
+	reader  APIKeyAuthBalanceReader
+	once    sync.Once
+	balance float64
+	err     error
+}
+
+func withAPIKeyAuthBalanceLookup(ctx context.Context, explicit APIKeyAuthBalanceReader) context.Context {
+	reader := loadAPIKeyAuthBalanceReader(explicit)
+	if reader == nil {
+		return ctx
+	}
+	return context.WithValue(ctx, apiKeyAuthBalanceLookupCtxKey{}, &apiKeyAuthBalanceLookup{reader: reader})
+}
+
+func resolveAPIKeyAuthUserBalance(ctx context.Context, userID int64, explicit APIKeyAuthBalanceReader) (float64, bool, error) {
+	if ctx != nil {
+		if lookup, ok := ctx.Value(apiKeyAuthBalanceLookupCtxKey{}).(*apiKeyAuthBalanceLookup); ok && lookup != nil && lookup.reader != nil {
+			lookup.once.Do(func() {
+				lookup.balance, lookup.err = lookup.reader.GetUserBalance(ctx, userID)
+			})
+			return lookup.balance, true, lookup.err
+		}
+	}
+	reader := loadAPIKeyAuthBalanceReader(explicit)
+	if reader == nil {
+		return 0, false, nil
+	}
+	bal, err := reader.GetUserBalance(ctx, userID)
+	return bal, true, err
+}
+
+// checkAPIKeyAuthBalance reports (insufficient, lookupErr).
+// Only queries balanceReader when snapshot regular balance is at/below threshold.
+func checkAPIKeyAuthBalance(ctx context.Context, apiKey *service.APIKey, cfg *config.Config, explicit APIKeyAuthBalanceReader) (bool, error) {
+	if apiKey == nil || apiKey.User == nil {
+		return false, nil
+	}
+	if !apiKeyBalanceBelowAuthThreshold(apiKey.User.Balance, cfg) {
+		return false, nil
+	}
+	if apiKey.User.ID <= 0 {
+		return true, nil
+	}
+	totalBalance, ok, err := resolveAPIKeyAuthUserBalance(ctx, apiKey.User.ID, explicit)
+	if !ok {
+		return true, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return apiKeyBalanceBelowAuthThreshold(totalBalance, cfg), nil
+}
+
 // NewAPIKeyAuthMiddleware 创建 API Key 认证中间件
 func NewAPIKeyAuthMiddleware(apiKeyService *service.APIKeyService, subscriptionService *service.SubscriptionService, cfg *config.Config) APIKeyAuthMiddleware {
-	return APIKeyAuthMiddleware(apiKeyAuthWithSubscription(apiKeyService, subscriptionService, cfg))
+	return APIKeyAuthMiddleware(apiKeyAuthWithSubscription(apiKeyService, subscriptionService, nil, cfg))
+}
+
+// NewAPIKeyAuthMiddlewareWithBalanceReader creates an API Key auth middleware with an explicit balance reader.
+func NewAPIKeyAuthMiddlewareWithBalanceReader(apiKeyService *service.APIKeyService, subscriptionService *service.SubscriptionService, balanceReader APIKeyAuthBalanceReader, cfg *config.Config) APIKeyAuthMiddleware {
+	return APIKeyAuthMiddleware(apiKeyAuthWithSubscription(apiKeyService, subscriptionService, balanceReader, cfg))
 }
 
 // apiKeyAuthWithSubscription API Key认证中间件（支持订阅验证）
@@ -36,7 +140,7 @@ func NewAPIKeyAuthMiddleware(apiKeyService *service.APIKeyService, subscriptionS
 // /v1/usage、/v1/sub2api/billing 端点与异步生图任务查询只需鉴权，不需要计费执行。
 // usage 允许过期/配额耗尽的 Key 查询自身用量，billing 用于读取当前 Key 的倍率配置，
 // 异步生图查询允许已耗尽额度的 Key 拉取自身任务结果。
-func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscriptionService *service.SubscriptionService, cfg *config.Config) gin.HandlerFunc {
+func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscriptionService *service.SubscriptionService, balanceReader APIKeyAuthBalanceReader, cfg *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// ── 1. 提取 API Key ──────────────────────────────────────────
 		if rejectInvalidAuthAbuse(c, apiKeyService) {
@@ -172,6 +276,7 @@ func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscripti
 		skipBilling := c.Request.URL.Path == "/v1/usage" || billingInfoRequest || isAsyncImageTaskRead(c.Request.Method, c.Request.URL.Path)
 
 		if apiKey.HasMultipleGroups() {
+			c.Request = c.Request.WithContext(withAPIKeyAuthBalanceLookup(c.Request.Context(), balanceReader))
 			handleMultiGroupAuth(c, apiKeyService, subscriptionService, cfg, apiKey, skipBilling, billingInfoRequest)
 			return
 		}
@@ -188,6 +293,7 @@ func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscripti
 		ctx := context.WithValue(c.Request.Context(), ctxkey.UserID, apiKey.User.ID)
 		// 请求头覆写变量（{{user_id}} 等）的取值来源：只在此处由已认证的 Key 建立。
 		ctx = service.WithHeaderOverrideRequestScope(ctx, apiKey.User.ID, apiKey.ID, apiKey.GroupID)
+		ctx = withAPIKeyAuthBalanceLookup(ctx, balanceReader)
 		c.Request = c.Request.WithContext(ctx)
 
 		// ── 4. SimpleMode → early return ─────────────────────────────
@@ -248,7 +354,12 @@ func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscripti
 				c.Set(string(ContextKeyGroupCandidates), candidates)
 			}
 		} else if !skipBilling {
-			if apiKeyBalanceBelowAuthThreshold(apiKey.User.Balance, cfg) {
+			insufficient, balErr := checkAPIKeyAuthBalance(c.Request.Context(), apiKey, cfg, balanceReader)
+			if balErr != nil {
+				AbortWithError(c, http.StatusServiceUnavailable, "BILLING_SERVICE_ERROR", "Billing service temporarily unavailable. Please retry later.")
+				return
+			}
+			if insufficient {
 				AbortWithError(c, 403, "INSUFFICIENT_BALANCE", "Insufficient account balance")
 				return
 			}

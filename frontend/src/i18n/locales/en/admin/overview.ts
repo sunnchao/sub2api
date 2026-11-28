@@ -722,6 +722,9 @@ export default {
       // Balance History
       balanceHistory: 'Recharge History',
       balanceHistoryTip: 'Click to open recharge history',
+      expiringBalanceShort: 'Expiring ${amount}',
+      expiringBalanceHint: 'Active expiring balance (read-only; deducted first in FEFO order)',
+      expiringBalanceReadOnly: 'incl. active expiring ${amount}',
       columnAlwaysVisible: 'This column is always visible',
       // Per-platform usage breakdown (hover tooltip)
       platformBreakdown: 'Per-platform breakdown',

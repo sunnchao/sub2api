@@ -18,6 +18,15 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/xai"
 )
 
+// NormalizeRedeemStoreOpenMode normalizes redeem_store_open_mode to a supported mode.
+// Unknown or empty values fall back to RedeemStoreOpenModeNewTab.
+func NormalizeRedeemStoreOpenMode(raw string) string {
+	if strings.TrimSpace(raw) == RedeemStoreOpenModeIframe {
+		return RedeemStoreOpenModeIframe
+	}
+	return RedeemStoreOpenModeNewTab
+}
+
 // InitializeDefaultSettings 初始化默认设置
 func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 	// 检查是否已有设置
@@ -71,6 +80,9 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingKeySiteLogo:                                  "",
 		SettingKeyPurchaseSubscriptionEnabled:               "false",
 		SettingKeyPurchaseSubscriptionURL:                   "",
+		SettingKeyRedeemStoreURL:                            "",
+		SettingKeyRedeemStoreOpenMode:                       RedeemStoreOpenModeNewTab,
+		SettingKeyRedeemStoreLabel:                          "",
 		SettingKeyTableDefaultPageSize:                      "20",
 		SettingKeyTablePageSizeOptions:                      "[10,20,50,100]",
 		SettingKeyCustomMenuItems:                           "[]",
@@ -217,6 +229,9 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 
 		// New API quota migration feature (default disabled; opt-in)
 		SettingKeyNewAPIMigrationEnabled: "false",
+
+		// Daily check-in feature (default disabled; opt-in)
+		SettingKeyCheckinEnabled: "false",
 
 		// 风控中心功能（默认关闭，显式启用）
 		SettingKeyRiskControlEnabled: "false",
@@ -373,6 +388,9 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 		HideCcsImportButton:                    settings[SettingKeyHideCcsImportButton] == "true",
 		PurchaseSubscriptionEnabled:            settings[SettingKeyPurchaseSubscriptionEnabled] == "true",
 		PurchaseSubscriptionURL:                strings.TrimSpace(settings[SettingKeyPurchaseSubscriptionURL]),
+		RedeemStoreURL:                         strings.TrimSpace(settings[SettingKeyRedeemStoreURL]),
+		RedeemStoreOpenMode:                    NormalizeRedeemStoreOpenMode(settings[SettingKeyRedeemStoreOpenMode]),
+		RedeemStoreLabel:                       strings.TrimSpace(settings[SettingKeyRedeemStoreLabel]),
 		CustomMenuItems:                        settings[SettingKeyCustomMenuItems],
 		CustomEndpoints:                        settings[SettingKeyCustomEndpoints],
 		BackendModeEnabled:                     settings[SettingKeyBackendModeEnabled] == "true",

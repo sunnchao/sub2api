@@ -75,6 +75,38 @@
               {{ submitting ? t('redeem.redeeming') : t('redeem.redeemButton') }}
             </button>
           </form>
+
+          <div
+            v-if="redeemStore.enabled"
+            class="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 pt-4 dark:border-dark-700"
+            data-testid="redeem-store-entry"
+          >
+            <span class="text-sm text-gray-500 dark:text-dark-400">
+              {{ t('redeem.noCodeHint') }}
+            </span>
+            <a
+              v-if="redeemStore.openMode === 'new_tab'"
+              :href="redeemStore.url"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="btn btn-secondary btn-sm inline-flex items-center gap-1.5"
+              data-testid="redeem-store-link"
+            >
+              <Icon name="gift" size="xs" />
+              <span>{{ redeemStoreButtonLabel }}</span>
+              <Icon name="externalLink" size="xs" :stroke-width="2" />
+            </a>
+            <button
+              v-else
+              type="button"
+              class="btn btn-secondary btn-sm inline-flex items-center gap-1.5"
+              data-testid="redeem-store-modal-btn"
+              @click="showRedeemStoreModal = true"
+            >
+              <Icon name="gift" size="xs" />
+              <span>{{ redeemStoreButtonLabel }}</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -362,6 +394,12 @@
         </div>
       </div>
     </div>
+    <RedeemStoreModal
+      :show="showRedeemStoreModal"
+      :url="redeemStore.url"
+      :title="redeemStoreButtonLabel"
+      @close="showRedeemStoreModal = false"
+    />
   </AppLayout>
 </template>
 
@@ -372,9 +410,12 @@ import { useAuthStore } from '@/stores/auth'
 import { useAppStore } from '@/stores/app'
 import { useSubscriptionStore } from '@/stores/subscriptions'
 import { redeemAPI, authAPI, type RedeemHistoryItem } from '@/api'
+import type { PublicSettings } from '@/types'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import Icon from '@/components/icons/Icon.vue'
+import RedeemStoreModal from '@/components/user/RedeemStoreModal.vue'
 import { formatDateTime } from '@/utils/format'
+import { resolveRedeemStoreConfig } from '@/utils/redeemStore'
 
 const { t } = useI18n()
 const authStore = useAuthStore()
@@ -405,6 +446,20 @@ const historyTotal = ref(0)
 let historyRequest = 0
 let loadedHistoryPageSize = 20
 const contactInfo = ref('')
+const loadedPublicSettings = ref<Partial<PublicSettings> | null>(null)
+const showRedeemStoreModal = ref(false)
+
+const redeemStore = computed(() => {
+  const fresh = loadedPublicSettings.value
+  const cached = appStore.cachedPublicSettings
+  return resolveRedeemStoreConfig({
+    redeem_store_url: fresh?.redeem_store_url ?? cached?.redeem_store_url,
+    redeem_store_open_mode: fresh?.redeem_store_open_mode ?? cached?.redeem_store_open_mode,
+    redeem_store_label: fresh?.redeem_store_label ?? cached?.redeem_store_label,
+  })
+})
+
+const redeemStoreButtonLabel = computed(() => redeemStore.value.label || t('redeem.buyRedeemCode'))
 
 // Helper functions for history display
 const isBalanceType = (type: string) => {
@@ -525,6 +580,7 @@ onMounted(async () => {
   fetchHistory()
   try {
     const settings = await authAPI.getPublicSettings()
+    loadedPublicSettings.value = settings
     contactInfo.value = settings.contact_info || ''
   } catch (error) {
     console.error('Failed to load contact info:', error)

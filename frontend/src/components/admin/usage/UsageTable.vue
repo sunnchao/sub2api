@@ -152,6 +152,30 @@
           </div>
         </template>
 
+        <template #cell-billing_type="{ row }">
+          <div class="flex flex-col items-start gap-0.5">
+            <span
+              data-testid="billing-type-badge"
+              class="inline-flex items-center rounded px-2 py-0.5 text-xs font-medium"
+              :class="
+                isSubscriptionBilled(row)
+                  ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300'
+                  : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+              "
+            >
+              {{ isSubscriptionBilled(row) ? t('usage.billingSourceSubscription') : t('usage.billingSourceBalance') }}
+            </span>
+            <span
+              v-if="isSubscriptionBilled(row) && getSubscriptionDisplayName(row)"
+              data-testid="billing-type-subscription-name"
+              class="max-w-[160px] truncate text-[11px] text-gray-500 dark:text-gray-400"
+              :title="getSubscriptionDisplayName(row)"
+            >
+              {{ getSubscriptionDisplayName(row) }}
+            </span>
+          </div>
+        </template>
+
         <template #cell-billing_mode="{ row }">
           <span class="inline-flex items-center rounded px-2 py-0.5 text-xs font-medium" :class="getBillingModeBadgeClass(getDisplayBillingMode(row))">
             {{ getBillingModeLabel(getDisplayBillingMode(row), t) }}
@@ -529,9 +553,25 @@
             <span class="text-gray-400">{{ t('usage.original') }}</span>
             <span class="font-medium text-white">${{ tooltipData?.total_cost?.toFixed(8) || '0.00000000' }}</span>
           </div>
+          <div class="flex items-center justify-between gap-6" data-testid="cost-tooltip-billing-source">
+            <span class="text-gray-400">{{ t('usage.billingSource') }}</span>
+            <span
+              class="font-semibold"
+              :class="isSubscriptionBilled(tooltipData) ? 'text-purple-300' : 'text-emerald-300'"
+            >
+              {{ formatBillingSourceTooltip(tooltipData) }}
+            </span>
+          </div>
           <div class="flex items-center justify-between gap-6">
-            <span class="text-gray-400">{{ t('usage.userBilled') }}</span>
-            <span class="font-semibold text-green-400">${{ tooltipData?.actual_cost?.toFixed(8) || '0.00000000' }}</span>
+            <span class="text-gray-400">
+              {{ isSubscriptionBilled(tooltipData) ? t('usage.subscriptionBilled') : t('usage.userBilled') }}
+            </span>
+            <span
+              class="font-semibold"
+              :class="isSubscriptionBilled(tooltipData) ? 'text-purple-300' : 'text-green-400'"
+            >
+              ${{ tooltipData?.actual_cost?.toFixed(8) || '0.00000000' }}
+            </span>
           </div>
           <!-- Account billing (separated from user billing) -->
           <template v-if="showAccountBilling">
@@ -602,6 +642,31 @@ function accountBilled(row: { total_cost?: number | null; account_stats_cost?: n
   const base = row.account_stats_cost != null ? row.account_stats_cost : (row.total_cost ?? 0)
   const result = base * (row.account_rate_multiplier ?? 1)
   return Number.isNaN(result) ? 0 : result
+}
+
+function isSubscriptionBilled(row: { billing_type?: number | null } | null | undefined): boolean {
+  return row?.billing_type === 1
+}
+
+function getSubscriptionDisplayName(
+  row: { subscription?: { template_name?: string | null } | null; group?: { name?: string | null } | null } | null | undefined
+): string {
+  const templateName = row?.subscription?.template_name?.trim()
+  if (templateName) return templateName
+  const groupName = row?.group?.name?.trim()
+  if (groupName) return groupName
+  return ''
+}
+
+function formatBillingSourceTooltip(
+  row: { billing_type?: number | null; subscription?: { template_name?: string | null } | null; group?: { name?: string | null } | null } | null | undefined
+): string {
+  if (!isSubscriptionBilled(row)) {
+    return t('usage.billingSourceBalanceFull')
+  }
+  const base = t('usage.billingSourceSubscriptionFull')
+  const name = getSubscriptionDisplayName(row)
+  return name ? `${base} (${name})` : base
 }
 
 

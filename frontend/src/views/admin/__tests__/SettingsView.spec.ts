@@ -2127,4 +2127,45 @@ describe("admin SettingsView platform quota matrix", () => {
     // 不管输入是什么，提交值应为 null（而非 "" 或 NaN）
     expect(quotas["anthropic"]?.["daily"]).toBe(null);
   });
+
+  it("在关闭在线支付时依然展示兑换商城配置卡片，支持保存并拦截非法 URL", async () => {
+    getSettings.mockResolvedValueOnce({
+      ...baseSettingsResponse,
+      payment_enabled: false,
+      redeem_store_url: "",
+      redeem_store_open_mode: "new_tab",
+      redeem_store_label: "",
+    });
+
+    const wrapper = mountView();
+    await flushPromises();
+    await openPaymentTab(wrapper);
+
+    expect(wrapper.find('[data-testid="redeem-store-settings-card"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="redeem-store-iframe-warning"]').exists()).toBe(false);
+
+    // 非法 URL 阻止提交并保留输入值
+    await wrapper.get('[data-testid="redeem-store-url-input"]').setValue("javascript:alert(1)");
+    await wrapper.find("form").trigger("submit.prevent");
+    await flushPromises();
+    expect(showError).toHaveBeenCalled();
+    expect(updateSettings).not.toHaveBeenCalled();
+    expect(
+      (wrapper.get('[data-testid="redeem-store-url-input"]').element as HTMLInputElement).value,
+    ).toBe("javascript:alert(1)");
+
+    // 合法配置 + iframe 模式 + 自定义文案正常保存
+    await wrapper.get('[data-testid="redeem-store-url-input"]').setValue("  https://shop.example.com/cards  ");
+    await wrapper.get('[data-testid="redeem-store-mode-iframe"]').trigger("click");
+    expect(wrapper.find('[data-testid="redeem-store-iframe-warning"]').exists()).toBe(true);
+    await wrapper.get('[data-testid="redeem-store-label-input"]').setValue("  官方发卡商城  ");
+
+    await wrapper.find("form").trigger("submit.prevent");
+    await flushPromises();
+
+    const payload = updateSettings.mock.calls.at(-1)![0] as Record<string, unknown>;
+    expect(payload.redeem_store_url).toBe("https://shop.example.com/cards");
+    expect(payload.redeem_store_open_mode).toBe("iframe");
+    expect(payload.redeem_store_label).toBe("官方发卡商城");
+  });
 });

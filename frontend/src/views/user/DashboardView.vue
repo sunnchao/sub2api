@@ -3,11 +3,21 @@
     <div class="space-y-6">
       <div v-if="loading" class="flex items-center justify-center py-12"><LoadingSpinner /></div>
       <template v-else-if="stats">
-        <UserDashboardStats :stats="stats" :balance="user?.balance || 0" :is-simple="authStore.isSimpleMode" :platform-quotas="platformQuotas" />
+        <UserDashboardStats
+          :stats="stats"
+          :balance="balanceInfo.totalAvailableBalance"
+          :expiring-balance="balanceInfo.expiringBalance"
+          :nearest-expiring-at="balanceInfo.nearestExpiringAt"
+          :is-simple="authStore.isSimpleMode"
+          :platform-quotas="platformQuotas"
+        />
         <UserDashboardCharts v-model:startDate="startDate" v-model:endDate="endDate" v-model:granularity="granularity" :loading="loadingCharts" :trend="trendData" :models="modelStats" @dateRangeChange="loadCharts" @granularityChange="loadCharts" @refresh="refreshAll" />
         <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <div class="lg:col-span-2"><UserDashboardRecentUsage :data="recentUsage" :loading="loadingUsage" /></div>
-          <div class="lg:col-span-1"><UserDashboardQuickActions /></div>
+          <div class="space-y-6 lg:col-span-1">
+            <UserDashboardCheckinCard v-if="checkinEnabled" @checked-in="handleCheckinSuccess" />
+            <UserDashboardQuickActions />
+          </div>
         </div>
       </template>
     </div>
@@ -19,11 +29,21 @@ import { ref, computed, onMounted } from 'vue'; import { useAuthStore } from '@/
 import AppLayout from '@/components/layout/AppLayout.vue'; import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import UserDashboardStats from '@/components/user/dashboard/UserDashboardStats.vue'; import UserDashboardCharts from '@/components/user/dashboard/UserDashboardCharts.vue'
 import UserDashboardRecentUsage from '@/components/user/dashboard/UserDashboardRecentUsage.vue'; import UserDashboardQuickActions from '@/components/user/dashboard/UserDashboardQuickActions.vue'
+import UserDashboardCheckinCard from '@/components/user/dashboard/UserDashboardCheckinCard.vue'
 import type { UsageLog, TrendDataPoint, ModelStat, PlatformQuotaItem } from '@/types'
 import { getMyPlatformQuotas } from '@/api/user'
 import { formatDateLocalInput } from '@/utils/format'
+import { resolveUserBalance } from '@/utils/balance'
+import { FeatureFlags, isFeatureFlagEnabled } from '@/utils/featureFlags'
 
 const authStore = useAuthStore(); const user = computed(() => authStore.user)
+const balanceInfo = computed(() => resolveUserBalance(user.value))
+const checkinEnabled = computed(() => isFeatureFlagEnabled(FeatureFlags.checkin) && !authStore.isSimpleMode)
+const handleCheckinSuccess = async () => {
+  // 签到只影响余额与限时额度，不需要重拉图表/近30天用量；
+  // 但余额卡片与统计卡片依赖 stats + authStore.user，必须一起刷新。
+  await Promise.all([loadStats(), loadPlatformQuotas()])
+}
 const stats = ref<UserStatsType | null>(null); const loading = ref(false); const loadingUsage = ref(false); const loadingCharts = ref(false)
 const trendData = ref<TrendDataPoint[]>([]); const modelStats = ref<ModelStat[]>([]); const recentUsage = ref<UsageLog[]>([])
 const platformQuotas = ref<PlatformQuotaItem[] | null>(null)

@@ -144,6 +144,16 @@ func (h *UsageHandler) parseUserUsageFilters(c *gin.Context, requireRange bool) 
 		groupID = id
 	}
 
+	var subscriptionID int64
+	if subIDStr := strings.TrimSpace(c.Query("subscription_id")); subIDStr != "" {
+		id, err := strconv.ParseInt(subIDStr, 10, 64)
+		if err != nil || id < 0 {
+			response.BadRequest(c, "Invalid subscription_id")
+			return nil, false
+		}
+		subscriptionID = id
+	}
+
 	var requestType *int16
 	var stream *bool
 	if requestTypeStr := strings.TrimSpace(c.Query("request_type")); requestTypeStr != "" {
@@ -245,6 +255,7 @@ func (h *UsageHandler) parseUserUsageFilters(c *gin.Context, requireRange bool) 
 			UserID:             subject.UserID,
 			APIKeyID:           apiKeyID,
 			GroupID:            groupID,
+			SubscriptionID:     subscriptionID,
 			Model:              strings.TrimSpace(c.Query("model")),
 			ModelFilterSource:  usagestats.ModelSourceRequested,
 			RequestType:        requestType,

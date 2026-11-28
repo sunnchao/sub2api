@@ -53,7 +53,15 @@ type BatchImageProviderProcessor struct {
 	Indexer          *BatchImageResultIndexer
 	BillingRepo      UsageBillingRepository
 	AuthCache        APIKeyAuthCacheInvalidator
+	BillingCache     BillingCacheInvalidator
 	DefaultRequeue   time.Duration
+}
+
+func (p *BatchImageProviderProcessor) SetBillingCacheService(billingCache BillingCacheInvalidator) {
+	if p == nil {
+		return
+	}
+	p.BillingCache = normalizeBillingCacheInvalidator(billingCache)
 }
 
 func (p *BatchImageProviderProcessor) Process(ctx context.Context, batchID string) (BatchImageProcessResult, error) {
@@ -240,6 +248,14 @@ func (p *BatchImageProviderProcessor) releaseTerminalHold(ctx context.Context, j
 	}
 	if p.AuthCache != nil && job.UserID > 0 {
 		p.AuthCache.InvalidateAuthCacheByUserID(ctx, job.UserID)
+	}
+	if p.BillingCache != nil && job.UserID > 0 {
+		if err := p.BillingCache.InvalidateUserBalance(ctx, job.UserID); err != nil {
+			logger.L().Warn("batch_image.billing_cache_invalidate_failed",
+				zap.Int64("user_id", job.UserID),
+				zap.Error(err),
+			)
+		}
 	}
 	return nil
 }

@@ -197,7 +197,7 @@ import Icon from '@/components/icons/Icon.vue'
 import { sanitizeSvg } from '@/utils/sanitize'
 import { sanitizeUrl } from '@/utils/url'
 import { FeatureFlags, makeSidebarFlag } from '@/utils/featureFlags'
-import { resolveSiteBillingMode } from '@/utils/siteBillingMode'
+import { canAccessPurchasePage, resolvePurchaseDisplayBillingMode } from '@/utils/redeemStore'
 import { useBatchImageAccess } from '@/composables/useBatchImageAccess'
 
 interface NavItem {
@@ -481,6 +481,10 @@ const PluginIcon = {
   render: () => h(Icon, { name: 'cube' })
 }
 
+const CheckinIcon = {
+  render: () => h(Icon, { name: 'calendar' })
+}
+
 const MCPIcon = {
   render: () => h(Icon, { name: 'mcp' })
 }
@@ -710,12 +714,13 @@ const MigrationIcon = {
 // yet. Admin-only flags (not in public settings) stay inline below.
 const flagChannelMonitor = makeSidebarFlag(FeatureFlags.channelMonitor)
 const flagPayment = makeSidebarFlag(FeatureFlags.payment)
+const flagPurchaseEntry = () => canAccessPurchasePage(appStore.cachedPublicSettings)
 const flagAvailableChannels = makeSidebarFlag(FeatureFlags.availableChannels)
 const flagSubscription = makeSidebarFlag(FeatureFlags.subscription)
 
 // 购买入口文案随站点计费模式切换：仅充值 → 「充值」，仅订阅 → 「订阅」，否则「充值/订阅」。
 const purchaseNavLabel = computed(() => {
-  switch (resolveSiteBillingMode(appStore.cachedPublicSettings)) {
+  switch (resolvePurchaseDisplayBillingMode(appStore.cachedPublicSettings)) {
     case 'recharge_only':
       return t('nav.recharge')
     case 'subscription_only':
@@ -725,6 +730,7 @@ const purchaseNavLabel = computed(() => {
   }
 })
 const flagAffiliate = makeSidebarFlag(FeatureFlags.affiliate)
+const flagCheckin = makeSidebarFlag(FeatureFlags.checkin)
 const flagNewApiMigration = makeSidebarFlag(FeatureFlags.newApiMigration)
 const flagRiskControl = makeSidebarFlag(FeatureFlags.riskControl)
 const flagPluginManagement = makeSidebarFlag(FeatureFlags.pluginManagement)
@@ -750,9 +756,10 @@ function buildSelfNavItems(withDashboard: boolean): NavItem[] {
     { path: '/available-channels', label: t('nav.availableChannels'), icon: ChannelIcon, hideInSimpleMode: true, featureFlag: flagAvailableChannels },
     { path: '/monitor', label: t('nav.channelStatus'), icon: SignalIcon, featureFlag: flagChannelMonitor },
     { path: '/subscriptions', label: t('nav.mySubscriptions'), icon: CreditCardIcon, hideInSimpleMode: true, featureFlag: flagSubscription },
-    { path: '/purchase', label: purchaseNavLabel.value, icon: RechargeSubscriptionIcon, hideInSimpleMode: true, featureFlag: flagPayment },
+    { path: '/purchase', label: purchaseNavLabel.value, icon: RechargeSubscriptionIcon, hideInSimpleMode: true, featureFlag: flagPurchaseEntry },
     { path: '/orders', label: t('nav.myOrders'), icon: OrderListIcon, hideInSimpleMode: true, featureFlag: flagPayment },
     { path: '/redeem', label: t('nav.redeem'), icon: GiftIcon, hideInSimpleMode: true },
+    { path: '/checkin', label: t('nav.checkin'), icon: CheckinIcon, hideInSimpleMode: true, featureFlag: flagCheckin },
     { path: '/new-api-migration', label: t('nav.newApiMigration'), icon: MigrationIcon, hideInSimpleMode: true, featureFlag: flagNewApiMigration },
     { path: '/affiliate', label: t('nav.affiliate'), icon: UsersIcon, hideInSimpleMode: true, featureFlag: flagAffiliate },
     { path: '/profile', label: t('nav.profile'), icon: UserIcon },
@@ -833,6 +840,7 @@ const adminNavItems = computed((): NavItem[] => {
     { path: '/admin/redeem', label: t('nav.redeemCodes'), icon: TicketIcon, hideInSimpleMode: true },
     { path: '/admin/promo-codes', label: t('nav.promoCodes'), icon: GiftIcon, hideInSimpleMode: true },
     { path: '/admin/new-api-migration', label: t('nav.newApiMigration'), icon: MigrationIcon, hideInSimpleMode: true },
+    { path: '/admin/checkin', label: t('nav.checkinManagement'), icon: CheckinIcon, hideInSimpleMode: true },
     {
       path: '/admin/affiliates',
       label: t('nav.affiliateManagement'),

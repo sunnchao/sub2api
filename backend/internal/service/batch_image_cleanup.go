@@ -40,6 +40,13 @@ func NewBatchImageCleanupService(repo BatchImageRepository, accountRepo AccountR
 	}
 }
 
+func (s *BatchImageCleanupService) SetTokenCache(tokenCache GeminiTokenCache) {
+	if s == nil {
+		return
+	}
+	s.ProviderRegistry.SetVertexTokenCache(tokenCache)
+}
+
 // appendCleanupEvent 追加清理审计事件；事件写入失败不阻断清理流程，但必须留痕。
 func (s *BatchImageCleanupService) appendCleanupEvent(ctx context.Context, batchID, eventType string, payload any) {
 	if err := s.Repo.AppendBatchImageEvent(ctx, batchID, eventType, payload); err != nil {

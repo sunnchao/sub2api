@@ -433,27 +433,37 @@
           </template>
 
           <template #cell-balance="{ value, row }">
-            <div class="flex items-center gap-2">
-              <div class="group relative">
-                <button
-                  class="font-medium text-gray-900 underline decoration-dashed decoration-gray-300 underline-offset-4 transition-colors hover:text-primary-600 dark:text-white dark:decoration-dark-500 dark:hover:text-primary-400"
-                  @click="handleBalanceHistory(row)"
-                >
-                  ${{ value.toFixed(2) }}
-                </button>
-                <!-- Instant tooltip -->
-                <div class="pointer-events-none absolute bottom-full left-1/2 z-50 mb-1.5 -translate-x-1/2 whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-xs text-white opacity-0 shadow-lg transition-opacity duration-75 group-hover:opacity-100 dark:bg-dark-600">
-                  {{ t('admin.users.balanceHistoryTip') }}
-                  <div class="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-gray-900 dark:border-t-dark-600"></div>
+            <div class="flex flex-col gap-0.5">
+              <div class="flex items-center gap-2">
+                <div class="group relative">
+                  <button
+                    class="font-medium text-gray-900 underline decoration-dashed decoration-gray-300 underline-offset-4 transition-colors hover:text-primary-600 dark:text-white dark:decoration-dark-500 dark:hover:text-primary-400"
+                    @click="handleBalanceHistory(row)"
+                  >
+                    ${{ value.toFixed(2) }}
+                  </button>
+                  <!-- Instant tooltip -->
+                  <div class="pointer-events-none absolute bottom-full left-1/2 z-50 mb-1.5 -translate-x-1/2 whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-xs text-white opacity-0 shadow-lg transition-opacity duration-75 group-hover:opacity-100 dark:bg-dark-600">
+                    {{ t('admin.users.balanceHistoryTip') }}
+                    <div class="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-gray-900 dark:border-t-dark-600"></div>
+                  </div>
                 </div>
+                <button
+                  @click.stop="handleDeposit(row)"
+                  class="rounded px-2 py-0.5 text-xs font-medium text-emerald-600 transition-colors hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-900/20"
+                  :title="t('admin.users.deposit')"
+                >
+                  {{ t('admin.users.deposit') }}
+                </button>
               </div>
-              <button
-                @click.stop="handleDeposit(row)"
-                class="rounded px-2 py-0.5 text-xs font-medium text-emerald-600 transition-colors hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-900/20"
-                :title="t('admin.users.deposit')"
+              <span
+                v-if="(row.expiring_balance ?? 0) > 0"
+                data-testid="user-expiring-balance-badge"
+                class="inline-flex w-fit items-center rounded bg-amber-50 px-1.5 py-0.5 text-[11px] font-medium text-amber-700 dark:bg-amber-900/20 dark:text-amber-300"
+                :title="t('admin.users.expiringBalanceHint')"
               >
-                {{ t('admin.users.deposit') }}
-              </button>
+                {{ t('admin.users.expiringBalanceShort', { amount: Number(row.expiring_balance).toFixed(2) }) }}
+              </span>
             </div>
           </template>
 

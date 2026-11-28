@@ -80,8 +80,7 @@ var (
 			return 0
 		end
 		local newVal = tonumber(current) - tonumber(ARGV[1])
-		redis.call('SET', KEYS[1], newVal)
-		redis.call('EXPIRE', KEYS[1], ARGV[2])
+		redis.call('SET', KEYS[1], newVal, 'KEEPTTL')
 		return 1
 	`)
 
@@ -138,6 +137,8 @@ var (
 	`)
 )
 
+var _ service.BillingCacheWithTTL = (*billingCache)(nil)
+
 type billingCache struct {
 	rdb *redis.Client
 }
@@ -160,9 +161,21 @@ func (c *billingCache) SetUserBalance(ctx context.Context, userID int64, balance
 	return c.rdb.Set(ctx, key, balance, jitteredTTL()).Err()
 }
 
+func (c *billingCache) SetUserBalanceWithTTL(ctx context.Context, userID int64, balance float64, ttl time.Duration) error {
+	if c == nil || c.rdb == nil {
+		return nil
+	}
+	maxTTL := jitteredTTL()
+	if ttl <= 0 || ttl > maxTTL {
+		ttl = maxTTL
+	}
+	key := billingBalanceKey(userID)
+	return c.rdb.Set(ctx, key, balance, ttl).Err()
+}
+
 func (c *billingCache) DeductUserBalance(ctx context.Context, userID int64, amount float64) error {
 	key := billingBalanceKey(userID)
-	_, err := deductBalanceScript.Run(ctx, c.rdb, []string{key}, amount, int(jitteredTTL().Seconds())).Result()
+	_, err := deductBalanceScript.Run(ctx, c.rdb, []string{key}, amount).Result()
 	if err != nil && !errors.Is(err, redis.Nil) {
 		log.Printf("Warning: deduct balance cache failed for user %d: %v", userID, err)
 		return err

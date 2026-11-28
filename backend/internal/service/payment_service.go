@@ -202,6 +202,7 @@ type PaymentService struct {
 	resumeService            *PaymentResumeService
 	affiliateService         *AffiliateService
 	notificationEmailService *NotificationEmailService
+	expiringBalanceRepo      ExpiringBalanceRepository
 }
 
 func NewPaymentService(entClient *dbent.Client, registry *payment.Registry, loadBalancer payment.LoadBalancer, redeemService *RedeemService, subscriptionSvc *SubscriptionService, configService *PaymentConfigService, userRepo UserRepository, groupRepo GroupRepository, affiliateService *AffiliateService) *PaymentService {
@@ -212,6 +213,15 @@ func NewPaymentService(entClient *dbent.Client, registry *payment.Registry, load
 
 func (s *PaymentService) SetNotificationEmailService(notificationEmailService *NotificationEmailService) {
 	s.notificationEmailService = notificationEmailService
+}
+
+// SetExpiringBalanceRepo injects the optional expiring balance repository used by
+// balance subscription purchases (FEFO) and refunds (LIFO anti-laundering).
+func (s *PaymentService) SetExpiringBalanceRepo(repo ExpiringBalanceRepository) {
+	if s == nil {
+		return
+	}
+	s.expiringBalanceRepo = normalizeExpiringBalanceRepo(repo)
 }
 
 // --- Provider Registry ---

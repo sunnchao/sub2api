@@ -87,6 +87,11 @@ export interface User {
   role: 'admin' | 'user' // User role for authorization
   balance: number // User balance for API usage
   frozen_balance?: number // Balance currently held by async batch jobs
+  expiring_balance?: number // Active expiring balance sum
+  total_available_balance?: number // Regular + active expiring balance
+  expiring_frozen_balance?: number // Expiring balance held by async batch jobs
+  nearest_expiring_at?: string | null // Earliest expiring lot timestamp
+  nearest_expiring_amount?: number // Amount in earliest expiring lot
   concurrency: number // Allowed concurrent requests
   rpm_limit?: number // User-level RPM cap (0 = unlimited); effective as fallback when group has no rpm_limit
   status: 'active' | 'disabled' // Account status
@@ -242,6 +247,9 @@ export interface PublicSettings {
   compact_home_enabled: boolean
   hide_ccs_import_button: boolean
   payment_enabled: boolean
+  redeem_store_url?: string
+  redeem_store_open_mode?: 'new_tab' | 'iframe'
+  redeem_store_label?: string
   risk_control_enabled: boolean
   table_default_page_size: number
   table_page_size_options: number[]
@@ -286,6 +294,7 @@ export interface PublicSettings {
   plugin_management_enabled: boolean
   service_quota_enabled: boolean
   affiliate_enabled: boolean
+  checkin_enabled?: boolean
   new_api_migration_enabled?: boolean
   allow_user_view_error_requests?: boolean
   /** True when the deployment configures MCP_PUBLIC_URL; MCP is disabled otherwise. */
@@ -2346,6 +2355,7 @@ export interface UsageQueryParams {
   user_id?: number
   account_id?: number
   group_id?: number
+  subscription_id?: number | null
   model?: string
   request_type?: UsageRequestType
   stream?: boolean
@@ -2637,3 +2647,165 @@ export type {
   PlatformQuotaWindow,
   PlatformQuotasResponse,
 } from '@/api/admin/users'
+
+// ==================== Daily Check-in & Expiring Balance Types ====================
+
+export type CheckinRewardMode = 'fixed' | 'random'
+
+export interface CheckinMilestoneRule {
+  days: number
+  bonus_amount: number
+}
+
+export interface CheckinEligibilityConfig {
+  min_account_age_days: number
+  min_total_recharged: number
+  max_available_balance: number
+  allowed_signup_sources: string[]
+}
+
+export interface CheckinRiskConfig {
+  captcha_enabled: boolean
+  max_accounts_per_ip_day: number
+  daily_total_budget_usd: number
+}
+
+export interface CheckinSettings {
+  enabled: boolean
+  reward_mode: CheckinRewardMode
+  base_amount: number
+  min_amount: number
+  max_amount: number
+  amount_precision: number
+  validity_days: number
+  milestones: CheckinMilestoneRule[]
+  milestone_cycle_repeat: boolean
+  eligibility: CheckinEligibilityConfig
+  risk: CheckinRiskConfig
+  rules_description: string
+  warnings?: string[]
+}
+
+export interface CheckinRecord {
+  id: number
+  user_id: number
+  checkin_date: string
+  streak_days: number
+  milestone_cycle_day: number
+  base_amount: number
+  milestone_bonus_amount: number
+  total_amount: number
+  validity_days: number
+  expires_at: string
+  client_ip?: string
+  created_at: string
+}
+
+export interface ExpiringBalanceSummary {
+  total_active: number
+  frozen_amount: number
+  nearest_expires_at?: string | null
+  nearest_amount: number
+}
+
+export interface CheckinRewardPreview {
+  reward_mode: CheckinRewardMode
+  base_amount: number
+  min_amount: number
+  max_amount: number
+  amount_precision: number
+  validity_days: number
+}
+
+export interface CheckinEligibilityStatus {
+  eligible: boolean
+  reason_code?: string
+  reason_detail?: string
+}
+
+export interface CheckinStatus {
+  enabled: boolean
+  checked_in_today: boolean
+  today_record?: CheckinRecord | null
+  current_streak: number
+  milestone_cycle_day: number
+  next_milestone?: CheckinMilestoneRule | null
+  milestones: CheckinMilestoneRule[]
+  milestone_cycle_repeat?: boolean
+  reward_preview: CheckinRewardPreview
+  eligibility: CheckinEligibilityStatus
+  captcha_required: boolean
+  expiring_summary: ExpiringBalanceSummary
+  rules_description: string
+  server_date: string
+  timezone: string
+}
+
+export interface CheckinExecuteResponse {
+  record: CheckinRecord
+  expiring_summary: ExpiringBalanceSummary
+  total_available_balance: number
+}
+
+export type CheckinResult = CheckinExecuteResponse
+
+export interface CheckinCalendarDay {
+  date: string
+  base_amount: number
+  milestone_bonus_amount: number
+  total_amount: number
+  milestone_hit: boolean
+}
+
+export interface CheckinCalendarResponse {
+  month: string
+  checked_dates: CheckinCalendarDay[]
+  month_total_amount: number
+  month_checkin_days: number
+}
+
+export type ExpiringBalanceLotStatus = 'active' | 'exhausted' | 'expired'
+
+export interface ExpiringBalanceLot {
+  id: number
+  user_id: number
+  source_type: string
+  source_id: number
+  initial_amount: number
+  remaining_amount: number
+  frozen_amount: number
+  consumed_amount: number
+  expired_amount: number
+  expires_at: string
+  status: ExpiringBalanceLotStatus
+  created_at: string
+  updated_at: string
+}
+
+export interface AdminCheckinDailyTrend {
+  date: string
+  checkin_count: number
+  granted_amount: number
+  consumed_amount: number
+  expired_amount: number
+}
+
+export interface AdminCheckinStats {
+  today_checkins: number
+  today_granted: number
+  daily_budget_limit: number
+  daily_budget_percent: number
+  range_days: number
+  range_total_granted: number
+  range_total_consumed: number
+  range_total_expired: number
+  consumption_rate: number
+  expiration_rate: number
+  daily_trend: AdminCheckinDailyTrend[]
+}
+
+export interface AdminCheckinRecord extends CheckinRecord {
+  user_email?: string
+  email?: string
+  username?: string
+}

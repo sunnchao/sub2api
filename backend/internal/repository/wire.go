@@ -111,6 +111,12 @@ var ProviderSet = wire.NewSet(
 	NewUserPlatformQuotaRepository,     // T14: user × platform quota
 	NewUserPlatformQuotaServiceAdapter, // T14: adapter → service.UserPlatformQuotaRepository
 
+	// 每日签到与限时余额旁路表
+	NewExpiringBalanceRepository,
+	NewCheckinRepository,
+	wire.Bind(new(service.ExpiringBalanceRepository), new(*ExpiringBalanceRepo)),
+	wire.Bind(new(service.CheckinRepository), new(*CheckinRepo)),
+
 	// Cache implementations
 	NewGatewayCache,
 	NewBillingCache,

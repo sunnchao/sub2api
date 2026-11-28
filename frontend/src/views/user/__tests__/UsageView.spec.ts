@@ -14,10 +14,12 @@ const {
   listMyErrorRequests,
   list,
   getAvailable,
+  getMySubscriptions,
   showError,
   showWarning,
   showSuccess,
   showInfo,
+  routeState,
 } = vi.hoisted(() => ({
   query: vi.fn(),
   getStats: vi.fn(),
@@ -26,10 +28,12 @@ const {
   listMyErrorRequests: vi.fn(),
   list: vi.fn(),
   getAvailable: vi.fn(),
+  getMySubscriptions: vi.fn(),
   showError: vi.fn(),
   showWarning: vi.fn(),
   showSuccess: vi.fn(),
   showInfo: vi.fn(),
+  routeState: { query: {} as Record<string, unknown> },
 }))
 
 const messages: Record<string, string> = {
@@ -72,9 +76,28 @@ const messages: Record<string, string> = {
   'usage.exportSuccess': 'Export success',
   'usage.exportFailed': 'Export failed',
   'usage.exportRateLimited': 'Rate limited',
+  'usage.billingSource': 'Billing Source',
+  'usage.billingSourceBalance': 'Balance',
+  'usage.billingSourceSubscription': 'Subscription',
+  'usage.subscriptionFilter': 'Subscription',
+  'usage.allSubscriptions': 'All Subscriptions',
   'common.refresh': 'Refresh',
   'common.reset': 'Reset',
 }
+
+vi.mock('vue-router', async () => {
+  const actual = await vi.importActual<typeof import('vue-router')>('vue-router')
+  return {
+    ...actual,
+    useRoute: () => routeState,
+  }
+})
+
+vi.mock('@/api/subscriptions', () => ({
+  default: {
+    getMySubscriptions,
+  },
+}))
 
 vi.mock('@/api', () => ({
   usageAPI: {
@@ -180,11 +203,14 @@ describe('user UsageView', () => {
     listMyErrorRequests.mockReset()
     list.mockReset()
     getAvailable.mockReset()
+    getMySubscriptions.mockReset()
     showError.mockReset()
     showWarning.mockReset()
     showSuccess.mockReset()
     showInfo.mockReset()
+    routeState.query = {}
 
+    getMySubscriptions.mockResolvedValue([])
     query.mockResolvedValue({ items: [usageLog], total: 1, pages: 1 })
     getStats.mockResolvedValue({
       total_requests: 1,
@@ -400,8 +426,8 @@ describe('user UsageView', () => {
     expect(showSuccess).toHaveBeenCalled()
     expect(csvContent.startsWith('\uFEFF')).toBe(true)
     expect(csvContent.slice(1)).toBe([
-      'Time,API Key Name,Model,Reasoning Effort,Inbound Endpoint,IP Address,Type,Billing Mode,Input Tokens,Output Tokens,Cache Read Tokens,Cache Creation Tokens,Rate Multiplier,Billed Cost,Original Cost,First Token (ms),Duration (ms)',
-      '2026-03-08T00:00:00Z,demo-key,gpt-5.4,-,,203.0.113.10,Sync,Token,4057,101,278272,4,1,0.09288300,0.09288300,12,345',
+      'Time,API Key Name,Model,Reasoning Effort,Inbound Endpoint,IP Address,Type,Billing Type,Subscription,Billing Mode,Input Tokens,Output Tokens,Cache Read Tokens,Cache Creation Tokens,Rate Multiplier,Billed Cost,Original Cost,First Token (ms),Duration (ms)',
+      '2026-03-08T00:00:00Z,demo-key,gpt-5.4,-,,203.0.113.10,Sync,Balance,,Token,4057,101,278272,4,1,0.09288300,0.09288300,12,345',
     ].join('\n'))
     expect(csvContent).toContain('IP Address')
     expect(csvContent).toContain('203.0.113.10')
@@ -653,6 +679,60 @@ describe('UsageView subscription feature flag', () => {
 
     expect(billingTypeSelect(wrapper)).toBeUndefined()
     expect(wrapper.text()).not.toContain('Billing type')
+    wrapper.unmount()
+  })
+
+  it('applies subscription_id and billing_type route query filters and exports subscription name without ID', async () => {
+    routeState.query = { subscription_id: '77', billing_type: '1' }
+    getMySubscriptions.mockResolvedValue([
+      { id: 77, group_id: 5, template_name: 'Token Plan Pro', status: 'active', expires_at: '2099-12-01T00:00:00Z' },
+    ])
+    query.mockResolvedValue({
+      items: [{
+        ...usageLog,
+        billing_type: 1,
+        subscription_id: 77,
+        subscription: { id: 77, template_name: 'Token Plan Pro' },
+      }],
+      total: 1,
+      pages: 1,
+    })
+
+    const wrapper = mountUsageView()
+    await flushPromises()
+
+    expect(query).toHaveBeenCalledWith(expect.objectContaining({
+      subscription_id: 77,
+      billing_type: 1,
+    }), expect.anything())
+    expect(getStats).toHaveBeenCalledWith(expect.objectContaining({
+      subscription_id: 77,
+      billing_type: 1,
+    }))
+    expect(wrapper.find('[data-testid="usage-subscription-filter"]').exists()).toBe(true)
+
+    let csvContent = ''
+    const OriginalBlob = globalThis.Blob
+    vi.stubGlobal('Blob', vi.fn((parts: BlobPart[], options?: BlobPropertyBag) => {
+      csvContent = parts.map((part) => String(part)).join('')
+      return new OriginalBlob(parts, options)
+    }))
+    const originalCreateObjectURL = window.URL.createObjectURL
+    const originalRevokeObjectURL = window.URL.revokeObjectURL
+    window.URL.createObjectURL = vi.fn(() => 'blob:usage-export') as typeof window.URL.createObjectURL
+    window.URL.revokeObjectURL = vi.fn(() => {}) as typeof window.URL.revokeObjectURL
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+
+    await (wrapper.vm as any).exportToCSV()
+
+    expect(csvContent).toContain(',Subscription,Token Plan Pro,Token,')
+    expect(csvContent).not.toContain('#77')
+
+    window.URL.createObjectURL = originalCreateObjectURL
+    window.URL.revokeObjectURL = originalRevokeObjectURL
+    vi.unstubAllGlobals()
+    clickSpy.mockRestore()
+    routeState.query = {}
     wrapper.unmount()
   })
 })

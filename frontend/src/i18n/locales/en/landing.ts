@@ -261,6 +261,9 @@ export default {
     // Status
     quotaMode: 'Key Quota Mode',
     walletBalance: 'Wallet Balance',
+    regularBalance: 'Regular Balance',
+    expiringBalance: 'Expiring Balance',
+    nearestExpiring: 'Nearest Expiration',
     // Ring card titles
     totalQuota: 'Total Quota',
     limit5h: '5-Hour Limit',

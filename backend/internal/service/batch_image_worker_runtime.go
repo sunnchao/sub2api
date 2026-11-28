@@ -21,6 +21,23 @@ func NewBatchImageWorkerRuntime(worker *BatchImageWorker, cfg *config.Config) *B
 	return &BatchImageWorkerRuntime{worker: worker, cfg: cfg}
 }
 
+func (r *BatchImageWorkerRuntime) SetBillingCacheService(billingCache BillingCacheInvalidator) {
+	if r == nil {
+		return
+	}
+	billingCache = normalizeBillingCacheInvalidator(billingCache)
+	if r.worker != nil {
+		if setter, ok := r.worker.processor.(interface {
+			SetBillingCacheService(BillingCacheInvalidator)
+		}); ok {
+			setter.SetBillingCacheService(billingCache)
+		}
+	}
+	if r.billingRecovery != nil {
+		r.billingRecovery.SetBillingCacheService(billingCache)
+	}
+}
+
 func ProvideBatchImageWorkerRuntime(
 	repo BatchImageRepository,
 	accountRepo AccountRepository,
@@ -31,10 +48,25 @@ func ProvideBatchImageWorkerRuntime(
 	authCache APIKeyAuthCacheInvalidator,
 	cfg *config.Config,
 ) *BatchImageWorkerRuntime {
+	return ProvideBatchImageWorkerRuntimeWithDeps(repo, accountRepo, queue, billingRepo, usageLogRepo, pricing, authCache, nil, nil, cfg)
+}
+
+func ProvideBatchImageWorkerRuntimeWithDeps(
+	repo BatchImageRepository,
+	accountRepo AccountRepository,
+	queue BatchImageQueue,
+	billingRepo UsageBillingRepository,
+	usageLogRepo UsageLogRepository,
+	pricing *BatchImageModelPricingResolver,
+	authCache APIKeyAuthCacheInvalidator,
+	billingCache BillingCacheInvalidator,
+	tokenCache GeminiTokenCache,
+	cfg *config.Config,
+) *BatchImageWorkerRuntime {
 	processor := &BatchImagePipelineProcessor{
 		ProviderProcessor: &BatchImageProviderProcessor{
 			Repo:             repo,
-			ProviderRegistry: NewBatchImageProviderRegistryFromConfig(cfg),
+			ProviderRegistry: NewBatchImageProviderRegistryFromConfigWithTokenCache(cfg, tokenCache),
 			AccountResolver:  &BatchImageAccountRepositoryResolver{Repo: accountRepo},
 			BillingRepo:      billingRepo,
 			AuthCache:        authCache,
@@ -57,6 +89,7 @@ func ProvideBatchImageWorkerRuntime(
 		StaleAfter: NewBatchImageWorkerOptionsFromConfig(cfg).StaleActiveAfter,
 		Limit:      NewBatchImageWorkerOptionsFromConfig(cfg).RecoverLimit,
 	}
+	runtime.SetBillingCacheService(billingCache)
 	runtime.Start()
 	return runtime
 }

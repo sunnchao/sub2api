@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"reflect"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -93,6 +94,7 @@ type cacheWriteTask struct {
 	apiKeyID         int64
 	balance          float64
 	amount           float64
+	expiresAt        *time.Time
 	subscriptionData *subscriptionCacheData
 }
 
@@ -118,6 +120,8 @@ type BillingCacheService struct {
 	cfg                   *config.Config
 	circuitBreaker        *billingCircuitBreaker
 	userPlatformQuotaRepo UserPlatformQuotaRepository
+	expiringBalanceSvc    *ExpiringBalanceService
+	expiringBalanceRepo   ExpiringBalanceRepository
 
 	cacheWriteChan     chan cacheWriteTask
 	cacheWriteWg       sync.WaitGroup
@@ -157,6 +161,34 @@ func NewBillingCacheService(
 	svc.circuitBreaker = newBillingCircuitBreaker(cfg.Billing.CircuitBreaker)
 	svc.startCacheWriteWorkers()
 	return svc
+}
+
+// SetExpiringBalanceService injects the optional expiring balance service used
+// to include active expiring funds and bound cache TTL by nearest_expires_at.
+func (s *BillingCacheService) SetExpiringBalanceService(svc *ExpiringBalanceService) {
+	if s == nil {
+		return
+	}
+	s.expiringBalanceSvc = svc
+}
+
+// SetExpiringBalanceRepo injects the optional expiring balance repository directly.
+func (s *BillingCacheService) SetExpiringBalanceRepo(repo ExpiringBalanceRepository) {
+	if s == nil {
+		return
+	}
+	s.expiringBalanceRepo = normalizeExpiringBalanceRepo(repo)
+}
+
+func normalizeExpiringBalanceRepo(repo ExpiringBalanceRepository) ExpiringBalanceRepository {
+	if repo == nil {
+		return nil
+	}
+	v := reflect.ValueOf(repo)
+	if v.Kind() == reflect.Pointer && v.IsNil() {
+		return nil
+	}
+	return repo
 }
 
 // Stop 关闭缓存写入工作池
@@ -224,7 +256,7 @@ func (s *BillingCacheService) cacheWriteWorker(ch <-chan cacheWriteTask) {
 		ctx, cancel := context.WithTimeout(context.Background(), cacheWriteTimeout)
 		switch task.kind {
 		case cacheWriteSetBalance:
-			s.setBalanceCache(ctx, task.userID, task.balance)
+			s.setBalanceCache(ctx, task.userID, task.balance, task.expiresAt)
 		case cacheWriteSetSubscription:
 			s.setSubscriptionCache(ctx, task.userID, task.groupID, task.subscriptionData)
 		case cacheWriteUpdateSubscriptionUsage:
@@ -328,7 +360,8 @@ func (s *BillingCacheService) logCacheWriteDrop(task cacheWriteTask, reason stri
 func (s *BillingCacheService) GetUserBalance(ctx context.Context, userID int64) (float64, error) {
 	if s.cache == nil {
 		// Redis不可用，直接查询数据库
-		return s.getUserBalanceFromDB(ctx, userID)
+		balance, _, err := s.getUserBalanceFromDB(ctx, userID)
+		return balance, err
 	}
 
 	// 尝试从缓存读取
@@ -342,17 +375,25 @@ func (s *BillingCacheService) GetUserBalance(ctx context.Context, userID int64) 
 		loadCtx, cancel := context.WithTimeout(context.Background(), balanceLoadTimeout)
 		defer cancel()
 
-		balance, err := s.getUserBalanceFromDB(loadCtx, userID)
+		balance, nearestExpiresAt, err := s.getUserBalanceFromDB(loadCtx, userID)
 		if err != nil {
 			return nil, err
 		}
 
-		// 异步建立缓存
-		_ = s.enqueueCacheWrite(cacheWriteTask{
-			kind:    cacheWriteSetBalance,
-			userID:  userID,
-			balance: balance,
-		})
+		// 异步建立缓存（距最近到期时间 <= 1s 时跳过缓存，避免跨过到期时间点读到旧值）
+		if nearestExpiresAt == nil || time.Until(*nearestExpiresAt) > time.Second {
+			var expCopy *time.Time
+			if nearestExpiresAt != nil {
+				t := *nearestExpiresAt
+				expCopy = &t
+			}
+			_ = s.enqueueCacheWrite(cacheWriteTask{
+				kind:      cacheWriteSetBalance,
+				userID:    userID,
+				balance:   balance,
+				expiresAt: expCopy,
+			})
+		}
 		return balance, nil
 	})
 	if err != nil {
@@ -365,22 +406,57 @@ func (s *BillingCacheService) GetUserBalance(ctx context.Context, userID int64) 
 	return balance, nil
 }
 
-// getUserBalanceFromDB 从数据库获取用户余额
-func (s *BillingCacheService) getUserBalanceFromDB(ctx context.Context, userID int64) (float64, error) {
+// getUserBalanceFromDB 从数据库获取用户总可用余额（通用余额 + 有效限时余额）及最近到期时间
+func (s *BillingCacheService) getUserBalanceFromDB(ctx context.Context, userID int64) (float64, *time.Time, error) {
 	user, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
-		return 0, fmt.Errorf("get user balance: %w", err)
+		return 0, nil, fmt.Errorf("get user balance: %w", err)
 	}
-	return user.Balance, nil
+	summary, err := s.getExpiringSummary(ctx, userID)
+	if err != nil {
+		return 0, nil, fmt.Errorf("get user expiring balance: %w", err)
+	}
+	total := user.Balance
+	if summary.ActiveBalance != 0 {
+		total = QuantizeUsageBillingAmount(user.Balance + summary.ActiveBalance)
+	}
+	return total, summary.NearestExpiresAt, nil
 }
 
-// setBalanceCache 设置余额缓存
-func (s *BillingCacheService) setBalanceCache(ctx context.Context, userID int64, balance float64) {
+func (s *BillingCacheService) getExpiringSummary(ctx context.Context, userID int64) (ExpiringBalanceSummary, error) {
+	if s == nil || userID <= 0 {
+		return ExpiringBalanceSummary{}, nil
+	}
+	if s.expiringBalanceSvc != nil && s.expiringBalanceSvc.repo != nil {
+		return s.expiringBalanceSvc.GetUserSummary(ctx, userID)
+	}
+	if s.expiringBalanceRepo != nil {
+		return s.expiringBalanceRepo.GetActiveExpiringSummary(ctx, userID)
+	}
+	return ExpiringBalanceSummary{}, nil
+}
+
+// setBalanceCache 设置余额缓存（存在限时余额时将 TTL 截断至不超过 nearest_expires_at）
+func (s *BillingCacheService) setBalanceCache(ctx context.Context, userID int64, balance float64, expiresAt *time.Time) {
 	if s.cache == nil {
 		return
 	}
-	if err := s.cache.SetUserBalance(ctx, userID, balance); err != nil {
-		logger.LegacyPrintf("service.billing_cache", "Warning: set balance cache failed for user %d: %v", userID, err)
+	if expiresAt == nil {
+		if err := s.cache.SetUserBalance(ctx, userID, balance); err != nil {
+			logger.LegacyPrintf("service.billing_cache", "Warning: set balance cache failed for user %d: %v", userID, err)
+		}
+		return
+	}
+	remaining := time.Until(*expiresAt)
+	if remaining <= time.Second {
+		return
+	}
+	ttlCache, ok := s.cache.(BillingCacheWithTTL)
+	if !ok {
+		return
+	}
+	if err := ttlCache.SetUserBalanceWithTTL(ctx, userID, balance, remaining); err != nil {
+		logger.LegacyPrintf("service.billing_cache", "Warning: set balance cache with ttl failed for user %d: %v", userID, err)
 	}
 }
 

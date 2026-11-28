@@ -1016,3 +1016,32 @@ func PromoCodeUsageFromService(u *service.PromoCodeUsage) *PromoCodeUsage {
 		User:        UserFromServiceShallow(u.User),
 	}
 }
+
+// ApplyExpiringBalance 把限时余额摘要填充到用户 DTO 的只读展示字段。
+// 传 nil 用户或空摘要时保持字段缺省，保证未启用签到的部署响应完全不变。
+func ApplyExpiringBalance(out *User, regularBalance float64, summary service.ExpiringBalanceSummary) {
+	if out == nil {
+		return
+	}
+	expiring := service.QuantizeUsageBillingAmount(summary.ActiveBalance)
+	total := service.QuantizeUsageBillingAmount(regularBalance + expiring)
+	frozen := service.QuantizeUsageBillingAmount(summary.FrozenBalance)
+	nearestAmount := service.QuantizeUsageBillingAmount(summary.NearestAmount)
+
+	out.ExpiringBalance = &expiring
+	out.TotalAvailableBalance = &total
+	out.ExpiringFrozenBalance = &frozen
+	out.NearestExpiringAmount = &nearestAmount
+	if summary.NearestExpiresAt != nil {
+		nearest := *summary.NearestExpiresAt
+		out.NearestExpiringAt = &nearest
+	}
+}
+
+// ApplyExpiringBalanceToAdmin 把限时余额摘要填充到管理端用户 DTO。
+func ApplyExpiringBalanceToAdmin(out *AdminUser, regularBalance float64, summary service.ExpiringBalanceSummary) {
+	if out == nil {
+		return
+	}
+	ApplyExpiringBalance(&out.User, regularBalance, summary)
+}

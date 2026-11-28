@@ -160,6 +160,9 @@ type SystemSettings struct {
 	HideCcsImportButton         bool
 	PurchaseSubscriptionEnabled bool
 	PurchaseSubscriptionURL     string
+	RedeemStoreURL              string
+	RedeemStoreOpenMode         string
+	RedeemStoreLabel            string
 	TableDefaultPageSize        int
 	TablePageSizeOptions        []int
 	CustomMenuItems             string // JSON array of custom menu items
@@ -363,6 +366,9 @@ type PublicSettings struct {
 
 	PurchaseSubscriptionEnabled bool
 	PurchaseSubscriptionURL     string
+	RedeemStoreURL              string
+	RedeemStoreOpenMode         string
+	RedeemStoreLabel            string
 	TableDefaultPageSize        int
 	TablePageSizeOptions        []int
 	CustomMenuItems             string // JSON array of custom menu items
@@ -424,6 +430,9 @@ type PublicSettings struct {
 
 	// 允许终端用户在用量页查看自己的失败请求
 	AllowUserViewErrorRequests bool `json:"allow_user_view_error_requests"`
+
+	// 每日签到功能开关（供侧边栏与仪表盘门控）
+	CheckinEnabled bool `json:"checkin_enabled"`
 }
 
 type LoginAgreementDocument struct {

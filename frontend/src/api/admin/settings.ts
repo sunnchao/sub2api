@@ -658,6 +658,9 @@ export interface SystemSettings {
 
   // Payment configuration
   payment_enabled: boolean;
+  redeem_store_url: string;
+  redeem_store_open_mode: 'new_tab' | 'iframe';
+  redeem_store_label: string;
   risk_control_enabled: boolean;
 
   // Cyber session block
@@ -982,6 +985,9 @@ export interface UpdateSettingsRequest {
   codex_cli_only_engine_fingerprint_signals?: string;
   // Payment configuration
   payment_enabled?: boolean;
+  redeem_store_url?: string;
+  redeem_store_open_mode?: 'new_tab' | 'iframe';
+  redeem_store_label?: string;
   risk_control_enabled?: boolean;
 
   // Cyber session block

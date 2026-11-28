@@ -13,6 +13,7 @@ import { useRoutePrefetch } from '@/composables/useRoutePrefetch'
 import { getSetupStatus } from '@/api/setup'
 import { resolveCompletedSetupRedirectPath } from './setupRedirect'
 import { resolveRouteDocumentTitle } from './title'
+import { hasRedeemStoreEntry, resolvePurchaseDisplayBillingMode } from '@/utils/redeemStore'
 
 /**
  * Route definitions with lazy loading
@@ -277,6 +278,19 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/checkin',
+    name: 'Checkin',
+    component: () => import('@/views/user/CheckinView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Daily Check-in',
+      titleKey: 'nav.checkin',
+      descriptionKey: 'checkin.description',
+      requiresCheckin: true
+    }
+  },
+  {
     path: '/available-channels',
     name: 'UserAvailableChannels',
     component: () => import('@/views/user/AvailableChannelsView.vue'),
@@ -346,7 +360,8 @@ const routes: RouteRecordRaw[] = [
       title: 'Purchase Subscription',
       titleKey: 'nav.buySubscription',
       descriptionKey: 'purchase.description',
-      requiresPayment: true
+      requiresPayment: true,
+      allowRedeemStoreFallback: true
     }
   },
   {
@@ -621,6 +636,18 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/admin/checkin',
+    name: 'AdminCheckin',
+    component: () => import('@/views/admin/CheckinView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Check-in Management',
+      titleKey: 'nav.checkinManagement',
+      descriptionKey: 'admin.checkin.description'
+    }
+  },
+  {
     path: '/admin/promo-codes',
     name: 'AdminPromoCodes',
     component: () => import('@/views/admin/PromoCodesView.vue'),
@@ -845,7 +872,9 @@ router.beforeEach(async (to, _from, next) => {
     ...(appStore.cachedPublicSettings?.custom_menu_items ?? []),
     ...(authStore.isAdmin ? adminSettingsStore.customMenuItems : []),
   ]
-  document.title = resolveRouteDocumentTitle(to, appStore.siteName, customMenuItems)
+  document.title = resolveRouteDocumentTitle(to, appStore.siteName, customMenuItems, {
+    billingMode: resolvePurchaseDisplayBillingMode(appStore.cachedPublicSettings),
+  })
 
   // Check if route requires authentication
   const requiresAuth = to.meta.requiresAuth !== false // Default to true
@@ -955,7 +984,7 @@ router.beforeEach(async (to, _from, next) => {
   // 公共设置可能尚未加载（App.vue 的 onMounted 异步拉取晚于首次导航，且纯静态部署
   // 无 __APP_CONFIG__ 注入）。此时 cachedPublicSettings 为空会把 payment/risk_control
   // 误判为“未启用”而错误拦截，故这里先确保设置加载完成。
-  if ((to.meta.requiresPayment || to.meta.requiresRiskControl || to.meta.requiresSubscription) && !appStore.publicSettingsLoaded) {
+  if ((to.meta.requiresPayment || to.meta.requiresRiskControl || to.meta.requiresSubscription || to.meta.requiresCheckin) && !appStore.publicSettingsLoaded) {
     try {
       await appStore.fetchPublicSettings()
     } catch (error) {
@@ -968,7 +997,8 @@ router.beforeEach(async (to, _from, next) => {
   if (
     to.meta.requiresPayment &&
     appStore.publicSettingsLoaded &&
-    appStore.cachedPublicSettings?.payment_enabled === false
+    appStore.cachedPublicSettings?.payment_enabled === false &&
+    !(to.meta.allowRedeemStoreFallback && hasRedeemStoreEntry(appStore.cachedPublicSettings))
   ) {
     next(authStore.isAdmin ? '/admin/dashboard' : '/dashboard')
     return
@@ -993,13 +1023,24 @@ router.beforeEach(async (to, _from, next) => {
     return
   }
 
+  // 每日签到功能是 opt-in 开关：未显式开启时拦截 /checkin 直达。
+  if (
+    to.meta.requiresCheckin &&
+    appStore.publicSettingsLoaded &&
+    appStore.cachedPublicSettings?.checkin_enabled !== true
+  ) {
+    next(authStore.isAdmin ? '/admin/dashboard' : '/dashboard')
+    return
+  }
+
   // 简易模式下限制访问某些页面
   if (authStore.isSimpleMode) {
     const restrictedPaths = [
       '/admin/subscriptions',
       '/admin/redeem',
       '/subscriptions',
-      '/redeem'
+      '/redeem',
+      '/checkin'
     ]
 
     if (restrictedPaths.some((path) => to.path.startsWith(path))) {

@@ -50,6 +50,13 @@ declare module 'vue-router' {
     requiresPayment?: boolean
 
     /**
+     * Allows accessing the route even when internal online payment is disabled
+     * if a valid redeem store URL is configured (used exclusively by /purchase).
+     * @default false
+     */
+    allowRedeemStoreFallback?: boolean
+
+    /**
      * 是否要求风控中心功能开关已启用
      * @default false
      */
@@ -60,6 +67,12 @@ declare module 'vue-router' {
      * @default false
      */
     requiresSubscription?: boolean
+
+    /**
+     * 是否要求每日签到功能开关（checkin_enabled，opt-in）已启用
+     * @default false
+     */
+    requiresCheckin?: boolean
 
     /**
      * i18n key for the page title
