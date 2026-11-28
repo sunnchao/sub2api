@@ -375,7 +375,7 @@ func normalizeCustomPlatformIcon(icon domain.PlatformIconSpec) (domain.PlatformI
 			if err != nil || strings.ToLower(parsed.Scheme) != "https" || strings.TrimSpace(parsed.Hostname()) == "" {
 				return icon, customPlatformValidationError("icon.value", "icon url must be a valid https:// url")
 			}
-		} else if !(strings.HasPrefix(icon.Value, "/") && !strings.HasPrefix(icon.Value, "//")) {
+		} else if !strings.HasPrefix(icon.Value, "/") || strings.HasPrefix(icon.Value, "//") {
 			return icon, customPlatformValidationError("icon.value", "icon url must be https:// or an absolute site path")
 		}
 	case domain.PlatformIconTypeDataURL:
