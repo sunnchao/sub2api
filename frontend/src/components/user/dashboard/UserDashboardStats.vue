@@ -268,6 +268,7 @@ const PLATFORM_LABELS: Record<string, string> = {
   zhipu: 'Zhipu GLM',
   deepseek: 'DeepSeek',
   minimax: 'MiniMax',
+  qwen: 'Qwen',
   typesafe: 'TypeSafe / Jev',
 }
 
