@@ -278,6 +278,7 @@ func (r *groupRepository) GetByID(ctx context.Context, id int64) (*service.Group
 	if err != nil {
 		return nil, err
 	}
+	hydrateSingleGroupModelPlazaVisibility(ctx, r.plazaSQLExecutor(), out)
 	counts, err := r.loadAccountCounts(ctx, []int64{out.ID})
 	if err == nil {
 		c := counts[out.ID]
@@ -297,7 +298,6 @@ func (r *groupRepository) GetByIDLite(ctx context.Context, id int64) (*service.G
 		return nil, translatePersistenceError(err, service.ErrGroupNotFound, nil)
 	}
 	out := groupEntityToService(m)
-	hydrateSingleGroupModelPlazaVisibility(ctx, r.plazaSQLExecutor(), out)
 	return out, nil
 }
 
