@@ -12,7 +12,9 @@
       "display_name": "OpenAI",
       "gateway": "openai",
       "cn_provider": false,
-      "litellm_provider": "openai"
+      "litellm_provider": "openai",
+      "supports_embeddings": true,
+      "supports_images": true
     },
     {
       "id": "gemini",
@@ -33,7 +35,8 @@
       "display_name": "Grok",
       "gateway": "openai",
       "cn_provider": false,
-      "litellm_provider": "xai"
+      "litellm_provider": "xai",
+      "supports_images": true
     },
     {
       "id": "kimi",

@@ -6,6 +6,7 @@ import i18n, { initI18n } from './i18n'
 import { useAppStore } from '@/stores/app'
 import { updateFavicon } from '@/utils/branding'
 import { isIOSDevice } from '@/utils/device'
+import { loadPlatformCatalog } from '@/constants/platformCatalogLoader'
 import './style.css'
 
 function initIOSViewportZoomFix() {
@@ -43,6 +44,10 @@ async function bootstrap() {
   // This must happen after pinia is installed but before router and i18n
   const appStore = useAppStore()
   appStore.initFromInjectedConfig()
+
+  // Runtime platform catalog (custom platforms) replaces the builtin JSON.
+  // Fire-and-forget: the builtin catalog stays the fallback if this fails.
+  void loadPlatformCatalog()
 
   // Set document title immediately after config is loaded
   if (appStore.siteName && appStore.siteName !== 'Sub2API') {

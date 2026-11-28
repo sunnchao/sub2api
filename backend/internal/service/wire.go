@@ -27,6 +27,11 @@ func ProvideGrokOAuthService(proxyRepo ProxyRepository, oauthClient GrokOAuthCli
 	return svc
 }
 
+// ProvideCustomPlatformURLValidator 为自定义平台提供全局 URL 白名单校验器。
+func ProvideCustomPlatformURLValidator(cfg *config.Config) func(string) (string, error) {
+	return NewCustomPlatformURLValidator(cfg)
+}
+
 // BuildInfo contains build information
 type BuildInfo struct {
 	Version   string
@@ -1037,6 +1042,8 @@ var ProviderSet = wire.NewSet(
 	NewTotpService,
 	NewErrorPassthroughService,
 	NewTLSFingerprintProfileService,
+	NewCustomPlatformService,
+	ProvideCustomPlatformURLValidator,
 	ProvidePluginManager,
 	NewDigestSessionStore,
 	ProvideIdempotencyCoordinator,

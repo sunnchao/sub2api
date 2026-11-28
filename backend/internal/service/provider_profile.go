@@ -5,10 +5,16 @@ import "strings"
 // ProviderEndpoints 是多协议 API Key 供应商在某个接入模式下的官方默认端点与
 // 内置分流规则。账号凭证里的 base_url / api_base_urls / protocol_rules 仍优先于这里。
 type ProviderEndpoints struct {
+	// Label 是接入模式在管理端/账号表单中的展示名；空值回退模式 key。
+	Label string
 	// BaseURLs 以上游协议（chat_completions / responses / anthropic）为键，
 	// 值为该协议的官方默认基址。缺少某协议的条目即表示该模式不提供该原生端点。
 	// Anthropic 基址的上游路径为 {base}/v1/messages。
 	BaseURLs map[string]string
+	// EmbeddingsBaseURL / ImagesBaseURL 是可选的非对话协议默认基址；为空时
+	// 回退到同模式的 Chat Completions 基址。
+	EmbeddingsBaseURL string
+	ImagesBaseURL     string
 	// ProtocolRules 是按模型分流的内置默认表（首条命中生效）；为空表示该模式
 	// 不按模型分流，由账号 api_protocol 决定上游协议。
 	ProtocolRules []ProtocolRule
@@ -75,7 +81,42 @@ func (p *ProviderProfile) Endpoints(mode string) ProviderEndpoints {
 
 // DefaultBaseURL 返回指定接入模式与上游协议的官方默认基址；该模式不提供此协议时为空串。
 func (p *ProviderProfile) DefaultBaseURL(mode, protocol string) string {
-	return p.Endpoints(mode).BaseURLs[protocol]
+	endpoints := p.Endpoints(mode)
+	if baseURL := endpoints.BaseURLs[protocol]; baseURL != "" {
+		return baseURL
+	}
+	switch protocol {
+	case APIProtocolEmbeddings:
+		return endpoints.EmbeddingsBaseURL
+	case APIProtocolImages:
+		return endpoints.ImagesBaseURL
+	default:
+		return ""
+	}
+}
+
+// DefaultEmbeddingsBaseURL 返回指定模式的 Embeddings 基址；未单独配置时回退
+// 到 Chat Completions 基址。
+func (p *ProviderProfile) DefaultEmbeddingsBaseURL(mode string) string {
+	if p == nil {
+		return ""
+	}
+	if baseURL := p.DefaultBaseURL(mode, APIProtocolEmbeddings); baseURL != "" {
+		return baseURL
+	}
+	return p.DefaultBaseURL(mode, APIProtocolChatCompletions)
+}
+
+// DefaultImagesBaseURL 返回指定模式的 Images 基址；未单独配置时回退到
+// Chat Completions 基址。
+func (p *ProviderProfile) DefaultImagesBaseURL(mode string) string {
+	if p == nil {
+		return ""
+	}
+	if baseURL := p.DefaultBaseURL(mode, APIProtocolImages); baseURL != "" {
+		return baseURL
+	}
+	return p.DefaultBaseURL(mode, APIProtocolChatCompletions)
 }
 
 // SupportsProtocol 报告指定接入模式是否提供该协议的原生端点。
@@ -292,7 +333,10 @@ var providerProfiles = map[string]*ProviderProfile{
 
 // LookupProviderProfile 返回 platform 对应的多协议供应商 profile；非此类平台返回 nil。
 func LookupProviderProfile(platform string) *ProviderProfile {
-	return providerProfiles[platform]
+	if profile, ok := providerProfiles[platform]; ok {
+		return profile
+	}
+	return lookupDynamicProviderProfile(platform)
 }
 
 func (a *Account) providerProfile() *ProviderProfile {

@@ -20,6 +20,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/channelmonitorhistory"
 	"github.com/Wei-Shaw/sub2api/ent/channelmonitorrequesttemplate"
 	"github.com/Wei-Shaw/sub2api/ent/compositemodelroute"
+	"github.com/Wei-Shaw/sub2api/ent/customplatform"
 	"github.com/Wei-Shaw/sub2api/ent/errorpassthroughrule"
 	"github.com/Wei-Shaw/sub2api/ent/group"
 	"github.com/Wei-Shaw/sub2api/ent/idempotencyrecord"
@@ -941,6 +942,119 @@ func init() {
 	compositemodelrouteDescEnabled := compositemodelrouteFields[7].Descriptor()
 	// compositemodelroute.DefaultEnabled holds the default value on creation for the enabled field.
 	compositemodelroute.DefaultEnabled = compositemodelrouteDescEnabled.Default.(bool)
+	customplatformMixin := schema.CustomPlatform{}.Mixin()
+	customplatformMixinFields0 := customplatformMixin[0].Fields()
+	_ = customplatformMixinFields0
+	customplatformFields := schema.CustomPlatform{}.Fields()
+	_ = customplatformFields
+	// customplatformDescCreatedAt is the schema descriptor for created_at field.
+	customplatformDescCreatedAt := customplatformMixinFields0[0].Descriptor()
+	// customplatform.DefaultCreatedAt holds the default value on creation for the created_at field.
+	customplatform.DefaultCreatedAt = customplatformDescCreatedAt.Default.(func() time.Time)
+	// customplatformDescUpdatedAt is the schema descriptor for updated_at field.
+	customplatformDescUpdatedAt := customplatformMixinFields0[1].Descriptor()
+	// customplatform.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	customplatform.DefaultUpdatedAt = customplatformDescUpdatedAt.Default.(func() time.Time)
+	// customplatform.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	customplatform.UpdateDefaultUpdatedAt = customplatformDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// customplatformDescDisplayName is the schema descriptor for display_name field.
+	customplatformDescDisplayName := customplatformFields[1].Descriptor()
+	// customplatform.DisplayNameValidator is a validator for the "display_name" field. It is called by the builders before save.
+	customplatform.DisplayNameValidator = func() func(string) error {
+		validators := customplatformDescDisplayName.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(display_name string) error {
+			for _, fn := range fns {
+				if err := fn(display_name); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// customplatformDescEnabled is the schema descriptor for enabled field.
+	customplatformDescEnabled := customplatformFields[2].Descriptor()
+	// customplatform.DefaultEnabled holds the default value on creation for the enabled field.
+	customplatform.DefaultEnabled = customplatformDescEnabled.Default.(bool)
+	// customplatformDescSortOrder is the schema descriptor for sort_order field.
+	customplatformDescSortOrder := customplatformFields[3].Descriptor()
+	// customplatform.DefaultSortOrder holds the default value on creation for the sort_order field.
+	customplatform.DefaultSortOrder = customplatformDescSortOrder.Default.(int)
+	// customplatformDescIconType is the schema descriptor for icon_type field.
+	customplatformDescIconType := customplatformFields[4].Descriptor()
+	// customplatform.DefaultIconType holds the default value on creation for the icon_type field.
+	customplatform.DefaultIconType = customplatformDescIconType.Default.(string)
+	// customplatform.IconTypeValidator is a validator for the "icon_type" field. It is called by the builders before save.
+	customplatform.IconTypeValidator = func() func(string) error {
+		validators := customplatformDescIconType.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(icon_type string) error {
+			for _, fn := range fns {
+				if err := fn(icon_type); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// customplatformDescIconValue is the schema descriptor for icon_value field.
+	customplatformDescIconValue := customplatformFields[5].Descriptor()
+	// customplatform.DefaultIconValue holds the default value on creation for the icon_value field.
+	customplatform.DefaultIconValue = customplatformDescIconValue.Default.(string)
+	// customplatformDescColorPreset is the schema descriptor for color_preset field.
+	customplatformDescColorPreset := customplatformFields[6].Descriptor()
+	// customplatform.DefaultColorPreset holds the default value on creation for the color_preset field.
+	customplatform.DefaultColorPreset = customplatformDescColorPreset.Default.(string)
+	// customplatform.ColorPresetValidator is a validator for the "color_preset" field. It is called by the builders before save.
+	customplatform.ColorPresetValidator = customplatformDescColorPreset.Validators[0].(func(string) error)
+	// customplatformDescLitellmProvider is the schema descriptor for litellm_provider field.
+	customplatformDescLitellmProvider := customplatformFields[7].Descriptor()
+	// customplatform.DefaultLitellmProvider holds the default value on creation for the litellm_provider field.
+	customplatform.DefaultLitellmProvider = customplatformDescLitellmProvider.Default.(string)
+	// customplatform.LitellmProviderValidator is a validator for the "litellm_provider" field. It is called by the builders before save.
+	customplatform.LitellmProviderValidator = customplatformDescLitellmProvider.Validators[0].(func(string) error)
+	// customplatformDescDefaultTestModel is the schema descriptor for default_test_model field.
+	customplatformDescDefaultTestModel := customplatformFields[8].Descriptor()
+	// customplatform.DefaultDefaultTestModel holds the default value on creation for the default_test_model field.
+	customplatform.DefaultDefaultTestModel = customplatformDescDefaultTestModel.Default.(string)
+	// customplatform.DefaultTestModelValidator is a validator for the "default_test_model" field. It is called by the builders before save.
+	customplatform.DefaultTestModelValidator = customplatformDescDefaultTestModel.Validators[0].(func(string) error)
+	// customplatformDescSupportsEmbeddings is the schema descriptor for supports_embeddings field.
+	customplatformDescSupportsEmbeddings := customplatformFields[9].Descriptor()
+	// customplatform.DefaultSupportsEmbeddings holds the default value on creation for the supports_embeddings field.
+	customplatform.DefaultSupportsEmbeddings = customplatformDescSupportsEmbeddings.Default.(bool)
+	// customplatformDescSupportsImages is the schema descriptor for supports_images field.
+	customplatformDescSupportsImages := customplatformFields[10].Descriptor()
+	// customplatform.DefaultSupportsImages holds the default value on creation for the supports_images field.
+	customplatform.DefaultSupportsImages = customplatformDescSupportsImages.Default.(bool)
+	// customplatformDescProfileJSON is the schema descriptor for profile_json field.
+	customplatformDescProfileJSON := customplatformFields[11].Descriptor()
+	// customplatform.DefaultProfileJSON holds the default value on creation for the profile_json field.
+	customplatform.DefaultProfileJSON = customplatformDescProfileJSON.Default.(map[string]interface{})
+	// customplatformDescID is the schema descriptor for id field.
+	customplatformDescID := customplatformFields[0].Descriptor()
+	// customplatform.IDValidator is a validator for the "id" field. It is called by the builders before save.
+	customplatform.IDValidator = func() func(string) error {
+		validators := customplatformDescID.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(id string) error {
+			for _, fn := range fns {
+				if err := fn(id); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
 	errorpassthroughruleMixin := schema.ErrorPassthroughRule{}.Mixin()
 	errorpassthroughruleMixinFields0 := errorpassthroughruleMixin[0].Fields()
 	_ = errorpassthroughruleMixinFields0

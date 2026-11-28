@@ -158,7 +158,7 @@
               ]"
               @click="editAccountMode = mode"
             >
-              {{ providerModeLabel(mode, t) }}
+              {{ genericAccountModeLabel(mode) }}
             </button>
           </div>
         </div>
@@ -3524,7 +3524,7 @@ import {
   isMultiProtocolApiKeyPlatform,
   parseOpenCodeGoProtocolRules,
   providerAccountModes,
-  providerModeLabel,
+  providerModeDisplayLabel,
   providerNativeProtocols,
   providerRoutesByModel,
   resolveProviderAccountMode,
@@ -3747,6 +3747,10 @@ const isGenericMultiProtocolAccount = computed(
     props.account?.platform !== 'opencode_go'
 )
 const genericAccountModes = computed(() => providerAccountModes(props.account?.platform ?? ''))
+// 模式文案优先使用平台清单里的 label（自定义平台由管理员配置），否则回落内置本地化名称。
+function genericAccountModeLabel(mode: string): string {
+  return providerModeDisplayLabel(props.account?.platform, mode, t)
+}
 // CnBaseUrlPresets 的 platform prop 是平台字面量联合类型，模板里不能写
 // `as` 断言（其中的 `|` 会被 eslint 误判为 Vue2 filter 语法），经此 computed 传递。
 const cnPresetPlatform = computed<CnProviderPlatform>(() => {

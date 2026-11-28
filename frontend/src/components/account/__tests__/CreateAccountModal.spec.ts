@@ -16,6 +16,7 @@ const {
   importCodexSessionMock,
   createOpenAICodexPATMock,
   authIsSimpleMode,
+  authIsAdmin,
 } = vi.hoisted(() => ({
   createAccountMock: vi.fn(),
   probeUpstreamBillingMock: vi.fn(),
@@ -25,6 +26,7 @@ const {
   importCodexSessionMock: vi.fn(),
   createOpenAICodexPATMock: vi.fn(),
   authIsSimpleMode: { value: true },
+  authIsAdmin: { value: false },
 }))
 
 vi.mock('@/stores/app', () => ({
@@ -39,6 +41,9 @@ vi.mock('@/stores/auth', () => ({
   useAuthStore: () => ({
     get isSimpleMode() {
       return authIsSimpleMode.value
+    },
+    get isAdmin() {
+      return authIsAdmin.value
     },
   }),
 }))
@@ -605,6 +610,7 @@ describe('CreateAccountModal OpenAI long-context billing', () => {
             modes: [
               {
                 mode: 'standard',
+                label: '标准端点',
                 base_urls: {
                   chat_completions: 'https://api.acme-router.example/provider/v1',
                   anthropic: 'https://api.acme-router.example/provider',
@@ -613,6 +619,7 @@ describe('CreateAccountModal OpenAI long-context billing', () => {
               },
               {
                 mode: 'team',
+                label: '团队端点',
                 base_urls: {
                   chat_completions: 'https://team.acme-router.example/provider/v1',
                   anthropic: 'https://team.acme-router.example/provider',
@@ -643,6 +650,57 @@ describe('CreateAccountModal OpenAI long-context billing', () => {
 
     afterEach(() => {
       resetPlatformCatalog()
+      authIsAdmin.value = false
+    })
+
+    it('renders custom platforms with their display name and hides disabled ones', async () => {
+      setPlatformCatalog({
+        platforms: [
+          ...serverOnlyProviders.platforms,
+          {
+            id: 'acme_disabled',
+            display_name: 'Acme Disabled',
+            gateway: 'openai',
+            cn_provider: false,
+            disabled: true,
+            multi_protocol: {
+              default_mode: 'pass',
+              routing: 'by_inbound',
+              modes: [{ mode: 'pass', base_urls: { chat_completions: 'https://api.acme-disabled.example/v1' } }],
+            },
+          },
+        ],
+        composite_precedence: [
+          ...serverOnlyProviders.composite_precedence,
+          'acme_disabled',
+        ],
+      })
+      const wrapper = mountModal()
+
+      const enabledButton = wrapper.get('[data-testid="platform-button-acme_router"]')
+      expect(enabledButton.text()).toContain('Acme Router')
+      expect(wrapper.find('[data-testid="platform-button-acme_disabled"]').exists()).toBe(false)
+      wrapper.unmount()
+    })
+
+    it('labels account modes with the catalog label and exposes the admin shortcut', async () => {
+      authIsAdmin.value = true
+      const wrapper = mountModal()
+      await wrapper.get('[data-testid="platform-button-acme_router"]').trigger('click')
+
+      const modes = wrapper.get('[data-testid="generic-account-mode"]')
+      expect(modes.text()).toContain('标准端点')
+      expect(modes.text()).toContain('团队端点')
+      expect(modes.text()).not.toContain('standard')
+      expect(wrapper.find('[data-testid="manage-custom-platforms"]').exists()).toBe(true)
+      wrapper.unmount()
+    })
+
+    it('hides the admin shortcut from non-admin sessions', async () => {
+      authIsAdmin.value = false
+      const wrapper = mountModal()
+      expect(wrapper.find('[data-testid="manage-custom-platforms"]').exists()).toBe(false)
+      wrapper.unmount()
     })
 
     it('creates a by-model provider account from its profile defaults', async () => {

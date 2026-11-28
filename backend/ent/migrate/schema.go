@@ -863,6 +863,36 @@ var (
 			},
 		},
 	}
+	// CustomPlatformsColumns holds the columns for the "custom_platforms" table.
+	CustomPlatformsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString, Size: 32},
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "updated_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "display_name", Type: field.TypeString, Size: 64},
+		{Name: "enabled", Type: field.TypeBool, Default: true},
+		{Name: "sort_order", Type: field.TypeInt, Default: 0},
+		{Name: "icon_type", Type: field.TypeString, Size: 16, Default: "letter"},
+		{Name: "icon_value", Type: field.TypeString, Size: 2147483647, Default: ""},
+		{Name: "color_preset", Type: field.TypeString, Size: 24, Default: "blue"},
+		{Name: "litellm_provider", Type: field.TypeString, Size: 64, Default: ""},
+		{Name: "default_test_model", Type: field.TypeString, Size: 128, Default: ""},
+		{Name: "supports_embeddings", Type: field.TypeBool, Default: false},
+		{Name: "supports_images", Type: field.TypeBool, Default: false},
+		{Name: "profile_json", Type: field.TypeJSON, SchemaType: map[string]string{"postgres": "jsonb"}},
+	}
+	// CustomPlatformsTable holds the schema information for the "custom_platforms" table.
+	CustomPlatformsTable = &schema.Table{
+		Name:       "custom_platforms",
+		Columns:    CustomPlatformsColumns,
+		PrimaryKey: []*schema.Column{CustomPlatformsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "idx_custom_platforms_sort",
+				Unique:  false,
+				Columns: []*schema.Column{CustomPlatformsColumns[5], CustomPlatformsColumns[0]},
+			},
+		},
+	}
 	// ErrorPassthroughRulesColumns holds the columns for the "error_passthrough_rules" table.
 	ErrorPassthroughRulesColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt64, Increment: true},
@@ -2113,6 +2143,7 @@ var (
 		ChannelMonitorHistoriesTable,
 		ChannelMonitorRequestTemplatesTable,
 		CompositeModelRoutesTable,
+		CustomPlatformsTable,
 		ErrorPassthroughRulesTable,
 		GroupsTable,
 		IdempotencyRecordsTable,
@@ -2199,6 +2230,9 @@ func init() {
 	CompositeModelRoutesTable.ForeignKeys[0].RefTable = GroupsTable
 	CompositeModelRoutesTable.Annotation = &entsql.Annotation{
 		Table: "composite_model_routes",
+	}
+	CustomPlatformsTable.Annotation = &entsql.Annotation{
+		Table: "custom_platforms",
 	}
 	ErrorPassthroughRulesTable.Annotation = &entsql.Annotation{
 		Table: "error_passthrough_rules",

@@ -161,6 +161,9 @@ func (s *adminServiceImpl) CreateCompositeRoute(ctx context.Context, groupID int
 	if err != nil {
 		return nil, err
 	}
+	if !domain.IsEnabledConcretePlatform(route.TargetPlatform) {
+		return nil, infraerrors.BadRequest("PLATFORM_DISABLED", "target platform is disabled or unknown")
+	}
 	if err := s.compositeRouteRepo.Create(ctx, route); err != nil {
 		return nil, err
 	}
@@ -177,14 +180,19 @@ func (s *adminServiceImpl) UpdateCompositeRoute(ctx context.Context, groupID, ro
 	if s.compositeRouteRepo == nil {
 		return nil, fmt.Errorf("composite route repository is not configured")
 	}
-	if ok, err := s.compositeRouteBelongsToGroup(ctx, groupID, routeID); err != nil {
+	existing, err := s.findCompositeRouteInGroup(ctx, groupID, routeID)
+	if err != nil {
 		return nil, err
-	} else if !ok {
+	}
+	if existing == nil {
 		return nil, ErrCompositeRouteNotFound
 	}
 	route, err := compositeRouteFromInput(groupID, input)
 	if err != nil {
 		return nil, err
+	}
+	if route.TargetPlatform != existing.TargetPlatform && !domain.IsEnabledConcretePlatform(route.TargetPlatform) {
+		return nil, infraerrors.BadRequest("PLATFORM_DISABLED", "target platform is disabled or unknown")
 	}
 	route.ID = routeID
 	if err := s.compositeRouteRepo.Update(ctx, route); err != nil {
@@ -240,17 +248,23 @@ func (s *adminServiceImpl) requireCompositeGroup(ctx context.Context, groupID in
 	return nil
 }
 
-func (s *adminServiceImpl) compositeRouteBelongsToGroup(ctx context.Context, groupID, routeID int64) (bool, error) {
+func (s *adminServiceImpl) findCompositeRouteInGroup(ctx context.Context, groupID, routeID int64) (*CompositeModelRoute, error) {
 	routes, err := s.compositeRouteRepo.ListByGroup(ctx, groupID, true)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 	for i := range routes {
 		if routes[i].ID == routeID {
-			return true, nil
+			found := routes[i]
+			return &found, nil
 		}
 	}
-	return false, nil
+	return nil, nil
+}
+
+func (s *adminServiceImpl) compositeRouteBelongsToGroup(ctx context.Context, groupID, routeID int64) (bool, error) {
+	found, err := s.findCompositeRouteInGroup(ctx, groupID, routeID)
+	return found != nil, err
 }
 
 func compositeRouteFromInput(groupID int64, input CompositeRouteInput) (*CompositeModelRoute, error) {
@@ -320,7 +334,7 @@ func DefaultAllowImageGenerationForPlatform(platform string) bool {
 	case PlatformGrok, PlatformGemini, PlatformAntigravity:
 		return true
 	default:
-		return false
+		return domain.IsCustomPlatform(platform) && domain.SupportsImages(platform)
 	}
 }
 
@@ -825,7 +839,10 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 		}
 		group.I18n = i18n
 	}
-	if input.Platform != "" {
+	if input.Platform != "" && input.Platform != group.Platform {
+		if !domain.IsEnabledGroupPlatform(input.Platform) {
+			return nil, infraerrors.BadRequest("PLATFORM_DISABLED", "platform is disabled or unknown")
+		}
 		group.Platform = input.Platform
 	}
 	if input.RateMultiplier != nil {

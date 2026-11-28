@@ -73,6 +73,8 @@ const (
 	APIProtocolAnthropic       = domain.APIProtocolAnthropic
 	APIProtocolResponses       = domain.APIProtocolResponses
 	APIProtocolAdaptive        = domain.APIProtocolAdaptive
+	APIProtocolEmbeddings      = domain.APIProtocolEmbeddings
+	APIProtocolImages          = domain.APIProtocolImages
 )
 
 // 国产 OpenAI 兼容供应商各模式的默认 base_url。

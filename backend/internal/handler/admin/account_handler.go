@@ -1025,6 +1025,10 @@ func (h *AccountHandler) Create(c *gin.Context) {
 		response.BadRequest(c, "Invalid request: "+err.Error())
 		return
 	}
+	if !domain.IsEnabledConcretePlatform(req.Platform) {
+		response.BadRequest(c, "Platform is disabled or unknown: "+req.Platform)
+		return
+	}
 	if err := service.ValidateOpenAILongContextBillingExtra(req.Platform, req.Extra); err != nil {
 		response.ErrorFrom(c, err)
 		return

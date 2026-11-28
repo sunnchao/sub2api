@@ -1,4 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
+import {
+  BUILTIN_PLATFORM_CATALOG,
+  resetPlatformCatalog,
+  setPlatformCatalog,
+} from "@/constants/platformCatalog";
 
 import {
   defaultAllowImageGenerationForPlatform,
@@ -62,5 +67,41 @@ describe("groups image pricing platform support", () => {
     expect(getImagePricePlaceholder("openai", "image_price_1k")).toBe("0.134");
     expect(getDefaultImagePreviewPrice("openai", "image_price_2k")).toBe(0.201);
     expect(getDefaultVideoPreviewPrice("openai", "video_price_480p")).toBeNull();
+  });
+
+  describe("custom platforms with image capability", () => {
+    afterEach(() => {
+      resetPlatformCatalog();
+    });
+
+    it("enables image pricing controls and default allow_image_generation only when supports_images is true", () => {
+      setPlatformCatalog({
+        platforms: [
+          ...BUILTIN_PLATFORM_CATALOG.platforms,
+          {
+            id: "flux_cloud",
+            display_name: "Flux Cloud",
+            gateway: "openai",
+            cn_provider: false,
+            custom: true,
+            supports_images: true,
+          },
+          {
+            id: "chat_vendor",
+            display_name: "Chat Vendor",
+            gateway: "openai",
+            cn_provider: false,
+            custom: true,
+            supports_images: false,
+          },
+        ],
+        composite_precedence: BUILTIN_PLATFORM_CATALOG.composite_precedence,
+      });
+
+      expect(supportsImagePricingPlatform("flux_cloud")).toBe(true);
+      expect(defaultAllowImageGenerationForPlatform("flux_cloud")).toBe(true);
+      expect(supportsImagePricingPlatform("chat_vendor")).toBe(false);
+      expect(defaultAllowImageGenerationForPlatform("chat_vendor")).toBe(false);
+    });
   });
 });

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/domain"
 	pkghttputil "github.com/Wei-Shaw/sub2api/internal/pkg/httputil"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ip"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
@@ -72,7 +73,7 @@ func (h *OpenAIGatewayHandler) Embeddings(c *gin.Context) {
 	}
 	reqModel := modelResult.String()
 	ensureCompositeTargetPlatform(c, apiKey, reqModel)
-	if !compositeTargetPlatformAllowed(c, apiKey, reqModel, service.PlatformOpenAI) {
+	if !compositeTargetCapabilityAllowed(c, apiKey, reqModel, domain.SupportsEmbeddings) {
 		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "Model is not supported by this OpenAI-compatible endpoint for composite groups")
 		return
 	}

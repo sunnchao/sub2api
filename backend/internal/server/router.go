@@ -124,6 +124,8 @@ func registerRoutes(
 	panelRateLimiter := middleware2.NewPanelRateLimiter(redisClient, settingService)
 
 	// 注册各模块路由
+	// 公开平台目录：前端首屏据此渲染内置 + 自定义平台（含图标、配色与端点）。
+	v1.GET("/platform-catalog", h.PlatformCatalog.Get)
 	routes.RegisterAuthRoutes(v1, h, jwtAuth, auditLog, redisClient, settingService, panelRateLimiter)
 	routes.RegisterUserRoutes(v1, h, jwtAuth, auditLog, settingService, panelRateLimiter)
 	routes.RegisterModelPlazaRoutes(v1, h, optionalJWTAuth, settingService, panelRateLimiter)

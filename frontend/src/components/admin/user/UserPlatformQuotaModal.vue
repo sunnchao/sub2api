@@ -29,7 +29,14 @@
           </thead>
           <tbody>
             <tr v-for="row in quotas" :key="row.platform" class="border-b border-gray-100 dark:border-dark-800">
-              <td class="px-3 py-2 font-mono text-gray-900 dark:text-white">{{ row.platform }}</td>
+              <td class="px-3 py-2 text-gray-900 dark:text-white">
+                <span class="inline-flex items-center gap-1.5">
+                  <span class="inline-flex" :class="platformIconClass(row.platform)">
+                    <PlatformIcon :platform="row.platform" size="xs" />
+                  </span>
+                  <span :class="platformRowLabelClass(row.platform)">{{ platformRowLabel(row.platform) }}</span>
+                </span>
+              </td>
               <td class="px-3 py-2">
                 <div class="flex items-center gap-1">
                   <input
@@ -122,6 +129,9 @@ import { adminAPI } from '@/api/admin'
 import { platformQuotaPlatforms } from '@/api/admin/users'
 import type { AdminUser, PlatformQuotaItem, PlatformQuotaPlatform, PlatformQuotaWindow } from '@/types'
 import BaseDialog from '@/components/common/BaseDialog.vue'
+import PlatformIcon from '@/components/common/PlatformIcon.vue'
+import { getPlatformSpec, platformDisplayName } from '@/constants/platformCatalog'
+import { platformIconClass } from '@/utils/platformColors'
 
 const props = defineProps<{ show: boolean; user: AdminUser | null }>()
 const emit = defineEmits(['close', 'success'])
@@ -149,6 +159,14 @@ const resetting = reactive<Record<string, boolean>>({})
 const quotas = ref<QuotaRow[]>([])
 // 已保存且至少配置了一档限额的平台。只有这些平台在后端有配额记录，重置用量窗口才有对象。
 const savedConfigured = ref<Set<PlatformQuotaPlatform>>(new Set())
+
+function platformRowLabel(platform: PlatformQuotaPlatform): string {
+  return getPlatformSpec(platform)?.custom ? platformDisplayName(platform) || platform : platform
+}
+
+function platformRowLabelClass(platform: PlatformQuotaPlatform): string {
+  return getPlatformSpec(platform)?.custom ? 'font-medium' : 'font-mono'
+}
 
 function configuredPlatforms(items: PlatformQuotaItem[]): Set<PlatformQuotaPlatform> {
   const out = new Set<PlatformQuotaPlatform>()

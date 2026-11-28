@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/domain"
 	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
@@ -441,6 +442,10 @@ func (h *GroupHandler) CreateCompositeRoute(c *gin.Context) {
 		response.BadRequest(c, "Invalid request body: "+err.Error())
 		return
 	}
+	if !domain.IsEnabledConcretePlatform(req.TargetPlatform) {
+		response.BadRequest(c, "Target platform is disabled or unknown: "+req.TargetPlatform)
+		return
+	}
 	route, err := h.adminService.CreateCompositeRoute(c.Request.Context(), groupID, compositeRouteRequestToInput(req, true))
 	if err != nil {
 		response.ErrorFrom(c, err)
@@ -654,6 +659,10 @@ func (h *GroupHandler) Create(c *gin.Context) {
 	var req CreateGroupRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	if req.Platform != "" && !domain.IsEnabledGroupPlatform(req.Platform) {
+		response.BadRequest(c, "Platform is disabled or unknown: "+req.Platform)
 		return
 	}
 	if h.isSimpleMode() && req.Platform == service.PlatformComposite {

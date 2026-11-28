@@ -1879,6 +1879,32 @@ func (s *PricingService) ListModelNamesByProvider(provider string) []string {
 	return names
 }
 
+// ListProviders 返回定价目录中去重排序后的全部 LiteLLM provider 标识，供自定义平台表单下拉补全。
+func (s *PricingService) ListProviders() []string {
+	if s == nil {
+		return nil
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	seen := make(map[string]struct{}, 64)
+	for _, p := range s.pricingData {
+		if p == nil {
+			continue
+		}
+		provider := strings.TrimSpace(p.LiteLLMProvider)
+		if provider != "" {
+			seen[provider] = struct{}{}
+		}
+	}
+	providers := make([]string, 0, len(seen))
+	for provider := range seen {
+		providers = append(providers, provider)
+	}
+	sort.Strings(providers)
+	return providers
+}
+
 // isNumeric 检查字符串是否为纯数字
 func isNumeric(s string) bool {
 	for _, c := range s {

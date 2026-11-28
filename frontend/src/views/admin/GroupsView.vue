@@ -140,31 +140,11 @@
             <span
               :class="[
                 'inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium',
-                value === 'anthropic'
-                  ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
-                  : value === 'openai'
-                    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
-                    : value === 'antigravity'
-                      ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
-                      : value === 'grok'
-                        ? 'bg-zinc-200 text-zinc-800 dark:bg-zinc-700 dark:text-zinc-100'
-                        : value === 'kimi'
-                          ? 'bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400'
-                          : value === 'zhipu'
-                            ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400'
-                            : value === 'deepseek'
-                              ? 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400'
-                              : value === 'minimax'
-                                ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400'
-                              : value === 'qwen'
-                                ? 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400'
-                              : value === 'opencode_go'
-                                ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300'
-                                : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+                platformBadgeLightClass(value),
               ]"
             >
               <PlatformIcon :platform="value" size="xs" />
-              {{ t("admin.groups.platforms." + value, platformLabel(value)) }}
+              {{ t("admin.groups.platforms." + value, platformDisplayName(value) || value) }}
             </span>
           </template>
 
@@ -2227,7 +2207,7 @@
           }}</label>
           <Select
             v-model="editForm.platform"
-            :options="platformOptions"
+            :options="editPlatformOptions"
             :disabled="true"
             data-tour="group-form-platform"
           />
@@ -3936,30 +3916,11 @@
                 <span
                   :class="[
                     'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium',
-                    group.platform === 'anthropic'
-                      ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
-                      : group.platform === 'openai'
-                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
-                        : group.platform === 'antigravity'
-                          ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
-                          : group.platform === 'grok'
-                            ? 'bg-zinc-200 text-zinc-800 dark:bg-zinc-700 dark:text-zinc-100'
-                            : group.platform === 'kimi'
-                              ? 'bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400'
-                              : group.platform === 'zhipu'
-                                ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400'
-                                : group.platform === 'deepseek'
-                                  ? 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400'
-                                  : group.platform === 'minimax'
-                                    ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400'
-                                  : group.platform === 'qwen'
-                                    ? 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400'
-                                  : group.platform === 'opencode_go'
-                                    ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300'
-                                    : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+                    platformBadgeLightClass(group.platform),
                   ]"
                 >
-                  {{ t("admin.groups.platforms." + group.platform, platformLabel(group.platform)) }}
+                  <PlatformIcon :platform="group.platform" size="xs" />
+                  {{ t("admin.groups.platforms." + group.platform, platformDisplayName(group.platform) || group.platform) }}
                 </span>
               </div>
             </div>
@@ -4419,7 +4380,11 @@ import ConfirmDialog from "@/components/common/ConfirmDialog.vue";
 import EmptyState from "@/components/common/EmptyState.vue";
 import Select from "@/components/common/Select.vue";
 import PlatformIcon from "@/components/common/PlatformIcon.vue";
-import { platformLabel } from "@/utils/platformColors";
+import { platformBadgeLightClass } from "@/utils/platformColors";
+import {
+  listEnabledPlatforms,
+  platformDisplayName,
+} from "@/constants/platformCatalog";
 import Icon from "@/components/icons/Icon.vue";
 import GroupI18nField from "@/components/admin/group/GroupI18nField.vue";
 import GroupRateMultipliersModal from "@/components/admin/group/GroupRateMultipliersModal.vue";
@@ -4740,20 +4705,37 @@ const exclusiveOptions = computed(() => [
   { value: "false", label: t("admin.groups.nonExclusive") },
 ]);
 
-const platformOptions = computed(() =>
-  GROUP_PLATFORM_OPTIONS.filter(
-    (option) => !authStore.isSimpleMode || option.value !== "composite",
-  ),
-);
+const platformOptions = computed(() => {
+  const enabled = new Set(listEnabledPlatforms().map((spec) => spec.id));
+  return GROUP_PLATFORM_OPTIONS.filter((option) =>
+    option.value === "composite"
+      ? !authStore.isSimpleMode
+      : enabled.has(option.value),
+  );
+});
+
+/** 编辑时保留已被禁用的自定义平台，避免平台名回退成空白。 */
+const editPlatformOptions = computed(() => {
+  const options = platformOptions.value;
+  const current = editForm.platform;
+  if (!current || options.some((option) => option.value === current)) {
+    return options;
+  }
+  return [
+    { value: current, label: platformDisplayName(current) || current },
+    ...options,
+  ];
+});
 
 const platformFilterOptions = computed(() => [
   { value: "", label: t("admin.groups.allPlatforms") },
   ...GROUP_PLATFORM_OPTIONS,
 ]);
 
-const compositeRoutePlatformOptions = computed(() => [
-  ...CONCRETE_PLATFORM_OPTIONS,
-]);
+const compositeRoutePlatformOptions = computed(() => {
+  const enabled = new Set(listEnabledPlatforms().map((spec) => spec.id));
+  return CONCRETE_PLATFORM_OPTIONS.filter((option) => enabled.has(option.value));
+});
 
 const compositeRouteEndpointOptions = computed(() => [
   { value: "any", label: t("admin.groups.compositeRoutes.endpoints.any") },
@@ -4875,7 +4857,10 @@ const canCopyAccountsFromGroup = (targetPlatform: GroupPlatform, sourcePlatform:
 
 const copyAccountsGroupLabel = (g: AdminGroup) => {
   const count = g.account_count || 0;
-  const platform = t("admin.groups.platforms." + g.platform, platformLabel(g.platform));
+  const platform = t(
+    "admin.groups.platforms." + g.platform,
+    platformDisplayName(g.platform) || g.platform,
+  );
   return `${g.name} - ${platform} (${t("admin.groups.accountsCount", { count })})`;
 };
 
@@ -6643,7 +6628,10 @@ const formatCompositeEndpoint = (endpoint: CompositeRouteEndpoint) =>
 
 const formatCompositePlatform = (platform: string) => {
   if (!platform) return "—";
-  return t(`admin.groups.platforms.${platform}`, platformLabel(platform));
+  return t(
+    `admin.groups.platforms.${platform}`,
+    platformDisplayName(platform) || platform,
+  );
 };
 
 const compositeRouteSourceLabel = (source: string) => {

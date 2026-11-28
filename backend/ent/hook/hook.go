@@ -189,6 +189,18 @@ func (f CompositeModelRouteFunc) Mutate(ctx context.Context, m ent.Mutation) (en
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.CompositeModelRouteMutation", m)
 }
 
+// The CustomPlatformFunc type is an adapter to allow the use of ordinary
+// function as CustomPlatform mutator.
+type CustomPlatformFunc func(context.Context, *ent.CustomPlatformMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f CustomPlatformFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.CustomPlatformMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.CustomPlatformMutation", m)
+}
+
 // The ErrorPassthroughRuleFunc type is an adapter to allow the use of ordinary
 // function as ErrorPassthroughRule mutator.
 type ErrorPassthroughRuleFunc func(context.Context, *ent.ErrorPassthroughRuleMutation) (ent.Value, error)

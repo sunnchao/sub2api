@@ -529,6 +529,18 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/admin/channels/platforms',
+    name: 'AdminCustomPlatforms',
+    component: () => import('@/views/admin/CustomPlatformsView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Custom Platforms',
+      titleKey: 'admin.customPlatforms.title',
+      descriptionKey: 'admin.customPlatforms.description'
+    }
+  },
+  {
     path: '/admin/channels/monitor',
     name: 'AdminChannelMonitor',
     component: () => import('@/views/admin/ChannelMonitorView.vue'),

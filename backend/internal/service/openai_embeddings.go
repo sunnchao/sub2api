@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/domain"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/util/responseheaders"
 	"github.com/gin-gonic/gin"
@@ -53,8 +54,11 @@ func (s *OpenAIGatewayService) ForwardEmbeddings(
 	}
 	// 协议感知：Anthropic 协议账号的凭证 base_url 指向 /anthropic 端点，
 	// embeddings 需使用 OpenAI 格式 base。
-	baseURL := account.GetOpenAIFormatBaseURL()
+	baseURL := account.GetProtocolBaseURL(APIProtocolEmbeddings)
 	if baseURL == "" {
+		if domain.IsCustomPlatform(account.Platform) {
+			return nil, fmt.Errorf("custom platform %s account %d missing embeddings base_url", account.Platform, account.ID)
+		}
 		baseURL = "https://api.openai.com"
 	}
 	validatedURL, err := s.validateUpstreamBaseURL(baseURL)

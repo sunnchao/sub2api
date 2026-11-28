@@ -92,15 +92,20 @@ func RegisterGatewayRoutes(
 		h.Gateway.Models(c)
 	}
 	isOpenAIOnlyEndpointGatewayPlatform := func(c *gin.Context) bool {
-		return getGroupPlatform(c) == service.PlatformOpenAI
+		return domain.SupportsEmbeddings(getGroupPlatform(c))
 	}
 	imagesHandler := func(c *gin.Context) {
-		switch getGroupPlatform(c) {
+		platform := getGroupPlatform(c)
+		switch platform {
 		case service.PlatformOpenAI:
 			h.OpenAIGateway.Images(c)
 		case service.PlatformGrok:
 			h.OpenAIGateway.GrokImages(c)
 		default:
+			if domain.SupportsImages(platform) {
+				h.OpenAIGateway.Images(c)
+				return
+			}
 			service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalFeatureGate)
 			c.JSON(http.StatusNotFound, gin.H{
 				"error": gin.H{

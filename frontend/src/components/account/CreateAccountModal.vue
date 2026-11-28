@@ -292,6 +292,19 @@
             {{ spec.display_name }}
           </button>
         </div>
+
+        <!-- 管理员快捷入口：登记/管理自定义渠道平台 -->
+        <div v-if="isAdmin" class="mt-2 flex justify-end">
+          <button
+            type="button"
+            data-testid="manage-custom-platforms"
+            class="inline-flex items-center gap-1 text-xs font-medium text-primary-600 transition-colors hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
+            @click="openCustomPlatformsAdmin"
+          >
+            <Icon name="externalLink" size="xs" />
+            {{ t('admin.accounts.manageCustomPlatforms') }}
+          </button>
+        </div>
       </div>
 
       <!-- Account Type Selection (Anthropic) -->
@@ -600,13 +613,13 @@
         <label class="input-label">{{ t('admin.accounts.cnProviders.accountMode.title') }}</label>
         <div class="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <button
-            v-for="mode in genericAccountModes"
-            :key="mode"
+            v-for="mode in genericAccountModeOptions"
+            :key="mode.value"
             type="button"
-            @click="accountMode = mode"
+            @click="accountMode = mode.value"
             :class="[
               'flex items-center gap-3 rounded-lg border-2 p-3 text-left transition-all',
-              accountMode === mode
+              accountMode === mode.value
                 ? cnAccentActiveClass
                 : 'border-gray-200 hover:border-gray-400 dark:border-dark-600 dark:hover:border-gray-600'
             ]"
@@ -614,12 +627,12 @@
             <div
               :class="[
                 'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
-                accountMode === mode ? cnAccentIconClass : 'bg-gray-100 text-gray-500 dark:bg-dark-600 dark:text-gray-400'
+                accountMode === mode.value ? cnAccentIconClass : 'bg-gray-100 text-gray-500 dark:bg-dark-600 dark:text-gray-400'
               ]"
             >
               <Icon name="creditCard" size="sm" />
             </div>
-            <span class="block text-sm font-medium text-gray-900 dark:text-white">{{ providerModeLabel(mode, t) }}</span>
+            <span class="block text-sm font-medium text-gray-900 dark:text-white">{{ mode.label }}</span>
           </button>
         </div>
       </div>
@@ -4197,9 +4210,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, watch, nextTick } from 'vue'
+import { ref, reactive, computed, watch, nextTick, inject } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { routerKey, type Router } from 'vue-router'
 import { useAppStore } from '@/stores/app'
+import { useAuthStore } from '@/stores/auth'
 
 import {
   claudeModels,
@@ -4277,7 +4292,7 @@ import {
   isHeaderOverrideCapable,
   isMultiProtocolApiKeyPlatform,
   providerAccountModes,
-  providerModeLabel,
+  providerModeDisplayLabel,
   providerNativeProtocols,
   providerRoutesByModel,
   resolveProviderAccountMode,
@@ -4290,7 +4305,7 @@ import {
   type OpenCodeAccountMode,
   type OpenCodeGoProtocolRule
 } from '@/components/account/credentialsBuilder'
-import { listPlatforms } from '@/constants/platformCatalog'
+import { listEnabledPlatforms } from '@/constants/platformCatalog'
 import {
   formatDateTimeLocalInput,
   getBrowserTimeZone,
@@ -4328,7 +4343,23 @@ interface OAuthFlowExposed {
 }
 
 const { t } = useI18n()
+// 用带默认值的 inject 读取路由：弹窗测试不安装 router 时不应产生注入告警。
+const router = inject<Router | null>(routerKey, null)
+const authStore = useAuthStore()
 const browserTimeZone = getBrowserTimeZone()
+
+const isAdmin = computed(() => authStore.isAdmin === true)
+
+/** 关闭新建账号弹窗并跳到自定义平台管理页（仅管理员可见入口）。 */
+function openCustomPlatformsAdmin() {
+  emit('close')
+  const target = '/admin/channels/platforms'
+  if (router) {
+    void router.push(target)
+  } else {
+    window.location.href = target
+  }
+}
 
 const oauthStepTitle = computed(() => {
   if (form.platform === 'openai') return t('admin.accounts.oauth.openai.title')
@@ -4527,9 +4558,16 @@ const isGenericMultiProtocolPlatform = computed(
   () => isMultiProtocolPlatform.value && !isCNPlatform.value && !isOpenCodeGoPlatform.value
 )
 const extraMultiProtocolPlatforms = computed(() =>
-  listPlatforms().filter(spec => !!spec.multi_protocol && !isCNProviderPlatform(spec.id) && spec.id !== 'opencode_go' && spec.id !== 'qwen')
+  listEnabledPlatforms().filter(spec => !!spec.multi_protocol && !isCNProviderPlatform(spec.id) && spec.id !== 'opencode_go' && spec.id !== 'qwen')
 )
 const genericAccountModes = computed(() => providerAccountModes(form.platform))
+// 模式按钮文案：优先使用平台清单里的 label，其次回落到内置模式的本地化名称。
+const genericAccountModeOptions = computed(() =>
+  genericAccountModes.value.map(mode => ({
+    value: mode,
+    label: providerModeDisplayLabel(form.platform, mode, t)
+  }))
+)
 // 按模型分流的供应商（OpenCode 等）：adaptive 账号携带 protocol_rules。
 const routesByModel = computed(() => providerRoutesByModel(form.platform))
 function currentOpenCodeOrCNMode(): string {

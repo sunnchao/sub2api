@@ -12,6 +12,13 @@ import builtinCatalog from './platformCatalog.builtin.json'
 export type PlatformGateway = 'anthropic' | 'openai' | 'gemini' | 'antigravity'
 export type ProviderRouting = 'by_inbound' | 'by_model'
 export type ProviderNativeProtocol = 'chat_completions' | 'anthropic' | 'responses'
+export type PlatformIconType = 'builtin' | 'url' | 'data_url' | 'letter'
+
+/** 自定义平台图标来源；value 的含义随 type 变化（内置图标 key / URL / data URL / 首字母）。 */
+export interface PlatformIconSpec {
+  type: PlatformIconType
+  value: string
+}
 
 export interface ProviderProtocolRule {
   pattern: string
@@ -23,6 +30,8 @@ export interface ProviderProtocolRule {
 
 export interface ProviderModeInfo {
   mode: string
+  /** 模式展示名；缺省时展示 mode。 */
+  label?: string
   /** 以上游协议为键的官方默认基址；缺少某协议即该模式不提供该原生端点。 */
   base_urls: Partial<Record<string, string>>
   protocol_rules?: ProviderProtocolRule[]
@@ -44,6 +53,18 @@ export interface PlatformSpec {
   gateway: PlatformGateway
   cn_provider: boolean
   litellm_provider?: string
+  /** 运行时登记的自定义平台（内置平台恒为 false）。 */
+  custom?: boolean
+  /** 公开目录：自定义平台被禁用。 */
+  disabled?: boolean
+  /** 管理端目录：自定义平台启用状态。 */
+  enabled?: boolean
+  sort_order?: number
+  supports_embeddings?: boolean
+  supports_images?: boolean
+  icon?: PlatformIconSpec
+  color_preset?: string
+  default_test_model?: string
   multi_protocol?: ProviderProfileInfo
 }
 
@@ -70,6 +91,11 @@ export function resetPlatformCatalog(): void {
 /** 全部具体平台，按展示顺序。 */
 export function listPlatforms(): PlatformSpec[] {
   return catalogState.value.platforms
+}
+
+/** 可用于新建账号/分组/路由的平台：过滤掉已禁用的自定义平台。 */
+export function listEnabledPlatforms(): PlatformSpec[] {
+  return catalogState.value.platforms.filter(spec => spec.disabled !== true && spec.enabled !== false)
 }
 
 export function listPlatformIds(): string[] {

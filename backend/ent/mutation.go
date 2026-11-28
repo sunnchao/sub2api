@@ -27,6 +27,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/channelmonitorhistory"
 	"github.com/Wei-Shaw/sub2api/ent/channelmonitorrequesttemplate"
 	"github.com/Wei-Shaw/sub2api/ent/compositemodelroute"
+	"github.com/Wei-Shaw/sub2api/ent/customplatform"
 	"github.com/Wei-Shaw/sub2api/ent/errorpassthroughrule"
 	"github.com/Wei-Shaw/sub2api/ent/group"
 	"github.com/Wei-Shaw/sub2api/ent/idempotencyrecord"
@@ -79,6 +80,7 @@ const (
 	TypeChannelMonitorHistory         = "ChannelMonitorHistory"
 	TypeChannelMonitorRequestTemplate = "ChannelMonitorRequestTemplate"
 	TypeCompositeModelRoute           = "CompositeModelRoute"
+	TypeCustomPlatform                = "CustomPlatform"
 	TypeErrorPassthroughRule          = "ErrorPassthroughRule"
 	TypeGroup                         = "Group"
 	TypeIdempotencyRecord             = "IdempotencyRecord"
@@ -20753,6 +20755,1022 @@ func (m *CompositeModelRouteMutation) ResetEdge(name string) error {
 		return nil
 	}
 	return fmt.Errorf("unknown CompositeModelRoute edge %s", name)
+}
+
+// CustomPlatformMutation represents an operation that mutates the CustomPlatform nodes in the graph.
+type CustomPlatformMutation struct {
+	config
+	op                  Op
+	typ                 string
+	id                  *string
+	created_at          *time.Time
+	updated_at          *time.Time
+	display_name        *string
+	enabled             *bool
+	sort_order          *int
+	addsort_order       *int
+	icon_type           *string
+	icon_value          *string
+	color_preset        *string
+	litellm_provider    *string
+	default_test_model  *string
+	supports_embeddings *bool
+	supports_images     *bool
+	profile_json        *map[string]interface{}
+	clearedFields       map[string]struct{}
+	done                bool
+	oldValue            func(context.Context) (*CustomPlatform, error)
+	predicates          []predicate.CustomPlatform
+}
+
+var _ ent.Mutation = (*CustomPlatformMutation)(nil)
+
+// customplatformOption allows management of the mutation configuration using functional options.
+type customplatformOption func(*CustomPlatformMutation)
+
+// newCustomPlatformMutation creates new mutation for the CustomPlatform entity.
+func newCustomPlatformMutation(c config, op Op, opts ...customplatformOption) *CustomPlatformMutation {
+	m := &CustomPlatformMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeCustomPlatform,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withCustomPlatformID sets the ID field of the mutation.
+func withCustomPlatformID(id string) customplatformOption {
+	return func(m *CustomPlatformMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *CustomPlatform
+		)
+		m.oldValue = func(ctx context.Context) (*CustomPlatform, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().CustomPlatform.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withCustomPlatform sets the old CustomPlatform of the mutation.
+func withCustomPlatform(node *CustomPlatform) customplatformOption {
+	return func(m *CustomPlatformMutation) {
+		m.oldValue = func(context.Context) (*CustomPlatform, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m CustomPlatformMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m CustomPlatformMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetID sets the value of the id field. Note that this
+// operation is only accepted on creation of CustomPlatform entities.
+func (m *CustomPlatformMutation) SetID(id string) {
+	m.id = &id
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *CustomPlatformMutation) ID() (id string, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *CustomPlatformMutation) IDs(ctx context.Context) ([]string, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []string{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().CustomPlatform.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *CustomPlatformMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *CustomPlatformMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the CustomPlatform entity.
+// If the CustomPlatform object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CustomPlatformMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *CustomPlatformMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (m *CustomPlatformMutation) SetUpdatedAt(t time.Time) {
+	m.updated_at = &t
+}
+
+// UpdatedAt returns the value of the "updated_at" field in the mutation.
+func (m *CustomPlatformMutation) UpdatedAt() (r time.Time, exists bool) {
+	v := m.updated_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpdatedAt returns the old "updated_at" field's value of the CustomPlatform entity.
+// If the CustomPlatform object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CustomPlatformMutation) OldUpdatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpdatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpdatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpdatedAt: %w", err)
+	}
+	return oldValue.UpdatedAt, nil
+}
+
+// ResetUpdatedAt resets all changes to the "updated_at" field.
+func (m *CustomPlatformMutation) ResetUpdatedAt() {
+	m.updated_at = nil
+}
+
+// SetDisplayName sets the "display_name" field.
+func (m *CustomPlatformMutation) SetDisplayName(s string) {
+	m.display_name = &s
+}
+
+// DisplayName returns the value of the "display_name" field in the mutation.
+func (m *CustomPlatformMutation) DisplayName() (r string, exists bool) {
+	v := m.display_name
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDisplayName returns the old "display_name" field's value of the CustomPlatform entity.
+// If the CustomPlatform object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CustomPlatformMutation) OldDisplayName(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDisplayName is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDisplayName requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDisplayName: %w", err)
+	}
+	return oldValue.DisplayName, nil
+}
+
+// ResetDisplayName resets all changes to the "display_name" field.
+func (m *CustomPlatformMutation) ResetDisplayName() {
+	m.display_name = nil
+}
+
+// SetEnabled sets the "enabled" field.
+func (m *CustomPlatformMutation) SetEnabled(b bool) {
+	m.enabled = &b
+}
+
+// Enabled returns the value of the "enabled" field in the mutation.
+func (m *CustomPlatformMutation) Enabled() (r bool, exists bool) {
+	v := m.enabled
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldEnabled returns the old "enabled" field's value of the CustomPlatform entity.
+// If the CustomPlatform object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CustomPlatformMutation) OldEnabled(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldEnabled is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldEnabled requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldEnabled: %w", err)
+	}
+	return oldValue.Enabled, nil
+}
+
+// ResetEnabled resets all changes to the "enabled" field.
+func (m *CustomPlatformMutation) ResetEnabled() {
+	m.enabled = nil
+}
+
+// SetSortOrder sets the "sort_order" field.
+func (m *CustomPlatformMutation) SetSortOrder(i int) {
+	m.sort_order = &i
+	m.addsort_order = nil
+}
+
+// SortOrder returns the value of the "sort_order" field in the mutation.
+func (m *CustomPlatformMutation) SortOrder() (r int, exists bool) {
+	v := m.sort_order
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSortOrder returns the old "sort_order" field's value of the CustomPlatform entity.
+// If the CustomPlatform object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CustomPlatformMutation) OldSortOrder(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSortOrder is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSortOrder requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSortOrder: %w", err)
+	}
+	return oldValue.SortOrder, nil
+}
+
+// AddSortOrder adds i to the "sort_order" field.
+func (m *CustomPlatformMutation) AddSortOrder(i int) {
+	if m.addsort_order != nil {
+		*m.addsort_order += i
+	} else {
+		m.addsort_order = &i
+	}
+}
+
+// AddedSortOrder returns the value that was added to the "sort_order" field in this mutation.
+func (m *CustomPlatformMutation) AddedSortOrder() (r int, exists bool) {
+	v := m.addsort_order
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetSortOrder resets all changes to the "sort_order" field.
+func (m *CustomPlatformMutation) ResetSortOrder() {
+	m.sort_order = nil
+	m.addsort_order = nil
+}
+
+// SetIconType sets the "icon_type" field.
+func (m *CustomPlatformMutation) SetIconType(s string) {
+	m.icon_type = &s
+}
+
+// IconType returns the value of the "icon_type" field in the mutation.
+func (m *CustomPlatformMutation) IconType() (r string, exists bool) {
+	v := m.icon_type
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldIconType returns the old "icon_type" field's value of the CustomPlatform entity.
+// If the CustomPlatform object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CustomPlatformMutation) OldIconType(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldIconType is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldIconType requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldIconType: %w", err)
+	}
+	return oldValue.IconType, nil
+}
+
+// ResetIconType resets all changes to the "icon_type" field.
+func (m *CustomPlatformMutation) ResetIconType() {
+	m.icon_type = nil
+}
+
+// SetIconValue sets the "icon_value" field.
+func (m *CustomPlatformMutation) SetIconValue(s string) {
+	m.icon_value = &s
+}
+
+// IconValue returns the value of the "icon_value" field in the mutation.
+func (m *CustomPlatformMutation) IconValue() (r string, exists bool) {
+	v := m.icon_value
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldIconValue returns the old "icon_value" field's value of the CustomPlatform entity.
+// If the CustomPlatform object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CustomPlatformMutation) OldIconValue(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldIconValue is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldIconValue requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldIconValue: %w", err)
+	}
+	return oldValue.IconValue, nil
+}
+
+// ResetIconValue resets all changes to the "icon_value" field.
+func (m *CustomPlatformMutation) ResetIconValue() {
+	m.icon_value = nil
+}
+
+// SetColorPreset sets the "color_preset" field.
+func (m *CustomPlatformMutation) SetColorPreset(s string) {
+	m.color_preset = &s
+}
+
+// ColorPreset returns the value of the "color_preset" field in the mutation.
+func (m *CustomPlatformMutation) ColorPreset() (r string, exists bool) {
+	v := m.color_preset
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldColorPreset returns the old "color_preset" field's value of the CustomPlatform entity.
+// If the CustomPlatform object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CustomPlatformMutation) OldColorPreset(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldColorPreset is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldColorPreset requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldColorPreset: %w", err)
+	}
+	return oldValue.ColorPreset, nil
+}
+
+// ResetColorPreset resets all changes to the "color_preset" field.
+func (m *CustomPlatformMutation) ResetColorPreset() {
+	m.color_preset = nil
+}
+
+// SetLitellmProvider sets the "litellm_provider" field.
+func (m *CustomPlatformMutation) SetLitellmProvider(s string) {
+	m.litellm_provider = &s
+}
+
+// LitellmProvider returns the value of the "litellm_provider" field in the mutation.
+func (m *CustomPlatformMutation) LitellmProvider() (r string, exists bool) {
+	v := m.litellm_provider
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLitellmProvider returns the old "litellm_provider" field's value of the CustomPlatform entity.
+// If the CustomPlatform object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CustomPlatformMutation) OldLitellmProvider(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLitellmProvider is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLitellmProvider requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLitellmProvider: %w", err)
+	}
+	return oldValue.LitellmProvider, nil
+}
+
+// ResetLitellmProvider resets all changes to the "litellm_provider" field.
+func (m *CustomPlatformMutation) ResetLitellmProvider() {
+	m.litellm_provider = nil
+}
+
+// SetDefaultTestModel sets the "default_test_model" field.
+func (m *CustomPlatformMutation) SetDefaultTestModel(s string) {
+	m.default_test_model = &s
+}
+
+// DefaultTestModel returns the value of the "default_test_model" field in the mutation.
+func (m *CustomPlatformMutation) DefaultTestModel() (r string, exists bool) {
+	v := m.default_test_model
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDefaultTestModel returns the old "default_test_model" field's value of the CustomPlatform entity.
+// If the CustomPlatform object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CustomPlatformMutation) OldDefaultTestModel(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDefaultTestModel is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDefaultTestModel requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDefaultTestModel: %w", err)
+	}
+	return oldValue.DefaultTestModel, nil
+}
+
+// ResetDefaultTestModel resets all changes to the "default_test_model" field.
+func (m *CustomPlatformMutation) ResetDefaultTestModel() {
+	m.default_test_model = nil
+}
+
+// SetSupportsEmbeddings sets the "supports_embeddings" field.
+func (m *CustomPlatformMutation) SetSupportsEmbeddings(b bool) {
+	m.supports_embeddings = &b
+}
+
+// SupportsEmbeddings returns the value of the "supports_embeddings" field in the mutation.
+func (m *CustomPlatformMutation) SupportsEmbeddings() (r bool, exists bool) {
+	v := m.supports_embeddings
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSupportsEmbeddings returns the old "supports_embeddings" field's value of the CustomPlatform entity.
+// If the CustomPlatform object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CustomPlatformMutation) OldSupportsEmbeddings(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSupportsEmbeddings is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSupportsEmbeddings requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSupportsEmbeddings: %w", err)
+	}
+	return oldValue.SupportsEmbeddings, nil
+}
+
+// ResetSupportsEmbeddings resets all changes to the "supports_embeddings" field.
+func (m *CustomPlatformMutation) ResetSupportsEmbeddings() {
+	m.supports_embeddings = nil
+}
+
+// SetSupportsImages sets the "supports_images" field.
+func (m *CustomPlatformMutation) SetSupportsImages(b bool) {
+	m.supports_images = &b
+}
+
+// SupportsImages returns the value of the "supports_images" field in the mutation.
+func (m *CustomPlatformMutation) SupportsImages() (r bool, exists bool) {
+	v := m.supports_images
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSupportsImages returns the old "supports_images" field's value of the CustomPlatform entity.
+// If the CustomPlatform object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CustomPlatformMutation) OldSupportsImages(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSupportsImages is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSupportsImages requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSupportsImages: %w", err)
+	}
+	return oldValue.SupportsImages, nil
+}
+
+// ResetSupportsImages resets all changes to the "supports_images" field.
+func (m *CustomPlatformMutation) ResetSupportsImages() {
+	m.supports_images = nil
+}
+
+// SetProfileJSON sets the "profile_json" field.
+func (m *CustomPlatformMutation) SetProfileJSON(value map[string]interface{}) {
+	m.profile_json = &value
+}
+
+// ProfileJSON returns the value of the "profile_json" field in the mutation.
+func (m *CustomPlatformMutation) ProfileJSON() (r map[string]interface{}, exists bool) {
+	v := m.profile_json
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldProfileJSON returns the old "profile_json" field's value of the CustomPlatform entity.
+// If the CustomPlatform object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CustomPlatformMutation) OldProfileJSON(ctx context.Context) (v map[string]interface{}, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldProfileJSON is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldProfileJSON requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldProfileJSON: %w", err)
+	}
+	return oldValue.ProfileJSON, nil
+}
+
+// ResetProfileJSON resets all changes to the "profile_json" field.
+func (m *CustomPlatformMutation) ResetProfileJSON() {
+	m.profile_json = nil
+}
+
+// Where appends a list predicates to the CustomPlatformMutation builder.
+func (m *CustomPlatformMutation) Where(ps ...predicate.CustomPlatform) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the CustomPlatformMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *CustomPlatformMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.CustomPlatform, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *CustomPlatformMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *CustomPlatformMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (CustomPlatform).
+func (m *CustomPlatformMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *CustomPlatformMutation) Fields() []string {
+	fields := make([]string, 0, 13)
+	if m.created_at != nil {
+		fields = append(fields, customplatform.FieldCreatedAt)
+	}
+	if m.updated_at != nil {
+		fields = append(fields, customplatform.FieldUpdatedAt)
+	}
+	if m.display_name != nil {
+		fields = append(fields, customplatform.FieldDisplayName)
+	}
+	if m.enabled != nil {
+		fields = append(fields, customplatform.FieldEnabled)
+	}
+	if m.sort_order != nil {
+		fields = append(fields, customplatform.FieldSortOrder)
+	}
+	if m.icon_type != nil {
+		fields = append(fields, customplatform.FieldIconType)
+	}
+	if m.icon_value != nil {
+		fields = append(fields, customplatform.FieldIconValue)
+	}
+	if m.color_preset != nil {
+		fields = append(fields, customplatform.FieldColorPreset)
+	}
+	if m.litellm_provider != nil {
+		fields = append(fields, customplatform.FieldLitellmProvider)
+	}
+	if m.default_test_model != nil {
+		fields = append(fields, customplatform.FieldDefaultTestModel)
+	}
+	if m.supports_embeddings != nil {
+		fields = append(fields, customplatform.FieldSupportsEmbeddings)
+	}
+	if m.supports_images != nil {
+		fields = append(fields, customplatform.FieldSupportsImages)
+	}
+	if m.profile_json != nil {
+		fields = append(fields, customplatform.FieldProfileJSON)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *CustomPlatformMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case customplatform.FieldCreatedAt:
+		return m.CreatedAt()
+	case customplatform.FieldUpdatedAt:
+		return m.UpdatedAt()
+	case customplatform.FieldDisplayName:
+		return m.DisplayName()
+	case customplatform.FieldEnabled:
+		return m.Enabled()
+	case customplatform.FieldSortOrder:
+		return m.SortOrder()
+	case customplatform.FieldIconType:
+		return m.IconType()
+	case customplatform.FieldIconValue:
+		return m.IconValue()
+	case customplatform.FieldColorPreset:
+		return m.ColorPreset()
+	case customplatform.FieldLitellmProvider:
+		return m.LitellmProvider()
+	case customplatform.FieldDefaultTestModel:
+		return m.DefaultTestModel()
+	case customplatform.FieldSupportsEmbeddings:
+		return m.SupportsEmbeddings()
+	case customplatform.FieldSupportsImages:
+		return m.SupportsImages()
+	case customplatform.FieldProfileJSON:
+		return m.ProfileJSON()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *CustomPlatformMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case customplatform.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	case customplatform.FieldUpdatedAt:
+		return m.OldUpdatedAt(ctx)
+	case customplatform.FieldDisplayName:
+		return m.OldDisplayName(ctx)
+	case customplatform.FieldEnabled:
+		return m.OldEnabled(ctx)
+	case customplatform.FieldSortOrder:
+		return m.OldSortOrder(ctx)
+	case customplatform.FieldIconType:
+		return m.OldIconType(ctx)
+	case customplatform.FieldIconValue:
+		return m.OldIconValue(ctx)
+	case customplatform.FieldColorPreset:
+		return m.OldColorPreset(ctx)
+	case customplatform.FieldLitellmProvider:
+		return m.OldLitellmProvider(ctx)
+	case customplatform.FieldDefaultTestModel:
+		return m.OldDefaultTestModel(ctx)
+	case customplatform.FieldSupportsEmbeddings:
+		return m.OldSupportsEmbeddings(ctx)
+	case customplatform.FieldSupportsImages:
+		return m.OldSupportsImages(ctx)
+	case customplatform.FieldProfileJSON:
+		return m.OldProfileJSON(ctx)
+	}
+	return nil, fmt.Errorf("unknown CustomPlatform field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *CustomPlatformMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case customplatform.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	case customplatform.FieldUpdatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpdatedAt(v)
+		return nil
+	case customplatform.FieldDisplayName:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDisplayName(v)
+		return nil
+	case customplatform.FieldEnabled:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetEnabled(v)
+		return nil
+	case customplatform.FieldSortOrder:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSortOrder(v)
+		return nil
+	case customplatform.FieldIconType:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetIconType(v)
+		return nil
+	case customplatform.FieldIconValue:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetIconValue(v)
+		return nil
+	case customplatform.FieldColorPreset:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetColorPreset(v)
+		return nil
+	case customplatform.FieldLitellmProvider:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLitellmProvider(v)
+		return nil
+	case customplatform.FieldDefaultTestModel:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDefaultTestModel(v)
+		return nil
+	case customplatform.FieldSupportsEmbeddings:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSupportsEmbeddings(v)
+		return nil
+	case customplatform.FieldSupportsImages:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSupportsImages(v)
+		return nil
+	case customplatform.FieldProfileJSON:
+		v, ok := value.(map[string]interface{})
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetProfileJSON(v)
+		return nil
+	}
+	return fmt.Errorf("unknown CustomPlatform field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *CustomPlatformMutation) AddedFields() []string {
+	var fields []string
+	if m.addsort_order != nil {
+		fields = append(fields, customplatform.FieldSortOrder)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *CustomPlatformMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case customplatform.FieldSortOrder:
+		return m.AddedSortOrder()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *CustomPlatformMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case customplatform.FieldSortOrder:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddSortOrder(v)
+		return nil
+	}
+	return fmt.Errorf("unknown CustomPlatform numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *CustomPlatformMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *CustomPlatformMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *CustomPlatformMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown CustomPlatform nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *CustomPlatformMutation) ResetField(name string) error {
+	switch name {
+	case customplatform.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	case customplatform.FieldUpdatedAt:
+		m.ResetUpdatedAt()
+		return nil
+	case customplatform.FieldDisplayName:
+		m.ResetDisplayName()
+		return nil
+	case customplatform.FieldEnabled:
+		m.ResetEnabled()
+		return nil
+	case customplatform.FieldSortOrder:
+		m.ResetSortOrder()
+		return nil
+	case customplatform.FieldIconType:
+		m.ResetIconType()
+		return nil
+	case customplatform.FieldIconValue:
+		m.ResetIconValue()
+		return nil
+	case customplatform.FieldColorPreset:
+		m.ResetColorPreset()
+		return nil
+	case customplatform.FieldLitellmProvider:
+		m.ResetLitellmProvider()
+		return nil
+	case customplatform.FieldDefaultTestModel:
+		m.ResetDefaultTestModel()
+		return nil
+	case customplatform.FieldSupportsEmbeddings:
+		m.ResetSupportsEmbeddings()
+		return nil
+	case customplatform.FieldSupportsImages:
+		m.ResetSupportsImages()
+		return nil
+	case customplatform.FieldProfileJSON:
+		m.ResetProfileJSON()
+		return nil
+	}
+	return fmt.Errorf("unknown CustomPlatform field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *CustomPlatformMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *CustomPlatformMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *CustomPlatformMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *CustomPlatformMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *CustomPlatformMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *CustomPlatformMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *CustomPlatformMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown CustomPlatform unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *CustomPlatformMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown CustomPlatform edge %s", name)
 }
 
 // ErrorPassthroughRuleMutation represents an operation that mutates the ErrorPassthroughRule nodes in the graph.

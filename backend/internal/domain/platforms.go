@@ -31,15 +31,31 @@ type PlatformSpec struct {
 	CNProvider bool `json:"cn_provider"`
 	// LiteLLMProvider 是定价目录中的 provider 名；空表示不支持从定价目录同步模型。
 	LiteLLMProvider string `json:"litellm_provider,omitempty"`
+	// Custom 标识后台动态登记的自定义渠道商；内置平台恒为 false。
+	Custom bool `json:"custom,omitempty"`
+	// Disabled 仅对自定义平台有意义：禁用后不再出现在新建账号/分组选项中，
+	// 但既有账号、分组与历史统计仍按原样解析。
+	Disabled bool `json:"disabled,omitempty"`
+	// SortOrder 是自定义平台的展示顺序（内置平台忽略该字段）。
+	SortOrder int `json:"sort_order,omitempty"`
+	// SupportsEmbeddings / SupportsImages 是 /v1/embeddings 与 /v1/images/*
+	// 网关门禁的能力开关。
+	SupportsEmbeddings bool `json:"supports_embeddings,omitempty"`
+	SupportsImages     bool `json:"supports_images,omitempty"`
+	// Icon 与 ColorPreset 驱动全站平台徽章/图标展示。
+	Icon        *PlatformIconSpec `json:"icon,omitempty"`
+	ColorPreset string            `json:"color_preset,omitempty"`
+	// DefaultTestModel 是账号连接测试未指定模型时的默认模型。
+	DefaultTestModel string `json:"default_test_model,omitempty"`
 }
 
 // platformList 的顺序即平台的展示顺序。
 var platformList = []PlatformSpec{
 	{ID: PlatformAnthropic, DisplayName: "Anthropic", Gateway: PlatformGatewayAnthropic, LiteLLMProvider: "anthropic"},
-	{ID: PlatformOpenAI, DisplayName: "OpenAI", Gateway: PlatformGatewayOpenAI, LiteLLMProvider: "openai"},
+	{ID: PlatformOpenAI, DisplayName: "OpenAI", Gateway: PlatformGatewayOpenAI, LiteLLMProvider: "openai", SupportsEmbeddings: true, SupportsImages: true},
 	{ID: PlatformGemini, DisplayName: "Gemini", Gateway: PlatformGatewayGemini, LiteLLMProvider: "gemini"},
 	{ID: PlatformAntigravity, DisplayName: "Antigravity", Gateway: PlatformGatewayAntigravity, LiteLLMProvider: "anthropic"},
-	{ID: PlatformGrok, DisplayName: "Grok", Gateway: PlatformGatewayOpenAI, LiteLLMProvider: "xai"},
+	{ID: PlatformGrok, DisplayName: "Grok", Gateway: PlatformGatewayOpenAI, LiteLLMProvider: "xai", SupportsImages: true},
 	{ID: PlatformKimi, DisplayName: "Kimi", Gateway: PlatformGatewayOpenAI, CNProvider: true, LiteLLMProvider: "moonshot"},
 	{ID: PlatformZhipu, DisplayName: "Zhipu GLM", Gateway: PlatformGatewayOpenAI, CNProvider: true, LiteLLMProvider: "zhipu"},
 	{ID: PlatformDeepseek, DisplayName: "DeepSeek", Gateway: PlatformGatewayOpenAI, CNProvider: true, LiteLLMProvider: "deepseek"},
@@ -61,8 +77,10 @@ var platformIndex = func() map[string]int {
 
 // Platforms 返回全部具体平台（副本），按展示顺序。
 func Platforms() []PlatformSpec {
-	out := make([]PlatformSpec, len(platformList))
-	copy(out, platformList)
+	dynamic := dynamicPlatformSpecs()
+	out := make([]PlatformSpec, 0, len(platformList)+len(dynamic))
+	out = append(out, platformList...)
+	out = append(out, dynamic...)
 	return out
 }
 
@@ -70,14 +88,17 @@ func Platforms() []PlatformSpec {
 func LookupPlatform(id string) (PlatformSpec, bool) {
 	i, ok := platformIndex[id]
 	if !ok {
-		return PlatformSpec{}, false
+		return lookupDynamicPlatform(id)
 	}
 	return platformList[i], true
 }
 
 // IsConcretePlatform 报告 id 是否为已登记的具体平台（不含 composite）。
 func IsConcretePlatform(id string) bool {
-	_, ok := platformIndex[id]
+	if _, ok := platformIndex[id]; ok {
+		return true
+	}
+	_, ok := lookupDynamicPlatform(id)
 	return ok
 }
 
@@ -94,7 +115,7 @@ func ConcretePlatformIDs() []string {
 // PlatformIDsWhere 返回满足条件的具体平台标识，按展示顺序。
 func PlatformIDsWhere(match func(PlatformSpec) bool) []string {
 	out := make([]string, 0, len(platformList))
-	for _, spec := range platformList {
+	for _, spec := range Platforms() {
 		if match(spec) {
 			out = append(out, spec.ID)
 		}
@@ -120,6 +141,12 @@ func CompositePrecedencePlatformIDs() []string {
 	for _, spec := range platformList {
 		if _, ok := seen[spec.ID]; !ok {
 			out = append(out, spec.ID)
+		}
+	}
+	for _, spec := range dynamicPlatformSpecs() {
+		if _, ok := seen[spec.ID]; !ok {
+			out = append(out, spec.ID)
+			seen[spec.ID] = struct{}{}
 		}
 	}
 	return out

@@ -20,6 +20,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/domain"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/util/responseheaders"
 	"github.com/gin-gonic/gin"
@@ -211,7 +212,18 @@ func (r *OpenAIImagesRequest) StickySessionSeed() string {
 	return seed
 }
 
+// OpenAIImagesParseOptions 控制 Images 请求解析的宽松程度。
+type OpenAIImagesParseOptions struct {
+	// AllowCustomModel 允许自定义平台的任意图像模型名（内置平台仍严格校验）。
+	AllowCustomModel bool
+}
+
 func (s *OpenAIGatewayService) ParseOpenAIImagesRequest(c *gin.Context, body []byte) (*OpenAIImagesRequest, error) {
+	return s.ParseOpenAIImagesRequestWithOptions(c, body, OpenAIImagesParseOptions{})
+}
+
+// ParseOpenAIImagesRequestWithOptions 按指定宽松度解析 Images 请求。
+func (s *OpenAIGatewayService) ParseOpenAIImagesRequestWithOptions(c *gin.Context, body []byte, opts OpenAIImagesParseOptions) (*OpenAIImagesRequest, error) {
 	if c == nil || c.Request == nil {
 		return nil, fmt.Errorf("missing request context")
 	}
@@ -258,7 +270,11 @@ func (s *OpenAIGatewayService) ParseOpenAIImagesRequest(c *gin.Context, body []b
 			req.Model = model
 		}
 	}
-	if err := validateCompatibleImagesModel(req.Model); err != nil {
+	if opts.AllowCustomModel {
+		if strings.TrimSpace(req.Model) == "" {
+			return nil, fmt.Errorf("images endpoint requires an image model")
+		}
+	} else if err := validateCompatibleImagesModel(req.Model); err != nil {
 		return nil, err
 	}
 	req.SizeTier = normalizeOpenAIImageSizeTier(req.Size)
@@ -596,6 +612,18 @@ func validateCompatibleImagesModel(model string) error {
 	return validateOpenAIImagesModel(model)
 }
 
+// validateImagesModelForAccount 对自定义平台放行任意非空图像模型名（如
+// flux-schnell / kolors），内置 OpenAI/Grok 平台继续使用严格家族白名单。
+func validateImagesModelForAccount(model string, account *Account) error {
+	if account != nil && domain.IsCustomPlatform(account.Platform) && domain.SupportsImages(account.Platform) {
+		if strings.TrimSpace(model) == "" {
+			return fmt.Errorf("images endpoint requires an image model")
+		}
+		return nil
+	}
+	return validateCompatibleImagesModel(model)
+}
+
 // RequiredCapabilityForModel also applies the API-key-only fence when channel
 // mapping introduces a compatible provider model after request parsing.
 func (req *OpenAIImagesRequest) RequiredCapabilityForModel(model string) OpenAIImagesCapability {
@@ -713,11 +741,11 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesAPIKey(
 	if mapped := strings.TrimSpace(channelMappedModel); mapped != "" {
 		requestModel = mapped
 	}
-	if err := validateCompatibleImagesModel(requestModel); err != nil {
+	if err := validateImagesModelForAccount(requestModel, account); err != nil {
 		return nil, err
 	}
 	upstreamModel := account.GetMappedModel(requestModel)
-	if err := validateCompatibleImagesModel(upstreamModel); err != nil {
+	if err := validateImagesModelForAccount(upstreamModel, account); err != nil {
 		return nil, err
 	}
 	SetOpsUpstreamModel(c, upstreamModel)
@@ -908,13 +936,15 @@ func (s *OpenAIGatewayService) buildOpenAIImagesRequest(
 	if endpoint == openAIImagesEditsEndpoint {
 		targetURL = openAIImagesEditsURL
 	}
-	baseURL := account.GetOpenAIBaseURL()
+	baseURL := account.GetProtocolBaseURL(APIProtocolImages)
 	if baseURL != "" {
 		validatedURL, err := s.validateUpstreamBaseURL(baseURL)
 		if err != nil {
 			return nil, err
 		}
 		targetURL = buildOpenAIImagesURL(validatedURL, endpoint)
+	} else if domain.IsCustomPlatform(account.Platform) {
+		return nil, fmt.Errorf("custom platform %s account %d missing images base_url", account.Platform, account.ID)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, targetURL, bytes.NewReader(body))

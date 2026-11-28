@@ -182,7 +182,7 @@ func (s *adminServiceImpl) ScopedAdminWrite(ctx context.Context, id int64, actio
 		if !slices.Contains([]string{"oauth", "setup-token", "apikey", "upstream", "bedrock", "service_account"}, input.Type) {
 			return nil, infraerrors.BadRequest("SCOPED_ACCOUNT_INPUT", "账户类型无效")
 		}
-		if !slices.Contains(domain.ConcretePlatformIDs(), input.Platform) || input.Concurrency < 0 || input.Priority < 0 {
+		if !domain.IsEnabledConcretePlatform(input.Platform) || input.Concurrency < 0 || input.Priority < 0 {
 			return nil, infraerrors.BadRequest("SCOPED_ACCOUNT_INPUT", "创建参数无效")
 		}
 		if input.Extra != nil && (input.Platform != PlatformOpenAI || input.Type != AccountTypeOAuth) {

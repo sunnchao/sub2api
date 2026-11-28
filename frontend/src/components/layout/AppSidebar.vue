@@ -816,6 +816,7 @@ const adminNavItems = computed((): NavItem[] => {
       hideInSimpleMode: true,
       expandOnly: true,
       children: [
+        { path: '/admin/channels/platforms', label: t('nav.customPlatforms'), icon: GlobeIcon },
         { path: '/admin/channels/pricing', label: t('nav.channelPricing'), icon: PriceTagIcon },
         { path: '/admin/channels/monitor', label: t('nav.channelMonitor'), icon: SignalIcon, featureFlag: flagChannelMonitor },
       ],

@@ -35,6 +35,7 @@ func ProvideAdminHandlers(
 	userAttributeHandler *admin.UserAttributeHandler,
 	errorPassthroughHandler *admin.ErrorPassthroughHandler,
 	tlsFingerprintProfileHandler *admin.TLSFingerprintProfileHandler,
+	customPlatformHandler *admin.CustomPlatformHandler,
 	pluginHandler *admin.PluginHandler,
 	apiKeyHandler *admin.AdminAPIKeyHandler,
 	scheduledTestHandler *admin.ScheduledTestHandler,
@@ -83,6 +84,7 @@ func ProvideAdminHandlers(
 		UserAttribute:          userAttributeHandler,
 		ErrorPassthrough:       errorPassthroughHandler,
 		TLSFingerprintProfile:  tlsFingerprintProfileHandler,
+		CustomPlatform:         customPlatformHandler,
 		Plugin:                 pluginHandler,
 		APIKey:                 apiKeyHandler,
 		ScheduledTest:          scheduledTestHandler,
@@ -275,6 +277,7 @@ func ProvideHandlers(
 	asyncImageHandler *AsyncImageHandler,
 	batchImageHandler *BatchImageHandler,
 	checkinHandler *CheckinHandler,
+	platformCatalogHandler *PlatformCatalogHandler,
 	_ *service.IdempotencyCoordinator,
 	_ *service.IdempotencyCleanupService,
 	_ *service.OpenAIQuotaAutoResetService,
@@ -304,6 +307,7 @@ func ProvideHandlers(
 		AsyncImage:       asyncImageHandler,
 		BatchImage:       batchImageHandler,
 		Checkin:          checkinHandler,
+		PlatformCatalog:  platformCatalogHandler,
 	}
 }
 
@@ -333,6 +337,7 @@ var ProviderSet = wire.NewSet(
 	NewAsyncImageHandler,
 	ProvideBatchImageHandler,
 	ProvideCheckinHandler,
+	NewPlatformCatalogHandler,
 
 	// Admin handlers
 	admin.NewDashboardHandler,
@@ -359,6 +364,7 @@ var ProviderSet = wire.NewSet(
 	admin.NewUserAttributeHandler,
 	admin.NewErrorPassthroughHandler,
 	admin.NewTLSFingerprintProfileHandler,
+	admin.NewCustomPlatformHandler,
 	admin.NewPluginHandler,
 	admin.NewAdminAPIKeyHandler,
 	admin.NewScheduledTestHandler,

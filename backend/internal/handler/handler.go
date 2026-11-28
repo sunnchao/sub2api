@@ -31,6 +31,7 @@ type AdminHandlers struct {
 	UserAttribute          *admin.UserAttributeHandler
 	ErrorPassthrough       *admin.ErrorPassthroughHandler
 	TLSFingerprintProfile  *admin.TLSFingerprintProfileHandler
+	CustomPlatform         *admin.CustomPlatformHandler
 	Plugin                 *admin.PluginHandler
 	APIKey                 *admin.AdminAPIKeyHandler
 	ScheduledTest          *admin.ScheduledTestHandler
@@ -73,6 +74,7 @@ type Handlers struct {
 	AsyncImage       *AsyncImageHandler
 	BatchImage       *BatchImageHandler
 	Checkin          *CheckinHandler
+	PlatformCatalog  *PlatformCatalogHandler
 }
 
 // BuildInfo contains build-time information

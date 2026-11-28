@@ -153,12 +153,21 @@
           'rounded-lg border p-3',
           item.isOther
             ? 'border-dashed border-gray-300 bg-gray-50 dark:border-dark-500 dark:bg-dark-700/30'
-            : 'border-gray-200 dark:border-dark-600'
+            : platformBorderClass(item.platform)
         ]"
       >
         <div class="flex items-center justify-between">
-          <span class="text-sm font-semibold text-gray-900 dark:text-white">
-            {{ item.isOther ? t('dashboard.platformOther') : platformLabel(item.platform) }}
+          <span class="inline-flex min-w-0 items-center gap-1.5 text-sm font-semibold text-gray-900 dark:text-white">
+            <span
+              v-if="!item.isOther"
+              class="inline-flex"
+              :class="platformIconClass(item.platform)"
+            >
+              <PlatformIcon :platform="item.platform" size="xs" />
+            </span>
+            <span class="truncate">
+              {{ item.isOther ? t('dashboard.platformOther') : platformDisplayName(item.platform) }}
+            </span>
           </span>
           <span class="font-mono text-sm text-purple-600 dark:text-purple-400" :title="t('dashboard.actual')">
             ${{ formatCost(item.total_actual_cost) }}
@@ -231,6 +240,9 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Icon from '@/components/icons/Icon.vue'
+import PlatformIcon from '@/components/common/PlatformIcon.vue'
+import { listPlatforms, platformDisplayName } from '@/constants/platformCatalog'
+import { platformBorderClass, platformIconClass } from '@/utils/platformColors'
 import { formatDateTimeToMinute } from '@/utils/format'
 import type { PlatformDashboardStats, UserDashboardStats as UserStatsType } from '@/api/usage'
 import type { PlatformQuotaItem } from '@/types'
@@ -258,22 +270,6 @@ const nearestExpiringFormatted = computed(() =>
   props.nearestExpiringAt ? formatDateTimeToMinute(props.nearestExpiringAt) : ''
 )
 
-const PLATFORM_LABELS: Record<string, string> = {
-  anthropic: 'Claude',
-  openai: 'OpenAI',
-  gemini: 'Gemini',
-  antigravity: 'Antigravity',
-  grok: 'Grok',
-  kimi: 'Kimi',
-  zhipu: 'Zhipu GLM',
-  deepseek: 'DeepSeek',
-  minimax: 'MiniMax',
-  qwen: 'Qwen',
-  typesafe: 'TypeSafe / Jev',
-}
-
-const platformLabel = (p: string) => PLATFORM_LABELS[p] ?? p
-
 // 处理"各平台之和 < 总值"的差值：后端按平台聚合时过滤了无法归属平台的行
 // （group 与 account 都缺 platform）。这里把差值作为"其他"卡片显式展示，
 // 避免 Row 1 总值与 Row 3 平台拆分加总对不上、用户困惑。
@@ -297,6 +293,11 @@ const platformCards = computed<FusedPlatformCard[]>(() => {
   }
 
   const PLATFORM_ORDER = ['anthropic', 'openai', 'gemini', 'antigravity', 'grok', 'typesafe']
+  const catalogOrder = new Map(listPlatforms().map((spec, index) => [spec.id, index]))
+  const platformRank = (p: string) => {
+    const preferred = PLATFORM_ORDER.indexOf(p)
+    return preferred === -1 ? PLATFORM_ORDER.length + (catalogOrder.get(p) ?? 1000) : preferred
+  }
   const cards: FusedPlatformCard[] = []
 
   for (const p of platforms) {
@@ -311,14 +312,11 @@ const platformCards = computed<FusedPlatformCard[]>(() => {
     })
   }
 
-  // 排序：按 PLATFORM_ORDER，未知平台按名称排序
+  // 排序：按常用平台优先，其余跟随平台清单顺序，未知平台按名称排序
   cards.sort((a, b) => {
-    const ai = PLATFORM_ORDER.indexOf(a.platform)
-    const bi = PLATFORM_ORDER.indexOf(b.platform)
-    if (ai === -1 && bi === -1) return a.platform.localeCompare(b.platform)
-    if (ai === -1) return 1
-    if (bi === -1) return -1
-    return ai - bi
+    const diff = platformRank(a.platform) - platformRank(b.platform)
+    if (diff !== 0) return diff
+    return platformDisplayName(a.platform).localeCompare(platformDisplayName(b.platform))
   })
 
   // __other__ 补差逻辑：只对 by_platform 有 usage 数据的总和计算

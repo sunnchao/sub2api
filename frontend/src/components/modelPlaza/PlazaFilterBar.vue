@@ -17,7 +17,7 @@
           @click="$emit('update:platform', p)"
         >
           <PlatformIcon v-if="p !== 'all'" :platform="p as GroupPlatform" size="xs" />
-          {{ p === 'all' ? t('modelPlaza.filters.all') : p }}
+          {{ p === 'all' ? t('modelPlaza.filters.all') : platformDisplayName(p) }}
         </button>
       </div>
     </div>
@@ -115,6 +115,7 @@ import { useI18n } from 'vue-i18n'
 import Icon from '@/components/icons/Icon.vue'
 import PlatformIcon from '@/components/common/PlatformIcon.vue'
 import { platformAccentColor } from '@/utils/platformColors'
+import { platformDisplayName } from '@/constants/platformCatalog'
 import type { GroupPlatform } from '@/types'
 
 const props = defineProps<{

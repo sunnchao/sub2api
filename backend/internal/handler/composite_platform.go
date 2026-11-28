@@ -39,6 +39,21 @@ func compositeTargetPlatformAllowed(c *gin.Context, apiKey *service.APIKey, mode
 	return false
 }
 
+// compositeTargetCapabilityAllowed 按平台能力（如 Embeddings / Images 开关）
+// 判定 Composite 路由目标是否允许访问该端点。非 Composite 分组恒放行，由
+// 网关路由层的平台门禁负责。
+func compositeTargetCapabilityAllowed(c *gin.Context, apiKey *service.APIKey, model string, supports func(string) bool) bool {
+	if c == nil || c.Request == nil || apiKey == nil || apiKey.Group == nil || apiKey.Group.Platform != service.PlatformComposite {
+		return true
+	}
+	ensureCompositeTargetPlatform(c, apiKey, model)
+	platform, ok := service.ResolvedTargetPlatformFromContext(c.Request.Context())
+	if !ok {
+		return false
+	}
+	return supports(platform)
+}
+
 func compositeTargetPlatformResolved(c *gin.Context, apiKey *service.APIKey, model string) bool {
 	if c == nil || c.Request == nil || apiKey == nil || apiKey.Group == nil || apiKey.Group.Platform != service.PlatformComposite {
 		return true

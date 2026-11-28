@@ -36,7 +36,9 @@ type ProviderProfileInfo struct {
 
 // ProviderModeInfo 是某接入模式的默认端点；BaseURLs 缺少某协议即该模式不提供该原生端点。
 type ProviderModeInfo struct {
-	Mode          string            `json:"mode"`
+	Mode string `json:"mode"`
+	// Label 是接入模式展示名；空值由前端回退到 Mode。
+	Label         string            `json:"label,omitempty"`
 	BaseURLs      map[string]string `json:"base_urls"`
 	ProtocolRules []ProtocolRule    `json:"protocol_rules,omitempty"`
 }
@@ -49,9 +51,13 @@ func BuildPlatformCatalog() PlatformCatalog {
 		CompositePrecedence: domain.CompositePrecedencePlatformIDs(),
 	}
 	for _, spec := range specs {
+		profile := LookupProviderProfile(spec.ID)
+		if spec.Custom && spec.DefaultTestModel == "" && profile != nil {
+			spec.DefaultTestModel = profile.DefaultTestModel
+		}
 		catalog.Platforms = append(catalog.Platforms, PlatformCatalogEntry{
 			PlatformSpec:  spec,
-			MultiProtocol: providerProfileInfo(LookupProviderProfile(spec.ID)),
+			MultiProtocol: providerProfileInfo(profile),
 		})
 	}
 	return catalog
@@ -88,8 +94,15 @@ func providerProfileInfo(profile *ProviderProfile) *ProviderProfileInfo {
 		for protocol, baseURL := range endpoints.BaseURLs {
 			baseURLs[protocol] = baseURL
 		}
+		if endpoints.EmbeddingsBaseURL != "" {
+			baseURLs[APIProtocolEmbeddings] = endpoints.EmbeddingsBaseURL
+		}
+		if endpoints.ImagesBaseURL != "" {
+			baseURLs[APIProtocolImages] = endpoints.ImagesBaseURL
+		}
 		info.Modes = append(info.Modes, ProviderModeInfo{
 			Mode:          mode,
+			Label:         endpoints.Label,
 			BaseURLs:      baseURLs,
 			ProtocolRules: cloneProtocolRules(endpoints.ProtocolRules),
 		})

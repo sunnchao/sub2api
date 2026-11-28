@@ -419,6 +419,18 @@ export function providerModeLabel(mode: string, t: (key: string) => string): str
   }
 }
 
+/** 接入模式的展示名：优先使用平台清单里的 label（自定义平台由管理员配置），其次回落内置本地化名称。 */
+export function providerModeDisplayLabel(
+  platform: string | null | undefined,
+  mode: string,
+  t: (key: string) => string
+): string {
+  const configured = platform
+    ? getProviderProfile(platform)?.modes.find(item => item.mode === mode)?.label?.trim()
+    : ''
+  return configured || providerModeLabel(mode, t)
+}
+
 /** 供应商的接入模式，默认模式在前。 */
 export function providerAccountModes(platform: string): string[] {
   return getProviderProfile(platform)?.modes.map(item => item.mode) ?? []

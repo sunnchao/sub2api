@@ -213,6 +213,7 @@ export default {
     paymentConfig: '支付配置',
     paymentPlans: '订阅套餐',
     channelManagement: '渠道管理',
+    customPlatforms: '自定义平台',
     channelPricing: '渠道定价',
     channelMonitor: '渠道监控',
     channelStatus: '渠道状态',

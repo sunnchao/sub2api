@@ -82,8 +82,6 @@ const BORDER: Record<Platform, string> = {
   cline: 'border-violet-500/20 dark:border-violet-500/20',
   composite: 'border-cyan-500/20 dark:border-cyan-500/20',
 }
-const BORDER_DEFAULT = 'border-gray-200 dark:border-dark-700'
-
 // ── Border strong (higher-contrast platform tint, e.g. plaza group cards) ──
 const BORDER_STRONG: Record<Platform, string> = {
   anthropic: 'border-orange-500/35 dark:border-orange-500/30',
@@ -102,7 +100,6 @@ const BORDER_STRONG: Record<Platform, string> = {
   cline: 'border-violet-500/35 dark:border-violet-500/30',
   composite: 'border-cyan-500/35 dark:border-cyan-500/30',
 }
-const BORDER_STRONG_DEFAULT = 'border-gray-300 dark:border-dark-600'
 
 // ── Accent (single raw color per platform; consumers derive washes/tints
 //    from it via CSS color-mix, e.g. plaza paid-price zone) ──
@@ -123,8 +120,6 @@ const ACCENT: Record<Platform, string> = {
   cline: '#8b5cf6', // violet-500（Cline 品牌紫 #9F58FA）
   composite: '#06b6d4', // cyan-500
 }
-const ACCENT_DEFAULT = '#14b8a6' // primary-500 (teal)
-
 // ── Accent bar (gradient) ───────────────────────────────────────────
 const ACCENT_BAR: Record<Platform, string> = {
   anthropic: 'bg-gradient-to-r from-orange-400 to-orange-500',
@@ -143,7 +138,6 @@ const ACCENT_BAR: Record<Platform, string> = {
   cline: 'bg-gradient-to-r from-violet-400 to-violet-500',
   composite: 'bg-gradient-to-r from-slate-500 to-cyan-500',
 }
-const ACCENT_BAR_DEFAULT = 'bg-gradient-to-r from-primary-400 to-primary-500'
 
 // ── Text (price, icon) ─────────────────────────────────────────────
 const TEXT: Record<Platform, string> = {
@@ -163,8 +157,6 @@ const TEXT: Record<Platform, string> = {
   cline: 'text-violet-600 dark:text-violet-400',
   composite: 'text-cyan-700 dark:text-cyan-300',
 }
-const TEXT_DEFAULT = 'text-primary-600 dark:text-primary-400'
-
 // ── Icon (check mark etc.) ──────────────────────────────────────────
 const ICON: Record<Platform, string> = {
   anthropic: 'text-orange-500 dark:text-orange-400',
@@ -183,8 +175,6 @@ const ICON: Record<Platform, string> = {
   cline: 'text-violet-500 dark:text-violet-400',
   composite: 'text-cyan-600 dark:text-cyan-300',
 }
-const ICON_DEFAULT = 'text-primary-500 dark:text-primary-400'
-
 // ── Button (solid bg) ───────────────────────────────────────────────
 const BUTTON: Record<Platform, string> = {
   anthropic: 'bg-orange-500 text-white hover:bg-orange-600 active:bg-orange-700 dark:bg-orange-500/80 dark:hover:bg-orange-500',
@@ -203,7 +193,6 @@ const BUTTON: Record<Platform, string> = {
   cline: 'bg-violet-500 text-white hover:bg-violet-600 active:bg-violet-700 dark:bg-violet-500/80 dark:hover:bg-violet-500',
   composite: 'bg-cyan-700 text-white hover:bg-cyan-800 active:bg-cyan-900 dark:bg-cyan-600 dark:hover:bg-cyan-500',
 }
-const BUTTON_DEFAULT = 'bg-primary-500 text-white hover:bg-primary-600 dark:bg-primary-600 dark:hover:bg-primary-500'
 
 // ── Discount badge ──────────────────────────────────────────────────
 const DISCOUNT: Record<Platform, string> = {
@@ -223,7 +212,6 @@ const DISCOUNT: Record<Platform, string> = {
   cline: 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300',
   composite: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/40 dark:text-cyan-300',
 }
-const DISCOUNT_DEFAULT = 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'
 
 // ── Header gradient (subscription confirm) ─────────────────────────
 const GRADIENT: Record<Platform, string> = {
@@ -243,7 +231,6 @@ const GRADIENT: Record<Platform, string> = {
   cline: 'from-violet-500 to-violet-600',
   composite: 'from-slate-600 to-cyan-600',
 }
-const GRADIENT_DEFAULT = 'from-primary-500 to-primary-600'
 
 // ── Header text (light text on gradient bg) ────────────────────────
 const GRADIENT_TEXT: Record<Platform, string> = {
@@ -263,7 +250,6 @@ const GRADIENT_TEXT: Record<Platform, string> = {
   cline: 'text-violet-100',
   composite: 'text-cyan-100',
 }
-const GRADIENT_TEXT_DEFAULT = 'text-primary-100'
 
 const GRADIENT_SUBTEXT: Record<Platform, string> = {
   anthropic: 'text-orange-200',
@@ -282,7 +268,210 @@ const GRADIENT_SUBTEXT: Record<Platform, string> = {
   cline: 'text-violet-200',
   composite: 'text-cyan-200',
 }
-const GRADIENT_SUBTEXT_DEFAULT = 'text-primary-200'
+
+// ── Color presets (custom platforms pick one of these in the admin UI) ──
+
+export type PlatformColorPresetName =
+  | 'blue'
+  | 'violet'
+  | 'emerald'
+  | 'teal'
+  | 'amber'
+  | 'orange'
+  | 'rose'
+  | 'pink'
+  | 'indigo'
+  | 'slate'
+
+export interface PlatformColorPreset {
+  badge: string
+  badgeLight: string
+  border: string
+  borderStrong: string
+  accent: string
+  accentBar: string
+  text: string
+  icon: string
+  button: string
+  discount: string
+  gradient: string
+  gradientText: string
+  gradientSubtext: string
+}
+
+/**
+ * Presets follow the same class templates as the built-in platform maps so a
+ * custom platform looks native. Class strings stay literal (Tailwind scans
+ * this file), hence no interpolation.
+ */
+export const PLATFORM_COLOR_PRESETS: Record<PlatformColorPresetName, PlatformColorPreset> = {
+  blue: {
+    badge: 'bg-blue-500/10 text-blue-600 border-blue-500/30 dark:text-blue-400',
+    badgeLight: 'bg-blue-500/10 text-blue-600 dark:bg-blue-500/10 dark:text-blue-300',
+    border: 'border-blue-500/20 dark:border-blue-500/20',
+    borderStrong: 'border-blue-500/35 dark:border-blue-500/30',
+    accent: '#3b82f6',
+    accentBar: 'bg-gradient-to-r from-blue-400 to-blue-500',
+    text: 'text-blue-600 dark:text-blue-400',
+    icon: 'text-blue-500 dark:text-blue-400',
+    button: 'bg-blue-500 text-white hover:bg-blue-600 active:bg-blue-700 dark:bg-blue-500/80 dark:hover:bg-blue-500',
+    discount: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
+    gradient: 'from-blue-500 to-blue-600',
+    gradientText: 'text-blue-100',
+    gradientSubtext: 'text-blue-200'
+  },
+  violet: {
+    badge: 'bg-violet-500/10 text-violet-600 border-violet-500/30 dark:text-violet-400',
+    badgeLight: 'bg-violet-500/10 text-violet-600 dark:bg-violet-500/10 dark:text-violet-300',
+    border: 'border-violet-500/20 dark:border-violet-500/20',
+    borderStrong: 'border-violet-500/35 dark:border-violet-500/30',
+    accent: '#8b5cf6',
+    accentBar: 'bg-gradient-to-r from-violet-400 to-violet-500',
+    text: 'text-violet-600 dark:text-violet-400',
+    icon: 'text-violet-500 dark:text-violet-400',
+    button: 'bg-violet-500 text-white hover:bg-violet-600 active:bg-violet-700 dark:bg-violet-500/80 dark:hover:bg-violet-500',
+    discount: 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300',
+    gradient: 'from-violet-500 to-violet-600',
+    gradientText: 'text-violet-100',
+    gradientSubtext: 'text-violet-200'
+  },
+  emerald: {
+    badge: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30 dark:text-emerald-400',
+    badgeLight: 'bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-300',
+    border: 'border-emerald-500/20 dark:border-emerald-500/20',
+    borderStrong: 'border-emerald-500/35 dark:border-emerald-500/30',
+    accent: '#10b981',
+    accentBar: 'bg-gradient-to-r from-emerald-400 to-emerald-500',
+    text: 'text-emerald-600 dark:text-emerald-400',
+    icon: 'text-emerald-500 dark:text-emerald-400',
+    button: 'bg-emerald-600 text-white hover:bg-emerald-700 active:bg-emerald-800 dark:bg-emerald-600/80 dark:hover:bg-emerald-600',
+    discount: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
+    gradient: 'from-emerald-500 to-emerald-600',
+    gradientText: 'text-emerald-100',
+    gradientSubtext: 'text-emerald-200'
+  },
+  teal: {
+    badge: 'bg-teal-500/10 text-teal-600 border-teal-500/30 dark:text-teal-400',
+    badgeLight: 'bg-teal-500/10 text-teal-600 dark:bg-teal-500/10 dark:text-teal-300',
+    border: 'border-teal-500/20 dark:border-teal-500/20',
+    borderStrong: 'border-teal-500/35 dark:border-teal-500/30',
+    accent: '#14b8a6',
+    accentBar: 'bg-gradient-to-r from-teal-400 to-teal-500',
+    text: 'text-teal-600 dark:text-teal-400',
+    icon: 'text-teal-500 dark:text-teal-400',
+    button: 'bg-teal-500 text-white hover:bg-teal-600 active:bg-teal-700 dark:bg-teal-500/80 dark:hover:bg-teal-500',
+    discount: 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300',
+    gradient: 'from-teal-500 to-teal-600',
+    gradientText: 'text-teal-100',
+    gradientSubtext: 'text-teal-200'
+  },
+  amber: {
+    badge: 'bg-amber-500/10 text-amber-600 border-amber-500/30 dark:text-amber-400',
+    badgeLight: 'bg-amber-500/10 text-amber-600 dark:bg-amber-500/10 dark:text-amber-300',
+    border: 'border-amber-500/20 dark:border-amber-500/20',
+    borderStrong: 'border-amber-500/35 dark:border-amber-500/30',
+    accent: '#f59e0b',
+    accentBar: 'bg-gradient-to-r from-amber-400 to-amber-500',
+    text: 'text-amber-600 dark:text-amber-400',
+    icon: 'text-amber-500 dark:text-amber-400',
+    button: 'bg-amber-500 text-white hover:bg-amber-600 active:bg-amber-700 dark:bg-amber-500/80 dark:hover:bg-amber-500',
+    discount: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300',
+    gradient: 'from-amber-500 to-amber-600',
+    gradientText: 'text-amber-100',
+    gradientSubtext: 'text-amber-200'
+  },
+  orange: {
+    badge: 'bg-orange-500/10 text-orange-600 border-orange-500/30 dark:text-orange-400',
+    badgeLight: 'bg-orange-500/10 text-orange-600 dark:bg-orange-500/10 dark:text-orange-300',
+    border: 'border-orange-500/20 dark:border-orange-500/20',
+    borderStrong: 'border-orange-500/35 dark:border-orange-500/30',
+    accent: '#f97316',
+    accentBar: 'bg-gradient-to-r from-orange-400 to-orange-500',
+    text: 'text-orange-600 dark:text-orange-400',
+    icon: 'text-orange-500 dark:text-orange-400',
+    button: 'bg-orange-500 text-white hover:bg-orange-600 active:bg-orange-700 dark:bg-orange-500/80 dark:hover:bg-orange-500',
+    discount: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300',
+    gradient: 'from-orange-500 to-orange-600',
+    gradientText: 'text-orange-100',
+    gradientSubtext: 'text-orange-200'
+  },
+  rose: {
+    badge: 'bg-rose-500/10 text-rose-600 border-rose-500/30 dark:text-rose-400',
+    badgeLight: 'bg-rose-500/10 text-rose-600 dark:bg-rose-500/10 dark:text-rose-300',
+    border: 'border-rose-500/20 dark:border-rose-500/20',
+    borderStrong: 'border-rose-500/35 dark:border-rose-500/30',
+    accent: '#f43f5e',
+    accentBar: 'bg-gradient-to-r from-rose-400 to-rose-500',
+    text: 'text-rose-600 dark:text-rose-400',
+    icon: 'text-rose-500 dark:text-rose-400',
+    button: 'bg-rose-500 text-white hover:bg-rose-600 active:bg-rose-700 dark:bg-rose-500/80 dark:hover:bg-rose-500',
+    discount: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300',
+    gradient: 'from-rose-500 to-rose-600',
+    gradientText: 'text-rose-100',
+    gradientSubtext: 'text-rose-200'
+  },
+  pink: {
+    badge: 'bg-pink-500/10 text-pink-600 border-pink-500/30 dark:text-pink-400',
+    badgeLight: 'bg-pink-500/10 text-pink-600 dark:bg-pink-500/10 dark:text-pink-300',
+    border: 'border-pink-500/20 dark:border-pink-500/20',
+    borderStrong: 'border-pink-500/35 dark:border-pink-500/30',
+    accent: '#ec4899',
+    accentBar: 'bg-gradient-to-r from-pink-400 to-pink-500',
+    text: 'text-pink-600 dark:text-pink-400',
+    icon: 'text-pink-500 dark:text-pink-400',
+    button: 'bg-pink-500 text-white hover:bg-pink-600 active:bg-pink-700 dark:bg-pink-500/80 dark:hover:bg-pink-500',
+    discount: 'bg-pink-100 text-pink-700 dark:bg-pink-900/40 dark:text-pink-300',
+    gradient: 'from-pink-500 to-pink-600',
+    gradientText: 'text-pink-100',
+    gradientSubtext: 'text-pink-200'
+  },
+  indigo: {
+    badge: 'bg-indigo-500/10 text-indigo-600 border-indigo-500/30 dark:text-indigo-400',
+    badgeLight: 'bg-indigo-500/10 text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-300',
+    border: 'border-indigo-500/20 dark:border-indigo-500/20',
+    borderStrong: 'border-indigo-500/35 dark:border-indigo-500/30',
+    accent: '#6366f1',
+    accentBar: 'bg-gradient-to-r from-indigo-400 to-indigo-500',
+    text: 'text-indigo-600 dark:text-indigo-400',
+    icon: 'text-indigo-500 dark:text-indigo-400',
+    button: 'bg-indigo-500 text-white hover:bg-indigo-600 active:bg-indigo-700 dark:bg-indigo-500/80 dark:hover:bg-indigo-500',
+    discount: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300',
+    gradient: 'from-indigo-500 to-indigo-600',
+    gradientText: 'text-indigo-100',
+    gradientSubtext: 'text-indigo-200'
+  },
+  slate: {
+    badge: BADGE_DEFAULT,
+    badgeLight: 'bg-slate-500/10 text-slate-600 dark:bg-slate-500/10 dark:text-slate-300',
+    border: 'border-slate-500/20 dark:border-slate-500/20',
+    borderStrong: 'border-slate-500/35 dark:border-slate-500/30',
+    accent: '#64748b',
+    accentBar: 'bg-gradient-to-r from-slate-400 to-slate-500',
+    text: 'text-slate-600 dark:text-slate-400',
+    icon: 'text-slate-500 dark:text-slate-400',
+    button: 'bg-slate-600 text-white hover:bg-slate-700 active:bg-slate-800 dark:bg-slate-600/80 dark:hover:bg-slate-600',
+    discount: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
+    gradient: 'from-slate-500 to-slate-600',
+    gradientText: 'text-slate-100',
+    gradientSubtext: 'text-slate-200'
+  }
+}
+
+export const DEFAULT_PLATFORM_COLOR_PRESET: PlatformColorPresetName = 'slate'
+
+function isPlatformColorPresetName(value: string): value is PlatformColorPresetName {
+  return Object.prototype.hasOwnProperty.call(PLATFORM_COLOR_PRESETS, value)
+}
+
+/** 自定义/未登记平台的颜色预设：取自平台清单的 color_preset，未知时回落 slate。 */
+export function platformColorPresetName(p: string | null | undefined): PlatformColorPresetName {
+  const configured = getPlatformSpec(p)?.color_preset?.trim().toLowerCase()
+  return configured && isPlatformColorPresetName(configured) ? configured : DEFAULT_PLATFORM_COLOR_PRESET
+}
+
+export function platformColorPreset(p: string | null | undefined): PlatformColorPreset {
+  return PLATFORM_COLOR_PRESETS[platformColorPresetName(p)]
+}
 
 // ── Public API ──────────────────────────────────────────────────────
 
@@ -307,55 +496,55 @@ function isPlatform(p: string): p is Platform {
 }
 
 export function platformBadgeClass(p: string): string {
-  return isPlatform(p) ? BADGE[p] : BADGE_DEFAULT
+  return isPlatform(p) ? BADGE[p] : platformColorPreset(p).badge
 }
 
 export function platformBadgeLightClass(p: string): string {
-  return isPlatform(p) ? BADGE_LIGHT[p] : BADGE_DEFAULT
+  return isPlatform(p) ? BADGE_LIGHT[p] : platformColorPreset(p).badgeLight
 }
 
 export function platformBorderClass(p: string): string {
-  return isPlatform(p) ? BORDER[p] : BORDER_DEFAULT
+  return isPlatform(p) ? BORDER[p] : platformColorPreset(p).border
 }
 
 export function platformBorderStrongClass(p: string): string {
-  return isPlatform(p) ? BORDER_STRONG[p] : BORDER_STRONG_DEFAULT
+  return isPlatform(p) ? BORDER_STRONG[p] : platformColorPreset(p).borderStrong
 }
 
 export function platformAccentColor(p: string): string {
-  return isPlatform(p) ? ACCENT[p] : ACCENT_DEFAULT
+  return isPlatform(p) ? ACCENT[p] : platformColorPreset(p).accent
 }
 
 export function platformAccentBarClass(p: string): string {
-  return isPlatform(p) ? ACCENT_BAR[p] : ACCENT_BAR_DEFAULT
+  return isPlatform(p) ? ACCENT_BAR[p] : platformColorPreset(p).accentBar
 }
 
 export function platformTextClass(p: string): string {
-  return isPlatform(p) ? TEXT[p] : TEXT_DEFAULT
+  return isPlatform(p) ? TEXT[p] : platformColorPreset(p).text
 }
 
 export function platformIconClass(p: string): string {
-  return isPlatform(p) ? ICON[p] : ICON_DEFAULT
+  return isPlatform(p) ? ICON[p] : platformColorPreset(p).icon
 }
 
 export function platformButtonClass(p: string): string {
-  return isPlatform(p) ? BUTTON[p] : BUTTON_DEFAULT
+  return isPlatform(p) ? BUTTON[p] : platformColorPreset(p).button
 }
 
 export function platformDiscountClass(p: string): string {
-  return isPlatform(p) ? DISCOUNT[p] : DISCOUNT_DEFAULT
+  return isPlatform(p) ? DISCOUNT[p] : platformColorPreset(p).discount
 }
 
 export function platformGradientClass(p: string): string {
-  return isPlatform(p) ? GRADIENT[p] : GRADIENT_DEFAULT
+  return isPlatform(p) ? GRADIENT[p] : platformColorPreset(p).gradient
 }
 
 export function platformGradientTextClass(p: string): string {
-  return isPlatform(p) ? GRADIENT_TEXT[p] : GRADIENT_TEXT_DEFAULT
+  return isPlatform(p) ? GRADIENT_TEXT[p] : platformColorPreset(p).gradientText
 }
 
 export function platformGradientSubtextClass(p: string): string {
-  return isPlatform(p) ? GRADIENT_SUBTEXT[p] : GRADIENT_SUBTEXT_DEFAULT
+  return isPlatform(p) ? GRADIENT_SUBTEXT[p] : platformColorPreset(p).gradientSubtext
 }
 
 /** 平台展示名：来自平台清单（后端 domain/platforms.go），新登记的平台同样适用。 */

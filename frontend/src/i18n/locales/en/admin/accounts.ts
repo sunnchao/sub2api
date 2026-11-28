@@ -610,6 +610,7 @@ export default {
       deleteConfirm: "Are you sure you want to delete '{name}'? This action cannot be undone.",
       // Create/Edit Account Modal
       platform: 'Platform',
+      manageCustomPlatforms: 'Manage custom platforms',
       accountName: 'Account Name',
       enterAccountName: 'Enter account name',
       accountType: 'Account Type',

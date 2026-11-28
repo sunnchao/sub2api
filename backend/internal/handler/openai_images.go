@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/domain"
 	pkghttputil "github.com/Wei-Shaw/sub2api/internal/pkg/httputil"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ip"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
@@ -68,7 +69,15 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 		setOpsRequestContext(c, "", false)
 	}
 
-	parsed, err := h.gatewayService.ParseOpenAIImagesRequest(c, body)
+	platform := ""
+	if apiKey.Group != nil {
+		platform = apiKey.Group.Platform
+	}
+	parsed, err := h.gatewayService.ParseOpenAIImagesRequestWithOptions(c, body, service.OpenAIImagesParseOptions{
+		// 自定义平台与 Composite（可能路由到自定义平台）允许任意图像模型名；
+		// 真正的平台归属在转发时按账号二次校验。
+		AllowCustomModel: domain.IsCustomPlatform(platform) || platform == service.PlatformComposite,
+	})
 	if err != nil {
 		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", err.Error())
 		return
@@ -80,7 +89,7 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 	if resolvedModel, ok := service.ResolvedUpstreamModelFromContext(c.Request.Context()); ok {
 		routingModel = resolvedModel
 	}
-	if !compositeTargetPlatformAllowed(c, apiKey, requestModel, service.PlatformOpenAI) {
+	if !compositeTargetCapabilityAllowed(c, apiKey, requestModel, domain.SupportsImages) {
 		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "Model is not supported by this OpenAI-compatible endpoint for composite groups")
 		return
 	}

@@ -1543,6 +1543,11 @@ func (a *Account) GetOpenAIBaseURL() string {
 	if baseURL := a.defaultProviderBaseURL(APIProtocolChatCompletions); baseURL != "" {
 		return baseURL
 	}
+	// 自定义平台可能只配置了 Anthropic / Responses 原生端点；此时不能回落到
+	// OpenAI 官方域名，避免把请求发到错误的上游。
+	if domain.IsCustomPlatform(a.Platform) {
+		return ""
+	}
 	return "https://api.openai.com"
 }
 
@@ -1676,6 +1681,55 @@ func (a *Account) GetOpenAIFormatBaseURL() string {
 		return baseURL
 	}
 	return a.GetOpenAIBaseURL()
+}
+
+// GetProtocolBaseURL 返回账号在指定上游协议下的 base URL，供 Embeddings /
+// Images 等非对话端点复用：显式凭证 api_base_urls[protocol] 优先，其次账号级
+// base_url（非 Anthropic 协议账号），再回落平台 provider profile 默认基址与
+// OpenAI 格式基址；自定义平台缺配置时返回空串，绝不回落 OpenAI 官方域名。
+func (a *Account) GetProtocolBaseURL(protocol string) string {
+	if a == nil {
+		return ""
+	}
+	protocol = strings.TrimSpace(protocol)
+	if baseURLs, ok := a.Credentials["api_base_urls"].(map[string]any); ok {
+		if baseURL, ok := baseURLs[protocol].(string); ok && strings.TrimSpace(baseURL) != "" {
+			return strings.TrimSpace(baseURL)
+		}
+	}
+	if !a.IsAnthropicProtocol() && (a.Type == AccountTypeAPIKey || a.Type == AccountTypeUpstream) {
+		if baseURL := strings.TrimSpace(a.GetCredential("base_url")); baseURL != "" {
+			return baseURL
+		}
+	}
+	profile := a.providerProfile()
+	if profile != nil {
+		mode := a.GetCredential("account_mode")
+		switch protocol {
+		case APIProtocolEmbeddings:
+			if baseURL := profile.DefaultEmbeddingsBaseURL(mode); baseURL != "" {
+				return baseURL
+			}
+		case APIProtocolImages:
+			if baseURL := profile.DefaultImagesBaseURL(mode); baseURL != "" {
+				return baseURL
+			}
+		default:
+			if baseURL := profile.DefaultBaseURL(mode, protocol); baseURL != "" {
+				return baseURL
+			}
+		}
+		if baseURL := profile.DefaultBaseURL(mode, APIProtocolChatCompletions); baseURL != "" {
+			return baseURL
+		}
+	}
+	if domain.IsCustomPlatform(a.Platform) {
+		return ""
+	}
+	if protocol == APIProtocolImages {
+		return a.GetOpenAIBaseURL()
+	}
+	return a.GetOpenAIFormatBaseURL()
 }
 
 // GetCNAPIKey 返回国产 OpenAI 兼容供应商账号的 api_key 凭据（kimi/zhipu/deepseek）。

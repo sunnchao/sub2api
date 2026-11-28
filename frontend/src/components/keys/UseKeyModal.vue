@@ -23,6 +23,16 @@
 
       <!-- Platform-specific content -->
       <template v-else>
+        <!-- Platform identity -->
+        <div class="flex items-center gap-2">
+          <span class="inline-flex" :class="platformIconClass(platform || '')">
+            <PlatformIcon :platform="platform || undefined" size="sm" />
+          </span>
+          <span class="text-sm font-semibold text-gray-900 dark:text-white">
+            {{ platformDisplayName(platform) }}
+          </span>
+        </div>
+
         <!-- Description -->
         <p class="text-sm text-gray-600 dark:text-gray-400">
           {{ platformDescription }}
@@ -272,8 +282,11 @@ import { useI18n } from 'vue-i18n'
 import { saveAs } from 'file-saver'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
+import PlatformIcon from '@/components/common/PlatformIcon.vue'
 import { useClipboard } from '@/composables/useClipboard'
 import { buildCodexModelCatalogUrl, fetchCodexModelsManifest } from '@/api/codex'
+import { getPlatformSpec, getProviderProfile, platformDisplayName } from '@/constants/platformCatalog'
+import { platformIconClass } from '@/utils/platformColors'
 import type { GroupPlatform } from '@/types'
 import { buildCodexApiKeyAuthConfig } from '@/utils/codexAuthConfig'
 import {
@@ -771,7 +784,13 @@ const currentFiles = computed((): FileConfig[] => {
       case 'grok':
         return [generateOpenCodeConfig('grok', apiBase, apiKey)]
       default:
-        return [generateOpenCodeConfig('openai', apiBase, apiKey)]
+        return [
+          generateOpenCodeConfig(
+            getPlatformSpec(props.platform)?.custom ? props.platform! : 'openai',
+            apiBase,
+            apiKey
+          )
+        ]
     }
   }
 
@@ -1341,7 +1360,7 @@ function generateRoutedCodexFiles(
     cline: 'Cline',
     composite: 'Composite'
   }
-  const label = labels[platform]
+  const label = labels[platform] || platformDisplayName(platform) || platform
   const envContent = isWindows
     ? `$env:SUB2API_API_KEY="${apiKey}"`
     : `export SUB2API_API_KEY="${apiKey}"`
@@ -2065,6 +2084,21 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
     provider[platform].npm = '@ai-sdk/openai-compatible'
     provider[platform].name = 'Grok via Sub2API'
     provider[platform].models = grokModels
+  } else if (getPlatformSpec(platform)?.custom) {
+    // 自定义平台按清单声明的上游协议选择 OpenCode 的 provider 实现。
+    const profile = getProviderProfile(platform)
+    const gateway = getPlatformSpec(platform)?.gateway
+    const supportsAnthropic = profile
+      ? profile.modes.some((mode) => !!mode.base_urls.anthropic)
+      : gateway === 'anthropic'
+    const supportsOpenAI = profile
+      ? profile.modes.some((mode) => !!mode.base_urls.chat_completions)
+      : gateway !== 'anthropic'
+    provider[platform].npm =
+      gateway === 'anthropic' || (supportsAnthropic && !supportsOpenAI)
+        ? '@ai-sdk/anthropic'
+        : '@ai-sdk/openai-compatible'
+    provider[platform].name = platformDisplayName(platform)
   }
 
   const agent =

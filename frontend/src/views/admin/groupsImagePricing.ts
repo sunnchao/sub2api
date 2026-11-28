@@ -1,3 +1,5 @@
+import { getPlatformSpec } from "@/constants/platformCatalog";
+
 export const imagePricingPlatforms = new Set([
   "antigravity",
   "composite",
@@ -7,13 +9,16 @@ export const imagePricingPlatforms = new Set([
 ]);
 
 export const supportsImagePricingPlatform = (platform: string): boolean =>
-  imagePricingPlatforms.has(platform);
+  imagePricingPlatforms.has(platform) || Boolean(getPlatformSpec(platform)?.supports_images);
 
 // 与后端 DefaultAllowImageGenerationForPlatform 一致：这些平台新建分组默认允许生图。
 const imageGenerationDefaultPlatforms = new Set(["antigravity", "gemini", "grok"]);
 
-export const defaultAllowImageGenerationForPlatform = (platform: string): boolean =>
-  imageGenerationDefaultPlatforms.has(platform);
+export const defaultAllowImageGenerationForPlatform = (platform: string): boolean => {
+  if (imageGenerationDefaultPlatforms.has(platform)) return true;
+  const spec = getPlatformSpec(platform);
+  return Boolean(spec?.custom && spec?.supports_images);
+};
 
 export const supportsVideoPricingPlatform = (platform: string): boolean =>
   platform === "grok";
